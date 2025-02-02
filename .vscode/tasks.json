@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Target",
+      "group": "build",
+      "type": "cmake",
+      "command": "build"
+    },
+    {
+      "label": "CMake: Clean",
+      "detail": "CMake template clean task",
+      "group": "build",
+      "type": "cmake",
+      "command": "clean",
+      "preset": "${command:cmake.activeBuildPresetName}"
+    },
+    {
+      "label": "CMake: Load",
+      "detail": "CMake Generate step",
+      "group": "build",
+      "type": "cmake",
+      "command": "configure",
+      "preset": "${command:cmake.activeConfigurePresetName}"
+    }
+  ]
+}

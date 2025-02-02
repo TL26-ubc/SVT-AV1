@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug ST-AV1",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/Bin/Debug/SvtAv1EncApp.exe", // Change this to your compiled
+      "args": [
+        "-i",
+        "${workspaceFolder}/Data/test.y4m",
+        "-b",
+        "${workspaceFolder}/Output/output.ivf"
+      ],
+      "stopAtEntry": true,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "MIMode": "gdb",
+      "externalConsole": false,
+      //   "preLaunchTask": "Build", // This runs a task before launching GDB
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    }
+  ]
+}
