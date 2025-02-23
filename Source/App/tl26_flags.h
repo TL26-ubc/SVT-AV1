@@ -5,3 +5,5 @@
 #include <Python.h>
 #endif
 
+void initialize_python();
+void finalize_python();

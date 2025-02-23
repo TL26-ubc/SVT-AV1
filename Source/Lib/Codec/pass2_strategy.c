@@ -24,7 +24,7 @@
 #include "sequence_control_set.h"
 #include "entropy_coding.h"
 
-#include "tl26_flags.h"
+#include "../../App/tl26_flags.h"
 
 static void init_gf_stats(GF_GROUP_STATS *gf_stats);
 // Calculate a modified Error used in distributing bits between easier and
@@ -1589,8 +1589,6 @@ void svt_aom_crf_assign_max_rate(PictureParentControlSet *ppcs) {
     int buff_lvl_step          = (OPTIMAL_BUFFER_LEVEL - CRITICAL_BUFFER_LEVEL);
     int adjustment             = 0;
     #ifdef TL26_RL
-    // Initialize the Python interpreter
-    Py_Initialize();
 
     // Import the tl26.QP module
     PyObject *pName = PyUnicode_DecodeFSDefault("tl26.QP");
@@ -1633,8 +1631,6 @@ void svt_aom_crf_assign_max_rate(PictureParentControlSet *ppcs) {
         fprintf(stderr, "Failed to load \"tl26.QP\"\n");
     }
 
-    // Finalize the Python interpreter
-    Py_Finalize();
     #else
     if (available_bit_ratio <= OPTIMAL_BUFFER_LEVEL) {
         if (available_bit_ratio > CRITICAL_BUFFER_LEVEL) {

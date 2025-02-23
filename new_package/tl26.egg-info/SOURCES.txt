@@ -1,7 +1,0 @@
-setup.py
-tl26/__init__.py
-tl26/quantization_parameter.py
-tl26.egg-info/PKG-INFO
-tl26.egg-info/SOURCES.txt
-tl26.egg-info/dependency_links.txt
-tl26.egg-info/top_level.txt
