@@ -54,6 +54,9 @@
 #if LOG_ENC_DONE
 int tot_frames_done = 0;
 #endif
+
+#include "tl26_flags.h"
+
 /***************************************
  * External Functions
  ***************************************/
@@ -503,6 +506,9 @@ int32_t main(int32_t argc, char* argv[]) {
     EncApp      enc_app;
     EncContext  enc_context;
 
+    // Initialize the Python interpreter
+    initialize_python();
+
     signal(SIGINT, event_handler);
     if (get_version(argc, argv))
         return 0;
@@ -534,5 +540,6 @@ int32_t main(int32_t argc, char* argv[]) {
 #if LOG_ENC_DONE
     fprintf(stderr, "all_done_encoding  %i frames \n", tot_frames_done);
 #endif
+    finalize_python();
     return return_error != EB_ErrorNone;
 }

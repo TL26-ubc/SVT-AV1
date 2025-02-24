@@ -31,3 +31,8 @@ third_party/safestringlib/dummy.c
 /offline_ci/
 Data/
 Output/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/

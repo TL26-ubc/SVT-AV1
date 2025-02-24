@@ -24,6 +24,8 @@
 #include "sequence_control_set.h"
 #include "entropy_coding.h"
 
+#include "../../App/tl26_flags.h"
+
 static void init_gf_stats(GF_GROUP_STATS *gf_stats);
 // Calculate a modified Error used in distributing bits between easier and
 // harder frames.
@@ -1586,6 +1588,50 @@ void svt_aom_crf_assign_max_rate(PictureParentControlSet *ppcs) {
     int available_frames_ratio = 100 * remaining_frames / frames_in_sw;
     int buff_lvl_step          = (OPTIMAL_BUFFER_LEVEL - CRITICAL_BUFFER_LEVEL);
     int adjustment             = 0;
+    #ifdef TL26_RL
+
+    // Import the tl26.QP module
+    PyObject *pName = PyUnicode_DecodeFSDefault("tl26.QP");
+    PyObject *pModule = PyImport_Import(pName);
+    Py_DECREF(pName);
+
+    if (pModule != NULL) {
+        // Get the reference to the calculate_adjustment function
+        PyObject *pFunc_calculate_adjustment = PyObject_GetAttrString(pModule, "calculate_adjustment");
+
+        if (PyCallable_Check(pFunc_calculate_adjustment)) {
+            PyObject *pArgs = PyTuple_Pack(5,
+                                           PyLong_FromLong(available_bit_ratio),
+                                           PyLong_FromLong(available_frames_ratio),
+                                           PyLong_FromLong(buff_lvl_step),
+                                           PyLong_FromLong(rc->active_worst_quality),
+                                           PyLong_FromLong(OPTIMAL_BUFFER_LEVEL),
+                                           PyLong_FromLong(CRITICAL_BUFFER_LEVEL)
+                                        );
+
+            // Call the Python function and get the result
+            PyObject *pValue = PyObject_CallObject(pFunc_calculate_adjustment, pArgs);
+            Py_DECREF(pArgs);
+
+            if (pValue != NULL) {
+                adjustment = PyLong_AsLong(pValue);
+                Py_DECREF(pValue);
+            } else {
+                PyErr_Print();
+                fprintf(stderr, "Call failed\n");
+            }
+        } else {
+            if (PyErr_Occurred()) PyErr_Print();
+            fprintf(stderr, "Cannot find function \"calculate_adjustment\"\n");
+        }
+        Py_XDECREF(pFunc_calculate_adjustment);
+        Py_DECREF(pModule);
+    } else {
+        PyErr_Print();
+        fprintf(stderr, "Failed to load \"tl26.QP\"\n");
+    }
+
+    #else
     if (available_bit_ratio <= OPTIMAL_BUFFER_LEVEL) {
         if (available_bit_ratio > CRITICAL_BUFFER_LEVEL) {
             int max_adjustment = (available_bit_ratio + 20 < available_frames_ratio) ? rc->active_worst_quality
@@ -1599,6 +1645,7 @@ void svt_aom_crf_assign_max_rate(PictureParentControlSet *ppcs) {
             adjustment = rc->active_worst_quality;
         }
     }
+    #endif
 #if DEBUG_RC_CAP_LOG
     printf("SW_POC:%lld\t%lld\t%lld\t%d%%\t%d%%\tadj:\t%d\n",
            ppcs->picture_number,

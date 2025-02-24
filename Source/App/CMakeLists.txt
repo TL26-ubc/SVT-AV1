@@ -9,6 +9,8 @@
 # PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
 #
 
+
+
 # APP Directory CMakeLists.txt
 
 # Include Subdirectories
@@ -33,15 +35,21 @@ set(all_files
     app_process_cmd.c
     svt_time.c
     svt_time.h
+    tl26_functions.c
+    tl26_flags.h
     )
-
-# App Source Files
-add_executable(SvtAv1EncApp
+    
+    # App Source Files
+    add_executable(SvtAv1EncApp
     ${all_files})
+    find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+    include_directories(${Python3_INCLUDE_DIRS})
+    target_link_libraries(SvtAv1EncApp ${Python3_LIBRARIES})
 
 if(TARGET safestringlib)
     target_sources(SvtAv1EncApp PRIVATE $<TARGET_OBJECTS:safestringlib>)
 endif()
+
 
 #********** SET COMPILE FLAGS************
 # Link the Encoder App
