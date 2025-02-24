@@ -296,8 +296,6 @@ set(all_files
 
 add_library(CODEC OBJECT ${all_files})
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-message(STATUS "Python3_INCLUDE_DIRS: ${Python3_INCLUDE_DIRS}")
-message(STATUS "Python3_LIBRARIES: ${Python3_LIBRARIES}")
 # Link Python libraries to the object library
 target_link_libraries(CODEC PRIVATE ${Python3_LIBRARIES})
 
