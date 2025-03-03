@@ -1,5 +1,10 @@
 {
   "files.associations": {
+    ".env*": "dotenv",
+    "\"[html]\"": "",
+    "*.txt": "plaintext",
+    "io.h": "c",
+    "*.metal": "cpp",
     "*.c": "c",
     "*.html": "html",
     "deque": "cpp",
@@ -20,6 +25,14 @@
     "set": "cpp",
     "unordered_map": "cpp",
     "unordered_set": "cpp",
-    "xmemory": "cpp"
+    "xmemory": "cpp",
+    "svt_log.h": "c",
+    "string.h": "c",
+    "app_config.h": "c",
+    "stdbool.h": "c",
+    "app_output_ivf.h": "c",
+    "app_context.h": "c",
+    "ebsvtav1enc.h": "c",
+    "svt_time.h": "c"
   }
 }
