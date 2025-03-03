@@ -1,5 +1,5 @@
 #include "tl26_flags.h"
-#include "svt_log.h"
+#include <stdlib.h>
 
 void initialize_python() {
     Py_Initialize();
@@ -8,7 +8,8 @@ void initialize_python() {
     PyObject *pName = PyUnicode_DecodeFSDefault("tl26.utils");
     if (!pName) {
         PyErr_Print();
-        panic("Error: Failed to decode module name 'tl26.utils'.\n");
+        fprintf(stderr, "Error: Failed to decode module name 'tl26.utils'.\n");
+        abort();
     }
 
     // Import the module
@@ -16,10 +17,11 @@ void initialize_python() {
     Py_DECREF(pName);
     if (!pModule) {
         PyErr_Print();
-        panic(stderr, "Error: Failed to import module 'tl26.utils'.\n");
+        fprintf(stderr, "Error: Failed to import module 'tl26.utils'.\n");
+        abort();
     }
 
-    SVT_INFO("Successfully loaded tl26 module!");
+    printf("Successfully loaded tl26 module!\n");
 }
 
 void finalize_python() {
