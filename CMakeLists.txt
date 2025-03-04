@@ -11,11 +11,16 @@
 
 cmake_minimum_required(VERSION 3.16)
 message(STATUS "CMake version: ${CMAKE_VERSION}")
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+message(STATUS "Python3_INCLUDE_DIRS: ${Python3_INCLUDE_DIRS}")
+message(STATUS "Python3_LIBRARIES: ${Python3_LIBRARIES}")
 add_subdirectory(new_package)
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
     message(WARNING "Building in-source is highly not recommended\n"
                     "Please use the Build folder or create your own.")
 endif()
+
+message(STATUS "asdfasdfasd  ${Python3_LIBRARIES}")
 
 project(svt-av1 VERSION 2.3.0
     LANGUAGES C CXX)
