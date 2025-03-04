@@ -1,0 +1,11 @@
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+message(STATUS "Python3_INCLUDE_DIRS: ${Python3_INCLUDE_DIRS}")
+message(STATUS "Python3_LIBRARIES: ${Python3_LIBRARIES}")
+function(link_python_library target)
+    target_link_libraries(${target} PRIVATE ${Python3_LIBRARIES})
+    target_link_directories(${target} PRIVATE ${Python3_INCLUDE_DIRS})
+endfunction()
+
+function(include_python_headers target)
+    target_include_directories(${target} PRIVATE ${Python3_INCLUDE_DIRS})
+endfunction()

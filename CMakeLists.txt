@@ -10,7 +10,8 @@
 #
 
 cmake_minimum_required(VERSION 3.16)
-
+message(STATUS "CMake version: ${CMAKE_VERSION}")
+add_subdirectory(new_package)
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
     message(WARNING "Building in-source is highly not recommended\n"
                     "Please use the Build folder or create your own.")

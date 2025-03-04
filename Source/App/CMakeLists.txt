@@ -40,6 +40,7 @@ set(all_files
 # Python src
 add_executable(SvtAv1EncApp ${all_files})
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+message(STATUS "Python3_INCLUDE_DIRS: ${Python3_INCLUDE_DIRS}")
 include_directories(${Python3_INCLUDE_DIRS})
 
 # Link the executable to shared library and Python libraries
