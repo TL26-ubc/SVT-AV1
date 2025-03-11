@@ -22,6 +22,16 @@
       "type": "cmake",
       "command": "configure",
       "preset": "${command:cmake.activeConfigurePresetName}"
+    },
+    {
+      "type": "cmake",
+      "label": "CMake: clean rebuild",
+      "command": "cleanRebuild",
+      "targets": ["all"],
+      "preset": "${command:cmake.activeBuildPresetName}",
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "CMake template clean rebuild task"
     }
   ]
 }
