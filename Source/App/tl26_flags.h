@@ -3,7 +3,10 @@
 
 #ifdef TL26_RL
 #include <Python.h>
-#endif
+
+extern PyObject *f_frame_report_feedback, *f_sb_send_offset_request;
 
 void initialize_python();
 void finalize_python();
+
+#endif

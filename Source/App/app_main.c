@@ -507,7 +507,9 @@ int32_t main(int32_t argc, char* argv[]) {
     EncContext  enc_context;
 
     // Initialize the Python interpreter
+#ifdef TL26_RL
     initialize_python();
+#endif
 
     signal(SIGINT, event_handler);
     if (get_version(argc, argv))

@@ -34,6 +34,9 @@
 
 #include "app_output_ivf.h"
 
+#include "tl26_feedback.h"
+#include "tl26_flags.h"
+
 /***************************************
  * Macros
  ***************************************/
@@ -914,6 +917,10 @@ void process_output_stream_buffer(EncChannel *channel, EncApp *enc_app, int32_t 
 
                 if (app_cfg->config.stat_report && !(flags & EB_BUFFERFLAG_IS_ALT_REF))
                     process_output_statistics_buffer(header_ptr, app_cfg);
+#ifdef TL26_RL
+                // update the python code with frame info:
+                report_frame_feedback(header_ptr, app_cfg);
+#endif
 
                 // Update Output Port Activity State
                 return_value = APP_ExitConditionNone;

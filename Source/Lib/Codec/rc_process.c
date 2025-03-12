@@ -40,6 +40,9 @@
 #include "src_ops_process.h"
 #include "enc_mode_config.h"
 
+#include "tl26_request.h"
+#include "../../App/tl26_flags.h"
+
 // Specifies the weights of the ref frame in calculating qindex of non base layer frames
 static const int non_base_qindex_weight_ref[EB_MAX_TEMPORAL_LAYERS] = {100, 100, 100, 100, 100, 100};
 // Specifies the weights of the worst quality in calculating qindex of non base layer frames
@@ -1557,8 +1560,14 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
         for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {
             SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
             double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
+
+#ifdef TL26_RL
+            int         offset = request_sb_offset(sb_ptr, 
+                scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
+#else
             int         offset = svt_av1_get_deltaq_offset(
                 scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
+#endif
             offset = AOMMIN(offset, pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 - 1);
             offset = AOMMAX(offset, -pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 + 1);
 

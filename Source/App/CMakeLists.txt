@@ -37,6 +37,8 @@ set(all_files
     svt_time.h
     tl26_functions.c
     tl26_flags.h
+    tl26_feedback.c
+    tl26_feedback.h
     )
     
     # App Source Files

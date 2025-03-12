@@ -292,6 +292,8 @@ set(all_files
         vector.h
         warped_motion.c
         warped_motion.h
+        tl26_request.h
+        tl26_request.c
         )
 
 add_library(CODEC OBJECT ${all_files})
