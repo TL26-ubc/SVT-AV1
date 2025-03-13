@@ -1,3 +1,6 @@
+from .train import train
+
+
 class TileInfo:
     def __init__(self, mi_row_start: int, mi_row_end: int, 
                  mi_col_start: int, mi_col_end: int, 
@@ -71,4 +74,8 @@ def sb_send_offset_request(
     request = Reqeust_sb_offset(superblock, encoder_bit_depth, same_qindex, beta, slice_type_is_I_SLICE)
     print("Requesting SB offset")
     print(request.to_float_list())
-    return 35
+    
+    done = False
+    state = superblock.to_float_list()
+    next_state  = state # TODO: implement next state
+    return train(state, next_state)
