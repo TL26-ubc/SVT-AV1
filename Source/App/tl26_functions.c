@@ -2,23 +2,21 @@
 #include <stdlib.h>
 
 void initialize_python() {
+    // Initialize the Python interpreter
     Py_Initialize();
-
-    // Convert module name to a Python object
-    PyObject *pName = PyUnicode_DecodeFSDefault("tl26.utils");
-    if (!pName) {
-        PyErr_Print();
-        fprintf(stderr, "Error: Failed to decode module name 'tl26.utils'.\n");
-        abort();
-    }
-
-    // Import the module
+    PyObject *pName   = PyUnicode_DecodeFSDefault("tl26.utils");
     PyObject *pModule = PyImport_Import(pName);
     Py_DECREF(pName);
-    if (!pModule) {
+    PyObject *python_greetings = PyObject_GetAttrString(pModule, "hello_SVTAV1");
+    if (PyCallable_Check(python_greetings)) {
+        PyObject *pValue = PyObject_CallObject(python_greetings, NULL);
+        if (pValue != NULL) {
+            Py_DECREF(pValue);
+        } else {
+            PyErr_Print();
+        }
+    } else {
         PyErr_Print();
-        fprintf(stderr, "Error: Failed to import module 'tl26.utils'.\n");
-        abort();
     }
 
     printf("Successfully loaded tl26 module!\n");
