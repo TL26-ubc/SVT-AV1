@@ -41,7 +41,10 @@ class DQNAgent:
             q_values = self.model(state)
         return q_values.argmax().item()
     
-    def train(self):
+    # TODO: break it into two steps.
+    # state: frame state and SB 
+    # action: list of delta Q values
+    def forward(self):
         if len(self.replay_buffer) < self.batch_size:
             return
         
