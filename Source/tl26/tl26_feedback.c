@@ -14,6 +14,7 @@ static void report_frame_feedback_helper(int picture_number, int temporal_layer_
                                          double luma_psnr, double cb_psnr, double cr_psnr, double mse_y, double mse_u,
                                          double mse_v, double luma_ssim, double cb_ssim, double cr_ssim,
                                          int picture_stream_size) {
+    PyObject *f_frame_report_feedback = get_f_frame_report_feedback();
     // call the frame_report_feedback function
     if (PyCallable_Check(f_frame_report_feedback)) {
         PyObject *args = Py_BuildValue(

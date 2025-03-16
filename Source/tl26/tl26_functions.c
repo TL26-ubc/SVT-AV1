@@ -1,7 +1,7 @@
 #include "tl26_flags.h"
 
 #ifdef TL26_RL
-PyObject *f_frame_report_feedback, *f_sb_send_offset_request;
+static PyObject *f_frame_report_feedback, *f_sb_send_offset_request;
 
 static void initialize_communications() {
     // import the functions from tl.feedback
@@ -50,6 +50,14 @@ void finalize_python() {
 
     // Finalize the Python interpreter
     Py_Finalize();
+}
+
+PyObject *get_f_frame_report_feedback() {
+    return f_frame_report_feedback;
+}
+
+PyObject *get_f_sb_send_offset_request() {
+    return f_sb_send_offset_request;
 }
 
 #endif

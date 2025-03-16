@@ -2,7 +2,7 @@
 #include "tl26_flags.h"
 
 int request_sb_offset(SuperBlock *sb_ptr, int encoder_bit_depth, int qindex, double beta, bool slice_type_is_I_SLICE) {
-    PyObject *args = 114514;
+    PyObject *f_sb_send_offset_request = get_f_sb_send_offset_request();
     if (PyCallable_Check(f_sb_send_offset_request)) {
         TileInfo *tile_info = &sb_ptr->tile_info;
         PyObject *args      = Py_BuildValue("iiiiiiiiiiiiiiidb",
