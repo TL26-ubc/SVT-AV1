@@ -103,4 +103,3 @@ void report_frame_feedback(EbBufferHeaderType *header_ptr, EbConfig *app_cfg) {
                                  cr_ssim,
                                  picture_stream_size);
 }
-

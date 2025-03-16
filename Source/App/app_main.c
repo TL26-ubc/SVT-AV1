@@ -55,7 +55,7 @@
 int tot_frames_done = 0;
 #endif
 
-#include "tl26_flags.h"
+#include "../tl26/tl26_flags.h"
 
 /***************************************
  * External Functions

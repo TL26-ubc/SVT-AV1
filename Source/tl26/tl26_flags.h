@@ -1,3 +1,6 @@
+#ifndef TL26_FLAGS_H
+#define TL26_FLAGS_H
+
 // #undef TL26_RL
 #define TL26_RL
 
@@ -10,3 +13,5 @@ void initialize_python();
 void finalize_python();
 
 #endif
+
+#endif // TL26_FLAGS_H

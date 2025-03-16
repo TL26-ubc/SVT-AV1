@@ -292,8 +292,6 @@ set(all_files
         vector.h
         warped_motion.c
         warped_motion.h
-        tl26_request.h
-        tl26_request.c
         )
 
 add_library(CODEC OBJECT ${all_files})
@@ -303,3 +301,7 @@ target_link_libraries(CODEC PRIVATE ${Python3_LIBRARIES})
 
 # If you need to include Python headers
 target_include_directories(CODEC PRIVATE ${Python3_INCLUDE_DIRS})
+
+# Include directories for CODEC
+target_include_directories(CODEC PRIVATE ${PROJECT_SOURCE_DIR}/Source/tl26)
+target_link_libraries(CODEC PUBLIC tl26)

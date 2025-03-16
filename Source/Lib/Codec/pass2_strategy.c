@@ -24,7 +24,7 @@
 #include "sequence_control_set.h"
 #include "entropy_coding.h"
 
-#include "../../App/tl26_flags.h"
+// #include "../../App/tl26_flags.h"
 
 static void init_gf_stats(GF_GROUP_STATS *gf_stats);
 // Calculate a modified Error used in distributing bits between easier and

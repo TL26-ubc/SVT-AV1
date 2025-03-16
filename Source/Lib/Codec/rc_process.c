@@ -40,8 +40,8 @@
 #include "src_ops_process.h"
 #include "enc_mode_config.h"
 
-#include "tl26_request.h"
-#include "../../App/tl26_flags.h"
+#include "../../tl26/tl26_request.h"
+#include "../../tl26/tl26_flags.h"
 
 // Specifies the weights of the ref frame in calculating qindex of non base layer frames
 static const int non_base_qindex_weight_ref[EB_MAX_TEMPORAL_LAYERS] = {100, 100, 100, 100, 100, 100};

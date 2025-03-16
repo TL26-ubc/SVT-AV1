@@ -35,10 +35,6 @@ set(all_files
     app_process_cmd.c
     svt_time.c
     svt_time.h
-    tl26_functions.c
-    tl26_flags.h
-    tl26_feedback.c
-    tl26_feedback.h
     )
     
     # App Source Files
@@ -47,6 +43,9 @@ set(all_files
     find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
     include_directories(${Python3_INCLUDE_DIRS})
     target_link_libraries(SvtAv1EncApp ${Python3_LIBRARIES})
+    # Ensure the tl26 library exists or remove these lines if not needed
+
+    target_link_libraries(SvtAv1EncApp tl26)
 
 if(TARGET safestringlib)
     target_sources(SvtAv1EncApp PRIVATE $<TARGET_OBJECTS:safestringlib>)
