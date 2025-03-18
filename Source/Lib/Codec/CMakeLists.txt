@@ -295,13 +295,18 @@ set(all_files
         )
 
 add_library(CODEC OBJECT ${all_files})
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-# Link Python libraries to the object library
-target_link_libraries(CODEC PRIVATE ${Python3_LIBRARIES})
+# find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+# # Link Python libraries to the object library
+# target_link_libraries(CODEC PRIVATE ${Python3_LIBRARIES})
 
-# If you need to include Python headers
-target_include_directories(CODEC PRIVATE ${Python3_INCLUDE_DIRS})
+# # If you need to include Python headers
+# target_include_directories(CODEC PRIVATE ${Python3_INCLUDE_DIRS})
 
 # Include directories for CODEC
 target_include_directories(CODEC PRIVATE ${PROJECT_SOURCE_DIR}/Source/tl26)
 target_link_libraries(CODEC PUBLIC tl26)
+
+
+set(CMAKE_C_VISIBILITY_PRESET default)
+set(CMAKE_CXX_VISIBILITY_PRESET default)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)

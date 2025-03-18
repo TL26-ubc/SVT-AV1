@@ -40,9 +40,9 @@ set(all_files
     # App Source Files
     add_executable(SvtAv1EncApp
     ${all_files})
-    find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-    include_directories(${Python3_INCLUDE_DIRS})
-    target_link_libraries(SvtAv1EncApp ${Python3_LIBRARIES})
+    # find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+    # include_directories(${Python3_INCLUDE_DIRS})
+    # target_link_libraries(SvtAv1EncApp ${Python3_LIBRARIES})
     # Ensure the tl26 library exists or remove these lines if not needed
 
     target_link_libraries(SvtAv1EncApp tl26)

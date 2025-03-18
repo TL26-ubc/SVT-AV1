@@ -22,10 +22,15 @@ static void initialize_communications() {
 void initialize_python() {
     // Initialize the Python interpreter
     Py_Initialize();
+
+    PyGILState_STATE state = PyGILState_Ensure();
+
     PyObject *pName   = PyUnicode_DecodeFSDefault("tl26.utils");
     PyObject *pModule = PyImport_Import(pName);
     Py_DECREF(pName);
     PyObject *python_greetings = PyObject_GetAttrString(pModule, "hello_SVTAV1");
+
+
     if (PyCallable_Check(python_greetings)) {
         PyObject *pValue = PyObject_CallObject(python_greetings, NULL);
         if (pValue != NULL) {
@@ -41,6 +46,8 @@ void initialize_python() {
 
     // Initialize the communication functions for SVT-AV1 and Python
     initialize_communications();
+
+    PyGILState_Release(state);
 }
 
 void finalize_python() {

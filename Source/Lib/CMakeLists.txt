@@ -144,6 +144,13 @@ elseif(NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
     target_link_libraries(SvtAv1Enc PRIVATE cpuinfo_public)
 endif()
 
+# find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+# # Link Python libraries to the object library
+# target_link_libraries(SvtAv1Enc PRIVATE ${Python3_LIBRARIES})
+
+# # If you need to include Python headers
+# target_include_directories(SvtAv1Enc PRIVATE ${Python3_INCLUDE_DIRS})
+
 set(ENC_PKG_CONFIG_EXTRA_CFLAGS "")
 if (BUILD_SHARED_LIBS)
     target_compile_definitions(SvtAv1Enc
@@ -158,3 +165,8 @@ install(TARGETS SvtAv1Enc
 
 configure_file(pkg-config.pc.in ${CMAKE_BINARY_DIR}/SvtAv1Enc.pc @ONLY)
 install(FILES ${CMAKE_BINARY_DIR}/SvtAv1Enc.pc DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+
+
+set(CMAKE_C_VISIBILITY_PRESET default)
+set(CMAKE_CXX_VISIBILITY_PRESET default)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)

@@ -5,26 +5,31 @@ set(LIB_NAME tl26)
 
 # Include Subdirectories
 include_directories(${PROJECT_SOURCE_DIR}/Source/API/)
+include_directories(${PROJECT_SOURCE_DIR}/Source/Lib/Codec/)
 
 set(SOURCES
-tl26_feedback.c
-tl26_feedback.h
 tl26_flags.h
 tl26_functions.c
-tl26_request.c
+tl26_feedback.h
+tl26_feedback.c
 tl26_request.h
+tl26_request.c
 )
+
+set(CMAKE_C_VISIBILITY_PRESET default)
+set(CMAKE_CXX_VISIBILITY_PRESET default)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)
+
+add_library(${LIB_NAME} STATIC ${SOURCES})
 
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-# Add the library
-add_library(${LIB_NAME} OBJECT ${SOURCES})
 
 # Link Python libraries to the library
-target_link_libraries(${LIB_NAME} PRIVATE ${Python3_LIBRARIES})
+target_link_libraries(${LIB_NAME} PUBLIC ${Python3_LIBRARIES})
 
 # Include Python headers for the library
-target_include_directories(${LIB_NAME} PRIVATE ${Python3_INCLUDE_DIRS})
+target_include_directories(${LIB_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
 
-# Specify include directories for this library
-# target_include_directories(${LIB_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} /home/tom/tl26/SVT-AV1/Source/Lib/APP)
+# add_library(${LIB_NAME} OBJECT ${SOURCES})
+# Add the library
