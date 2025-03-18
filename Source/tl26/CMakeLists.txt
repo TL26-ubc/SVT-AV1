@@ -20,7 +20,7 @@ set(CMAKE_C_VISIBILITY_PRESET default)
 set(CMAKE_CXX_VISIBILITY_PRESET default)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)
 
-add_library(${LIB_NAME} STATIC ${SOURCES})
+add_library(${LIB_NAME} SHARED ${SOURCES})
 
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
