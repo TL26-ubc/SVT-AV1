@@ -8,9 +8,15 @@
       "program": "${workspaceFolder}/Bin/Debug/SvtAv1EncApp.exe", // Change this to your compiled
       "args": [
         "-i",
-        "${workspaceFolder}/Data/test.y4m",
+        "${workspaceFolder}/Data/akiyo_qcif.y4m",
         "-b",
-        "${workspaceFolder}/Output/output.ivf"
+        "${workspaceFolder}/Output/output.ivf",
+        "--rc",
+        "0",
+        "--enable-stat-report",
+        "1",
+        "--stat-file",
+        "output.csv"
       ],
       "stopAtEntry": true,
       "cwd": "${workspaceFolder}",
