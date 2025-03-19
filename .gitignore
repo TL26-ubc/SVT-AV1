@@ -31,6 +31,7 @@ third_party/safestringlib/dummy.c
 /offline_ci/
 Data/
 Output/
+.vscode/*
 
 # python
 __pycache__/
