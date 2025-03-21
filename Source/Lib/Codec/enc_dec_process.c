@@ -26,6 +26,8 @@
 #include "pic_analysis_process.h"
 #include "resize.h"
 #include "enc_mode_config.h"
+#include "tl26_flags.h"
+#include "sb_feedback.h"
 
 void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, Bool is_highbd);
 void copy_mv_rate(PictureControlSet *pcs, MdRateEstimationContext *dst_rate);
@@ -1161,7 +1163,7 @@ EbErrorType svt_aom_ssim_calculations(PictureControlSet *pcs, SequenceControlSet
     EB_DELETE(upscaled_recon);
     return EB_ErrorNone;
 }
-// #ifdef TL26_RL
+#ifdef TL26_RL
 EbErrorType svt_aom_ssim_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory,
                                          double *luma_ssim_out, double *cb_ssim_out, double *cr_ssim_out) {
     Bool is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
@@ -1406,7 +1408,7 @@ EbErrorType svt_aom_ssim_calculations_sb(PictureControlSet *pcs, SequenceControl
     EB_DELETE(upscaled_recon);
     return EB_ErrorNone;
 }
-// #endif
+#endif
 
 EbErrorType psnr_calculations(PictureControlSet *pcs, SequenceControlSet *scs, Bool free_memory) {
     Bool is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
@@ -1844,7 +1846,7 @@ EbErrorType psnr_calculations(PictureControlSet *pcs, SequenceControlSet *scs, B
     EB_DELETE(upscaled_recon);
     return EB_ErrorNone;
 }
-// #ifdef TL26_RL
+#ifdef TL26_RL
 EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory, 
                                  uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out) {
     Bool is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
@@ -2126,7 +2128,7 @@ EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs
     EB_DELETE(upscaled_recon);
     return EB_ErrorNone;
 }
-// #endif
+#endif
 
 void pad_ref_and_set_flags(PictureControlSet *pcs, SequenceControlSet *scs) {
     EbReferenceObject *ref_object = (EbReferenceObject *)pcs->ppcs->ref_pic_wrapper->object_ptr;
@@ -4061,8 +4063,7 @@ void *svt_aom_mode_decision_kernel(void *input_ptr) {
                             svt_aom_encode_decode(scs, pcs, sb_ptr, sb_index, sb_origin_x, sb_origin_y, ed_ctx);
                         }
 
-                        // printf("Superblock stats for Frame %llu, SB %d\n", pcs->picture_number, sb_index);
-                        // #ifdef TL26_RL
+                        #ifdef TL26_RL
                         // Compute ssim and sse (used for mse/psnr)
                         uint64_t luma_sse; uint64_t cb_sse; uint64_t cr_sse;
                         EbErrorType return_error = psnr_calculations_sb(pcs, scs, sb_ptr, FALSE, &luma_sse, &cb_sse, &cr_sse);
@@ -4083,47 +4084,18 @@ void *svt_aom_mode_decision_kernel(void *input_ptr) {
 
                         printf("Superblock stats for Frame %llu, SB %d\n[SSE] luma: %llu, cr: %llu, cb: %llu\n[SSIM] luma: %f, cr: %f, cb: %f\n", pcs->picture_number, sb_index, luma_sse, cb_sse, cr_sse, luma_ssim, cb_ssim, cr_ssim);
 
-                        // // Import the tl26.QP module
-                        // PyObject *pName = PyUnicode_DecodeFSDefault("tl26.QP");
-                        // PyObject *pModule = PyImport_Import(pName);
-                        // Py_DECREF(pName);
+                        uint32_t max_luma_value = (scs->static_config.encoder_bit_depth == 8) ? 255 : 1023;
 
-                        // if (pModule != NULL) {
-                        //     // Get the reference to the calculate_adjustment function
-                        //     PyObject *pFunc_calculate_adjustment = PyObject_GetAttrString(pModule, "calculate_adjustment");
-
-                        //     if (PyCallable_Check(pFunc_calculate_adjustment)) {
-                        //         PyObject *pArgs = PyTuple_Pack(5,
-                        //                                     PyLong_FromLong(available_bit_ratio),
-                        //                                     PyLong_FromLong(available_frames_ratio),
-                        //                                     PyLong_FromLong(buff_lvl_step),
-                        //                                     PyLong_FromLong(rc->active_worst_quality),
-                        //                                     PyLong_FromLong(OPTIMAL_BUFFER_LEVEL),
-                        //                                     PyLong_FromLong(CRITICAL_BUFFER_LEVEL)
-                        //                                     );
-
-                        //         // Call the Python function and get the result
-                        //         PyObject *pValue = PyObject_CallObject(pFunc_calculate_adjustment, pArgs);
-                        //         Py_DECREF(pArgs);
-
-                        //         if (pValue != NULL) {
-                        //             adjustment = PyLong_AsLong(pValue);
-                        //             Py_DECREF(pValue);
-                        //         } else {
-                        //             PyErr_Print();
-                        //             fprintf(stderr, "Call failed\n");
-                        //         }
-                        //     } else {
-                        //         if (PyErr_Occurred()) PyErr_Print();
-                        //         fprintf(stderr, "Cannot find function \"calculate_adjustment\"\n");
-                        //     }
-                        //     Py_XDECREF(pFunc_calculate_adjustment);
-                        //     Py_DECREF(pModule);
-                        // } else {
-                        //     PyErr_Print();
-                        //     fprintf(stderr, "Failed to load \"tl26.QP\"\n");
-                        // }
-                        // #endif
+                        report_sb_feedback(
+                            pcs->picture_number, 
+                            max_luma_value,
+                            sb_index, sb_origin_x, sb_origin_y,
+                            MIN(scs->sb_size, ppcs->aligned_width - sb_ptr->org_x),
+                            MIN(scs->sb_size, ppcs->aligned_height - sb_ptr->org_y),
+                            luma_sse, cb_sse, cr_sse, 
+                            luma_ssim, cb_ssim, cr_ssim
+                        );
+                        #endif
 
                         svt_aom_encdec_update(scs, pcs, sb_ptr, sb_index, sb_origin_x, sb_origin_y, ed_ctx);
 
