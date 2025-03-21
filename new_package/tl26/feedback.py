@@ -32,7 +32,7 @@ class Frame_feedback:
                 float(self.picture_stream_size)]
         
     def report(self):
-        print (f"Frame_feedback(picture_number={self.picture_number}, temporal_layer_index={self.temporal_layer_index}, qp={self.qp}, ave_qp={self.ave_qp}, " + \
+        print(f"Frame_feedback(picture_number={self.picture_number}, temporal_layer_index={self.temporal_layer_index}, qp={self.qp}, ave_qp={self.ave_qp}, " + \
                 f"psnr_y={self.psnr_y}, psnr_u={self.psnr_u}, psnr_v={self.psnr_v}, " + \
                 f"mse_y={self.mse_y}, mse_u={self.mse_u}, mse_v={self.mse_v}, " + \
                 f"ssim_y={self.ssim_y}, ssim_u={self.ssim_u}, ssim_v={self.ssim_v}, " + \
@@ -85,7 +85,7 @@ class Superblock_feedback:
                 float(self.ssim_y), float(self.ssim_u), float(self.ssim_v)]
         
     def report(self):
-        print (f"Frame_feedback(picture_number={self.picture_number}, sb_index={self.sb_index}, " + \
+        print (f"Superblock_feedback(picture_number={self.picture_number}, sb_index={self.sb_index}, " + \
                 f"sb_offset_x={self.sb_offset_x}, sb_offset_y={self.sb_offset_y}, " + \
                 f"psnr_y={self.psnr_y}, psnr_u={self.psnr_u}, psnr_v={self.psnr_v}, " + \
                 f"mse_y={self.mse_y}, mse_u={self.mse_u}, mse_v={self.mse_v}, " + \

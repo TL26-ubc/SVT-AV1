@@ -1,7 +1,7 @@
 #include "tl26_flags.h"
-#include "sb_feedback.h"
+#include "tl26_sb_feedback.h"
 #include "tl26_python_thread.h"
-#include "utils.h"
+#include "tl26_utils.h"
 
 #ifdef TL26_RL
 void report_sb_feedback(int picture_number, uint32_t max_luma_value,

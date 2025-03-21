@@ -27,7 +27,7 @@
 #include "resize.h"
 #include "enc_mode_config.h"
 #include "tl26_flags.h"
-#include "sb_feedback.h"
+#include "tl26_sb_feedback.h"
 
 void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, Bool is_highbd);
 void copy_mv_rate(PictureControlSet *pcs, MdRateEstimationContext *dst_rate);
@@ -4082,7 +4082,7 @@ void *svt_aom_mode_decision_kernel(void *input_ptr) {
                                                "calculations");
                         }
 
-                        printf("Superblock stats for Frame %llu, SB %d\n[SSE] luma: %llu, cr: %llu, cb: %llu\n[SSIM] luma: %f, cr: %f, cb: %f\n", pcs->picture_number, sb_index, luma_sse, cb_sse, cr_sse, luma_ssim, cb_ssim, cr_ssim);
+                        // printf("Superblock stats for Frame %llu, SB %d\n[SSE] luma: %llu, cr: %llu, cb: %llu\n[SSIM] luma: %f, cr: %f, cb: %f\n", pcs->picture_number, sb_index, luma_sse, cb_sse, cr_sse, luma_ssim, cb_ssim, cr_ssim);
 
                         uint32_t max_luma_value = (scs->static_config.encoder_bit_depth == 8) ? 255 : 1023;
 
