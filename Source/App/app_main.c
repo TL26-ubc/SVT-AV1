@@ -542,6 +542,7 @@ int32_t main(int32_t argc, char* argv[]) {
 #if LOG_ENC_DONE
     fprintf(stderr, "all_done_encoding  %i frames \n", tot_frames_done);
 #endif
+
     finalize_python();
     return return_error != EB_ErrorNone;
 }

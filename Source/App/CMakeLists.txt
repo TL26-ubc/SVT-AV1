@@ -9,11 +9,9 @@
 # PATENTS file, you can obtain it at https://www.aomedia.org/license/patent-license.
 #
 
-
-
 # APP Directory CMakeLists.txt
 
-# Include Subdirectories
+# Include API headers
 include_directories(${PROJECT_SOURCE_DIR}/Source/API/)
 
 set(all_files
@@ -38,30 +36,37 @@ set(all_files
     )
     
     # App Source Files
-    add_executable(SvtAv1EncApp
-    ${all_files})
-    # find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-    # include_directories(${Python3_INCLUDE_DIRS})
-    # target_link_libraries(SvtAv1EncApp ${Python3_LIBRARIES})
-    # Ensure the tl26 library exists or remove these lines if not needed
+    add_executable(SvtAv1EncApp ${all_files})
 
     target_link_libraries(SvtAv1EncApp tl26)
 
-if(TARGET safestringlib)
-    target_sources(SvtAv1EncApp PRIVATE $<TARGET_OBJECTS:safestringlib>)
-endif()
+# Python src
+include_directories(${Python3_INCLUDE_DIRS})
 
-
-#********** SET COMPILE FLAGS************
-# Link the Encoder App
+# Link the executable to shared library and Python libraries
 target_link_libraries(SvtAv1EncApp
-        SvtAv1Enc)
+    SvtAv1Enc
+    ${Python3_LIBRARIES}
+)
+
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Android")
     target_link_libraries(SvtAv1EncApp ${PLATFORM_LIBS})
 elseif(UNIX)
     target_link_libraries(SvtAv1EncApp
         pthread
-        m)
+        m
+    )
+endif()
+
+if(TARGET safestringlib)
+    target_sources(SvtAv1EncApp PRIVATE $<TARGET_OBJECTS:safestringlib>)
+endif()
+
+# On macOS, set the shared library (SvtAv1Enc) to use dynamic lookup for Python symbols
+if(APPLE)
+    if(TARGET SvtAv1Enc)
+        set_target_properties(SvtAv1Enc PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+    endif()
 endif()
 
 install(TARGETS SvtAv1EncApp RUNTIME DESTINATION ${CMAKE_INSTALL_FULL_BINDIR})
