@@ -17,8 +17,6 @@ void finalize_python() {
     signal_python_thread_termination();
     shutdown_python_thread();
     
-    usleep(300000);
-    
     PyEval_AcquireThread(main_thread_state);
     
     Py_Finalize();

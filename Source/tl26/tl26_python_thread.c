@@ -213,8 +213,6 @@ void shutdown_python_thread(void) {
     pthread_cond_broadcast(&py_thread_state.queue.not_full);
     pthread_mutex_unlock(&py_thread_state.queue.mutex);
     
-    // 3. Allow time for thread to process
-    usleep(100000);  // 100ms
     
     // 4. Join the thread and clean up resources
     pthread_join(py_thread_state.thread_id, NULL);
