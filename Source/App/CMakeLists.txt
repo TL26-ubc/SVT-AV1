@@ -33,12 +33,14 @@ set(all_files
     app_process_cmd.c
     svt_time.c
     svt_time.h
-    tl26_functions.c
-    tl26_flags.h
     )
+    
+    # App Source Files
+    add_executable(SvtAv1EncApp ${all_files})
+
+    target_link_libraries(SvtAv1EncApp tl26)
 
 # Python src
-add_executable(SvtAv1EncApp ${all_files})
 include_directories(${Python3_INCLUDE_DIRS})
 
 # Link the executable to shared library and Python libraries

@@ -637,8 +637,9 @@ endif()
 # Add Subdirectories
 add_subdirectory(Source/Lib)
 if(BUILD_APPS)
-    add_subdirectory(Source/App)
+add_subdirectory(Source/App)
 endif()
+add_subdirectory(Source/tl26)
 if(SVT_AV1_PGO)
     string(REPLACE ";" "::" SVT_AV1_PGO_CUSTOM_VIDEOS "${SVT_AV1_PGO_CUSTOM_VIDEOS}")
 
