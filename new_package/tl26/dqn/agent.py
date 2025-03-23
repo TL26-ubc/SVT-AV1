@@ -1,10 +1,11 @@
 import random
+from collections import deque
+
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from .model import DQN
-from collections import deque
 
+from .model import DQN
 
 # Q network take state as input and output Q values for each action
 
@@ -29,7 +30,7 @@ class DQNAgent:
         self.num_actions = num_actions
         self.gamma = gamma
         self.batch_size = batch_size
-        self.replay_buffer = ReplayBuffer(buffer_size)
+        # self.replay_buffer = ReplayBuffer(buffer_size)
         self.model = DQN(input_shape, num_actions).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
     
@@ -44,24 +45,53 @@ class DQNAgent:
     # TODO: break it into two steps.
     # state: frame state and SB 
     # action: list of delta Q values
-    def forward(self):
-        if len(self.replay_buffer) < self.batch_size:
-            return
+    def forward(self, state):
+        """
+        Forward pass to select an action based on the current state
         
-        batch = self.replay_buffer.sample(self.batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch)
+        Parameters:
+        - state: Current state observation
         
-        states = torch.FloatTensor(states).unsqueeze(1).to(self.device)
+        Returns:
+        - action: Selected action (quantization parameter offset)
+        - q_values: Raw Q-values for debugging (optional)
+        """
+        # Convert state to tensor and add batch & channel dimensions
+        state_tensor = torch.FloatTensor(state).unsqueeze(0).unsqueeze(0).to(self.device)
+        
+        # Get Q-values from model
+        with torch.no_grad():
+            q_values = self.model(state_tensor)
+        
+        # Select action with highest Q-value
+        action = q_values.argmax(dim=1).item()
+        
+        return action, q_values.cpu().numpy()
+
+    def backward(self, states, actions, rewards, next_states, dones):
+        """
+        Backward pass to update the model based on experience
+        
+        Parameters:
+        - states: Batch of current states
+        - actions: Batch of actions taken
+        - rewards: Batch of rewards received
+        - next_states: Batch of next states
+        - dones: Batch of done flags indicating if episode ended
+        
+        Returns:
+        - loss: Training loss value
+        """
+        # Convert inputs to tensors and move to device
+        states = torch.FloatTensor(states).unsqueeze(1).to(self.device)  # Add channel dimension
         next_states = torch.FloatTensor(next_states).unsqueeze(1).to(self.device)
         actions = torch.LongTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
         dones = torch.FloatTensor(dones).to(self.device)
         
-        q_values = self.model(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        next_q_values = self.model(next_states).max(1)[0]
-        expected_q_values = rewards + self.gamma * next_q_values * (1 - dones)
+        # Compute current Q values
+        current_q_values = self.model(states).gather(1, actions.unsqueeze(1)).squeeze(1)
         
-        loss = F.mse_loss(q_values, expected_q_values.detach())
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+        # Compute next Q values
+        with torch.no_grad():
+            next_q_values = self.model(next_states).max(1)[0]
