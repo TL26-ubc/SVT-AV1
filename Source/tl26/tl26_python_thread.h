@@ -9,6 +9,7 @@
 
 typedef enum {
     PY_REQUEST_FRAME_FEEDBACK,
+    PY_REQUEST_SB_FEEDBACK,
     PY_REQUEST_SB_OFFSET
 } PyRequestType;
 
@@ -33,6 +34,22 @@ typedef struct {
             double cr_ssim;
             int picture_stream_size;
         } frame_feedback;
+
+        struct {
+            int picture_number;
+            unsigned sb_index;
+            unsigned sb_origin_x;
+            unsigned sb_origin_y;
+            double luma_psnr;
+            double cb_psnr;
+            double cr_psnr;
+            double mse_y;
+            double mse_u;
+            double mse_v;
+            double luma_ssim;
+            double cb_ssim;
+            double cr_ssim;
+        } sb_feedback;
         
         struct {
             unsigned sb_index;
@@ -82,21 +99,26 @@ typedef struct {
     PyRequestQueue queue;
     bool running;
     PyObject* frame_feedback_func;
+    PyObject* sb_feedback_func;
     PyObject* sb_offset_func;
 } TL26ThreadState;
 
 void init_python_thread(void);
 void shutdown_python_thread(void);
 int submit_frame_feedback_request(int picture_number, int temporal_layer_index, int qp, int avg_qp,
-                                 double luma_psnr, double cb_psnr, double cr_psnr,
-                                 double mse_y, double mse_u, double mse_v,
-                                 double luma_ssim, double cb_ssim, double cr_ssim,
-                                 int picture_stream_size);
+                                  double luma_psnr, double cb_psnr, double cr_psnr,
+                                  double mse_y, double mse_u, double mse_v,
+                                  double luma_ssim, double cb_ssim, double cr_ssim,
+                                  int picture_stream_size);
+int submit_sb_feedback_request(int picture_number, int sb_index, unsigned sb_origin_x, unsigned sb_origin_y,
+                               double luma_psnr, double cb_psnr, double cr_psnr,
+                               double mse_y, double mse_u, double mse_v,
+                               double luma_ssim, double cb_ssim, double cr_ssim);
 int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned sb_origin_y,
-                            int sb_qp, int sb_final_blk_cnt, int mi_row_start, int mi_row_end,
-                            int mi_col_start, int mi_col_end, int tg_horz_boundary,
-                            int tile_row, int tile_col, int tile_rs_index,
-                            int encoder_bit_depth, int qindex, double beta, int type);
+                             int sb_qp, int sb_final_blk_cnt, int mi_row_start, int mi_row_end,
+                             int mi_col_start, int mi_col_end, int tg_horz_boundary,
+                             int tile_row, int tile_col, int tile_rs_index,
+                             int encoder_bit_depth, int qindex, double beta, int type);
 
                             
 void cleanup_python_thread_objects(void);

@@ -104,6 +104,30 @@ static void process_frame_feedback_request(PyRequest* request) {
     }
 }
 
+static void process_sb_feedback_request(PyRequest* request) {
+    if (py_thread_state.sb_feedback_func && PyCallable_Check(py_thread_state.sb_feedback_func)) {
+        PyObject* args = Py_BuildValue(
+            "IIIiiiiiiiiiiiidi",
+            request->params.sb_feedback.picture_number,
+            request->params.sb_feedback.sb_index,
+            request->params.sb_feedback.sb_origin_x,
+            request->params.sb_feedback.sb_origin_y,
+            request->params.sb_feedback.luma_psnr,
+            request->params.sb_feedback.cb_psnr,
+            request->params.sb_feedback.cr_psnr,
+            request->params.sb_feedback.mse_y,
+            request->params.sb_feedback.mse_u,
+            request->params.sb_feedback.mse_v,
+            request->params.sb_feedback.luma_ssim,
+            request->params.sb_feedback.cb_ssim,
+            request->params.sb_feedback.cr_ssim);
+        
+        PyObject* result = PyObject_CallObject(py_thread_state.sb_feedback_func, args);
+        Py_XDECREF(result);
+        Py_DECREF(args);
+    }
+}
+
 static void process_sb_offset_request(PyRequest* request) {
     if (py_thread_state.sb_offset_func && PyCallable_Check(py_thread_state.sb_offset_func)) {
         PyObject* args = Py_BuildValue(
@@ -145,6 +169,9 @@ static void process_request(PyRequest* request) {
         case PY_REQUEST_FRAME_FEEDBACK:
             process_frame_feedback_request(request);
             break;
+        case PY_REQUEST_SB_FEEDBACK:
+            process_sb_feedback_request(request);
+            break;
         case PY_REQUEST_SB_OFFSET:
             process_sb_offset_request(request);
             break;
@@ -164,6 +191,7 @@ static void* python_thread_func(void* arg) {
     PyObject* feedback_module = PyImport_ImportModule("tl26.feedback");
     if (feedback_module) {
         py_thread_state.frame_feedback_func = PyObject_GetAttrString(feedback_module, "frame_report_feedback");
+        py_thread_state.sb_feedback_func = PyObject_GetAttrString(feedback_module, "sb_report_feedback");
         Py_DECREF(feedback_module);
     } else {
         PyErr_Print();
@@ -185,6 +213,7 @@ static void* python_thread_func(void* arg) {
     }
     
     Py_XDECREF(py_thread_state.frame_feedback_func);
+    Py_XDECREF(py_thread_state.sb_feedback_func);
     Py_XDECREF(py_thread_state.sb_offset_func);
     
     PyGILState_Release(gstate);
@@ -256,6 +285,41 @@ int submit_frame_feedback_request(int picture_number, int temporal_layer_index, 
     return 0;
 }
 
+int submit_sb_feedback_request(int picture_number, int sb_index, unsigned sb_origin_x, unsigned sb_origin_y,
+    double luma_psnr, double cb_psnr, double cr_psnr,
+    double mse_y, double mse_u, double mse_v,
+    double luma_ssim, double cb_ssim, double cr_ssim) {
+
+    PyRequest* request = enqueue_request(&py_thread_state.queue);
+    if (!request) return -1;
+
+    request->type = PY_REQUEST_SB_FEEDBACK;
+    request->params.sb_feedback.picture_number = picture_number;
+    request->params.sb_feedback.sb_index = sb_index;
+    request->params.sb_feedback.sb_origin_x = sb_origin_x;
+    request->params.sb_feedback.sb_origin_y = sb_origin_y;
+    request->params.sb_feedback.luma_psnr = luma_psnr;
+    request->params.sb_feedback.cb_psnr = cb_psnr;
+    request->params.sb_feedback.cr_psnr = cr_psnr;
+    request->params.sb_feedback.mse_y = mse_y;
+    request->params.sb_feedback.mse_u = mse_u;
+    request->params.sb_feedback.mse_v = mse_v;
+    request->params.sb_feedback.luma_ssim = luma_ssim;
+    request->params.sb_feedback.cb_ssim = cb_ssim;
+    request->params.sb_feedback.cr_ssim = cr_ssim;
+
+    pthread_mutex_lock(&request->mutex);
+    while (!request->completed && py_thread_state.running) {
+    pthread_cond_wait(&request->cond, &request->mutex);
+    }
+    pthread_mutex_unlock(&request->mutex);
+
+    pthread_mutex_destroy(&request->mutex);
+    pthread_cond_destroy(&request->cond);
+
+    return 0;
+}
+
 int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned sb_origin_y,
                             int sb_qp, int sb_final_blk_cnt, int mi_row_start, int mi_row_end,
                             int mi_col_start, int mi_col_end, int tg_horz_boundary,
@@ -301,6 +365,7 @@ int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned s
 
 void cleanup_python_thread_objects(void) {
     py_thread_state.frame_feedback_func = NULL;
+    py_thread_state.sb_feedback_func = NULL;
     py_thread_state.sb_offset_func = NULL;
 }
 

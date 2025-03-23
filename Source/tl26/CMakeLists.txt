@@ -16,6 +16,9 @@ tl26_request.h
 tl26_request.c
 tl26_python_thread.h  
 tl26_python_thread.c  
+tl26_sb_feedback.c
+tl26_sb_feedback.h
+tl26_utils.h
 )
 
 set(CMAKE_C_VISIBILITY_PRESET default)
