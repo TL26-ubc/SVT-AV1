@@ -1,9 +1,8 @@
 import random
 
 import numpy as np
-from feedback import Frame_feedback
-
-from .dqn.agent import DQNAgent
+from tl26.dqn.agent import DQNAgent
+from tl26.feedback import Frame_feedback
 
 input_shape = (10, 10)  # Example 10x10 input
 num_actions = 64  # Example number of actions
