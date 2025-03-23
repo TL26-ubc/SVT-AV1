@@ -42,10 +42,8 @@ class DQNAgent:
             q_values = self.model(state)
         return q_values.argmax().item()
     
-    # TODO: break it into two steps.
-    # state: frame state and SB 
-    # action: list of delta Q values
-    def forward(self, state):
+    # sample a action based on the env
+    def sample(self, state):
         """
         Forward pass to select an action based on the current state
         
@@ -68,7 +66,8 @@ class DQNAgent:
         
         return action, q_values.cpu().numpy()
 
-    def backward(self, states, actions, rewards, next_states, dones):
+    # update the model based on the env
+    def step(self, states, actions, rewards, next_states, dones):
         """
         Backward pass to update the model based on experience
         
@@ -95,3 +94,4 @@ class DQNAgent:
         # Compute next Q values
         with torch.no_grad():
             next_q_values = self.model(next_states).max(1)[0]
+            
