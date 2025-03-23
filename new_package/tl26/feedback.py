@@ -1,4 +1,4 @@
-from .global_variables import frame_feed_backs, sb_feed_backs
+from .global_variables import add_frame_feedback, add_sb_feedback
 
 print("Hello SVT-AV1 from python feedback package")
 
@@ -49,14 +49,7 @@ def frame_report_feedback(picture_number: int, temporal_layer_index: int, qp: in
                     ssim_y, ssim_u, ssim_v,
                     picture_stream_size)
     
-    # check no previous feedback
-    if frame_feedback.picture_number in frame_feed_backs:
-        raise ValueError(f"Frame_feedback already exists for picture_number {frame_feedback.picture_number}")
-
-    frame_feed_backs[frame_feedback.picture_number] = frame_feedback
-    
-    frame_feedback.report()
-    
+    add_frame_feedback(frame_feedback)
     return
 
 class Superblock_feedback:
@@ -100,12 +93,5 @@ def sb_report_feedback(picture_number: int, sb_index: int, sb_offset_x: int, sb_
                     mse_y, mse_u, mse_v,
                     ssim_y, ssim_u, ssim_v)
     
-    # check no previous feedback
-    if (sb_feedback.picture_number, sb_feedback.sb_index) in sb_feed_backs:
-        raise ValueError(f"Frame_feedback already exists for picture_number {sb_feedback.picture_number}, sb_index {sb_feedback.sb_index}")
-
-    sb_feed_backs[(sb_feedback.picture_number, sb_feedback.sb_index)] = sb_feedback
-    
-    sb_feedback.report()
-    
+    add_sb_feedback(sb_feedback)
     return
