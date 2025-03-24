@@ -40,18 +40,20 @@ class SuperBlock:
 
 class Reqeust_sb_offset:
     def __init__(self, superblock: SuperBlock,
+                 picture_number: int,
                  encoder_bit_depth: int, qindex: int,
                  beta: float,
                  slice_type_is_I_SLICE: bool
                  ):
         self.superblock = superblock
+        self.picture_number = picture_number
         self.encoder_bit_depth = encoder_bit_depth
         self.qindex = qindex
         self.beta = beta
         self.slice_type_is_I_SLICE = slice_type_is_I_SLICE
 
     def to_float_list(self):
-        return self.superblock.to_float_list() + [float(self.encoder_bit_depth), float(self.qindex), float(self.beta), float(self.slice_type_is_I_SLICE)]
+        return self.superblock.to_float_list() + [float(self.picture_number), float(self.encoder_bit_depth), float(self.qindex), float(self.beta), float(self.slice_type_is_I_SLICE)]
     
 def sb_send_offset_request(
                 # Type: SuperBlock
@@ -64,6 +66,7 @@ def sb_send_offset_request(
                  tile_row: int, tile_col: int, tile_rs_index: int,
                  
                  # Reqeust_sb_offset
+                 picture_number: int,
                 encoder_bit_depth: int, same_qindex: int,
                  beta: float,
                  slice_type_is_I_SLICE: bool
@@ -71,8 +74,8 @@ def sb_send_offset_request(
     # TODO: Implement this function
     tile_info = TileInfo(mi_row_start, mi_row_end, mi_col_start, mi_col_end, tg_horz_boundary, tile_row, tile_col, tile_rs_index)
     superblock = SuperBlock(index, org_x, org_y, qindex, final_blk_cnt, tile_info)
-    request = Reqeust_sb_offset(superblock, encoder_bit_depth, same_qindex, beta, slice_type_is_I_SLICE)
-    print("Requesting SB offset")
+    request = Reqeust_sb_offset(superblock, picture_number, encoder_bit_depth, same_qindex, beta, slice_type_is_I_SLICE)
+    print(f"Requesting SB offset from frame {picture_number}")
     print(request.to_float_list())
     
     done = False

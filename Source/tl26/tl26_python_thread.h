@@ -65,6 +65,7 @@ typedef struct {
             int tile_row;
             int tile_col;
             int tile_rs_index;
+            int picture_number;
             int encoder_bit_depth;
             int qindex;
             double beta;
@@ -118,6 +119,7 @@ int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned s
                              int sb_qp, int sb_final_blk_cnt, int mi_row_start, int mi_row_end,
                              int mi_col_start, int mi_col_end, int tg_horz_boundary,
                              int tile_row, int tile_col, int tile_rs_index,
+                             int picture_number,
                              int encoder_bit_depth, int qindex, double beta, int type);
 
                             

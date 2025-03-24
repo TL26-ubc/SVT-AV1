@@ -2,7 +2,7 @@
 #include "tl26_request.h"
 #include "tl26_python_thread.h"
 
-int request_sb_offset(SuperBlock *sb_ptr, int encoder_bit_depth, int qindex, double beta, bool slice_type_is_I_SLICE) {
+int request_sb_offset(SuperBlock *sb_ptr, int picture_number, int encoder_bit_depth, int qindex, double beta, bool slice_type_is_I_SLICE) {
 #ifdef TL26_RL
     TileInfo *tile_info = &sb_ptr->tile_info;
     unsigned  sb_index = sb_ptr->index, sb_origin_x = sb_ptr->org_x, sb_origin_y = sb_ptr->org_y;
@@ -29,6 +29,7 @@ int request_sb_offset(SuperBlock *sb_ptr, int encoder_bit_depth, int qindex, dou
         tile_row,
         tile_col,
         tile_rs_index,
+        picture_number,
         encoder_bit_depth,
         qindex,
         beta,
