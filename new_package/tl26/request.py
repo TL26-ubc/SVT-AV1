@@ -78,4 +78,4 @@ def sb_send_offset_request(
     done = False
     state = superblock.to_float_list()
     next_state  = state # TODO: implement next state
-    return train(state, next_state)
+    return train(state)

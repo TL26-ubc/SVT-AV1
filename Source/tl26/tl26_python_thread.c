@@ -165,14 +165,21 @@ static void process_sb_offset_request(PyRequest* request) {
 }
 
 static void process_request(PyRequest* request) {
+    static int sb_framefeedback_count = 0;
+    static int sb_offset_count = 0;
+    static int sb_feedback_count = 0;
+
     switch (request->type) {
         case PY_REQUEST_FRAME_FEEDBACK:
+            sb_framefeedback_count++;
             process_frame_feedback_request(request);
-            break;
+        break;
         case PY_REQUEST_SB_FEEDBACK:
+            sb_feedback_count++;
             process_sb_feedback_request(request);
             break;
         case PY_REQUEST_SB_OFFSET:
+            sb_offset_count++;
             process_sb_offset_request(request);
             break;
     }
@@ -310,7 +317,7 @@ int submit_sb_feedback_request(int picture_number, int sb_index, unsigned sb_ori
 
     pthread_mutex_lock(&request->mutex);
     while (!request->completed && py_thread_state.running) {
-    pthread_cond_wait(&request->cond, &request->mutex);
+        pthread_cond_wait(&request->cond, &request->mutex);
     }
     pthread_mutex_unlock(&request->mutex);
 
