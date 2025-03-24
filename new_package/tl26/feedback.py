@@ -1,7 +1,3 @@
-from tl26.global_variables import add_frame_feedback, add_sb_feedback
-
-print("Hello SVT-AV1 from python feedback package")
-
 class Frame_feedback:
     def __init__(self, picture_number: int, temporal_layer_index: int, qp: int, ave_qp: int,
                  psnr_y: float, psnr_u: float, psnr_v: float,
@@ -48,7 +44,7 @@ def frame_report_feedback(picture_number: int, temporal_layer_index: int, qp: in
                     mse_y, mse_u, mse_v,
                     ssim_y, ssim_u, ssim_v,
                     picture_stream_size)
-    
+    from tl26.global_variables import add_frame_feedback   
     add_frame_feedback(frame_feedback)
     return
 
@@ -92,6 +88,6 @@ def sb_report_feedback(picture_number: int, sb_index: int, sb_offset_x: int, sb_
                     psnr_y, psnr_u, psnr_v,
                     mse_y, mse_u, mse_v,
                     ssim_y, ssim_u, ssim_v)
-    
+    from tl26.global_variables import add_sb_feedback
     add_sb_feedback(sb_feedback)
     return

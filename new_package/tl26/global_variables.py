@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from typing import Dict, Tuple
+from tl26.feedback import Frame_feedback, Superblock_feedback
 
 frame_feed_backs = {}  # type: Dict[int, Frame_feedback]  # key: picture_number
 sb_feed_backs = {}  # type: Dict[Tuple[int, int], Superblock_feedback]  # key: (picture_number, sb_index)
@@ -68,4 +69,5 @@ def add_sb_feedback(sb_feedback: Superblock_feedback):
         raise ValueError(f"Frame_feedback already exists for picture_number {sb_feedback.picture_number}, sb_index {sb_feedback.sb_index}")
 
     sb_feed_backs[(sb_feedback.picture_number, sb_feedback.sb_index)] = sb_feedback
+    sb_feed_backs.report()
     return
