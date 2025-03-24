@@ -131,7 +131,7 @@ static void process_sb_feedback_request(PyRequest* request) {
 static void process_sb_offset_request(PyRequest* request) {
     if (py_thread_state.sb_offset_func && PyCallable_Check(py_thread_state.sb_offset_func)) {
         PyObject* args = Py_BuildValue(
-            "IIIiiiiiiiiiiiidi",
+            "IIIiiiiiiiiiiiiidi",
             request->params.sb_offset.sb_index,
             request->params.sb_offset.sb_origin_x,
             request->params.sb_offset.sb_origin_y,
@@ -145,6 +145,7 @@ static void process_sb_offset_request(PyRequest* request) {
             request->params.sb_offset.tile_row,
             request->params.sb_offset.tile_col,
             request->params.sb_offset.tile_rs_index,
+            request->params.sb_offset.picture_number,
             request->params.sb_offset.encoder_bit_depth,
             request->params.sb_offset.qindex,
             request->params.sb_offset.beta,
@@ -331,6 +332,7 @@ int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned s
                             int sb_qp, int sb_final_blk_cnt, int mi_row_start, int mi_row_end,
                             int mi_col_start, int mi_col_end, int tg_horz_boundary,
                             int tile_row, int tile_col, int tile_rs_index,
+                            int picture_number,
                             int encoder_bit_depth, int qindex, double beta, int type) {
     
     PyRequest* request = enqueue_request(&py_thread_state.queue);
@@ -350,6 +352,7 @@ int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned s
     request->params.sb_offset.tile_row = tile_row;
     request->params.sb_offset.tile_col = tile_col;
     request->params.sb_offset.tile_rs_index = tile_rs_index;
+    request->params.sb_offset.picture_number = picture_number;
     request->params.sb_offset.encoder_bit_depth = encoder_bit_depth;
     request->params.sb_offset.qindex = qindex;
     request->params.sb_offset.beta = beta;
