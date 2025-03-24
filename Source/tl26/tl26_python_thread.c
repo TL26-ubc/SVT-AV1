@@ -107,7 +107,7 @@ static void process_frame_feedback_request(PyRequest* request) {
 static void process_sb_feedback_request(PyRequest* request) {
     if (py_thread_state.sb_feedback_func && PyCallable_Check(py_thread_state.sb_feedback_func)) {
         PyObject* args = Py_BuildValue(
-            "IIIiiiiiiiiiiiidi",
+            "iIIIddddddddd",
             request->params.sb_feedback.picture_number,
             request->params.sb_feedback.sb_index,
             request->params.sb_feedback.sb_origin_x,
