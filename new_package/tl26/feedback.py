@@ -1,4 +1,4 @@
-from .global_variables import add_frame_feedback, add_sb_feedback
+from tl26.global_variables import add_frame_feedback, add_sb_feedback
 
 print("Hello SVT-AV1 from python feedback package")
 

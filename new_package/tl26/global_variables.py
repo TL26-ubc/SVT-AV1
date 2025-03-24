@@ -1,18 +1,18 @@
-from .feedback import *
-from typing import Dict
+from __future__ import annotations
+
 from copy import deepcopy
+from typing import Dict, Tuple
 
-frame_feed_backs = {} # type: Dict[int, Frame_feedback] # key: picture_number
-sb_feed_backs = {} # type: Dict[(int, int), Frame_feedback] # key: picture_number, sb_index
+frame_feed_backs = {}  # type: Dict[int, Frame_feedback]  # key: picture_number
+sb_feed_backs = {}  # type: Dict[Tuple[int, int], Superblock_feedback]  # key: (picture_number, sb_index)
+baseline_frame_feedbacks = {}  # type: Dict[int, Frame_feedback]  # key: picture_number
+baseline_sb_feedbacks = {}  # type: Dict[Tuple[int, int], Superblock_feedback]  # key: (picture_number, sb_index)
 
-baseline_frame_feedbacks = {} # type: Dict[int, Frame_feedback] # key: picture_number
-baseline_sb_feedbacks = {} # type: Dict[(int, int), Frame_feedback] # key: picture_number, sb_index
-
-def get_all_baseline_frame_feedbacks() -> Dict[int, Frame_feedback]:
+def get_all_baseline_frame_feedbacks():
     global baseline_frame_feedbacks
     return baseline_frame_feedbacks
 
-def get_all_baseline_sb_feedbacks() -> Dict[(int, int), Superblock_feedback]:
+def get_all_baseline_sb_feedbacks() -> Dict[Tuple[int, int], Superblock_feedback]:
     global baseline_sb_feedbacks
     return baseline_sb_feedbacks
 

@@ -1,4 +1,4 @@
-from .train import train
+from tl26.train import train
 
 
 class TileInfo:

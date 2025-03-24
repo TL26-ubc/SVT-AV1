@@ -94,4 +94,16 @@ class DQNAgent:
         # Compute next Q values
         with torch.no_grad():
             next_q_values = self.model(next_states).max(1)[0]
+        
+        # Compute target Q values using the Bellman equation
+        target_q_values = rewards + self.gamma * next_q_values * (1 - dones)
+        
+        # Compute loss
+        loss = F.mse_loss(current_q_values, target_q_values)
+        
+        # Optimize the model
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        
             
