@@ -1,4 +1,5 @@
-from tl26.train import train
+import torch
+from tl26.train import sample
 
 
 class TileInfo:
@@ -76,6 +77,6 @@ def sb_send_offset_request(
     print(request.to_float_list())
     
     done = False
-    state = superblock.to_float_list()
-    next_state  = state # TODO: implement next state
-    return train(state)
+    state_tensor = torch.tensor(request.to_float_list(), dtype=torch.float32)
+    
+    return sample(state_tensor)

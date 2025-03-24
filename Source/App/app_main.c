@@ -494,7 +494,7 @@ void enc_app_dctor(EncApp* enc_app) { free(enc_app->rc_twopasses_stats.buf); }
 /***************************************
  * Encoder App Main
  ***************************************/
-int32_t main(int32_t argc, char* argv[]) {
+6int32_t main(int32_t argc, char* argv[]) {
 #ifdef _WIN32
     _setmode(_fileno(stdin), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
