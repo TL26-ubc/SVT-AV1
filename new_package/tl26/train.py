@@ -5,7 +5,7 @@ import torch
 from tl26.dqn.agent import DQNAgent
 from tl26.feedback import Frame_feedback
 
-input_shape = 17  # 17 features as state
+input_shape = 18  # 17 features as state
 num_actions = 64 * 2 # [-63,63] action space 
 agent = DQNAgent(input_shape, num_actions)
 
