@@ -3,6 +3,23 @@
 #include <stdio.h>
 #include <string.h>
 
+//////////////////////////////////////// Helper Functions ////////////////////////////////////////
+PyObject *pixel_to_Py_list(uint8_t *buffer, int width, int height) {
+    PyObject *list = PyList_New(height);
+    for (int i = 0; i < height; i++) {
+        PyObject *row = PyList_New(width);
+        for (int j = 0; j < width; j++) { PyList_SetItem(row, j, PyLong_FromLong(buffer[i * width + j])); }
+        PyList_SetItem(list, i, row);
+    }
+    return list;
+}
+
+void destroy_Py_list(PyObject *list) {
+    for (int i = 0; i < PyList_Size(list); i++) { Py_DECREF(PyList_GetItem(list, i)); }
+    Py_DECREF(list);
+}
+//////////////////////////////////////// Helper Functions ////////////////////////////////////////
+
 
 static TL26ThreadState py_thread_state = {0};
 
@@ -105,9 +122,15 @@ static void process_frame_feedback_request(PyRequest* request) {
 }
 
 static void process_sb_feedback_request(PyRequest* request) {
+    PyObject* buffer_y = pixel_to_Py_list(request->params.sb_feedback.buffer_y, 
+        request->params.sb_feedback.sb_width, request->params.sb_feedback.sb_height);
+    PyObject* buffer_cb = pixel_to_Py_list(request->params.sb_feedback.buffer_cb, 
+        request->params.sb_feedback.sb_width / 2, request->params.sb_feedback.sb_height / 2);
+    PyObject* buffer_cr = pixel_to_Py_list(request->params.sb_feedback.buffer_cr, 
+        request->params.sb_feedback.sb_width / 2, request->params.sb_feedback.sb_height / 2);
     if (py_thread_state.sb_feedback_func && PyCallable_Check(py_thread_state.sb_feedback_func)) {
         PyObject* args = Py_BuildValue(
-            "iIIIddddddddd",
+            "iIIIdddddddddOOO",
             request->params.sb_feedback.picture_number,
             request->params.sb_feedback.sb_index,
             request->params.sb_feedback.sb_origin_x,
@@ -120,18 +143,30 @@ static void process_sb_feedback_request(PyRequest* request) {
             request->params.sb_feedback.mse_v,
             request->params.sb_feedback.luma_ssim,
             request->params.sb_feedback.cb_ssim,
-            request->params.sb_feedback.cr_ssim);
+            request->params.sb_feedback.cr_ssim,
+            buffer_y,
+            buffer_cb,
+            buffer_cr);
         
         PyObject* result = PyObject_CallObject(py_thread_state.sb_feedback_func, args);
         Py_XDECREF(result);
         Py_DECREF(args);
+        destroy_Py_list(buffer_y);
+        destroy_Py_list(buffer_cb);
+        destroy_Py_list(buffer_cr);
     }
 }
 
 static void process_sb_offset_request(PyRequest* request) {
+    PyObject* buffer_y = pixel_to_Py_list(request->params.sb_offset.buffer_y, 
+        request->params.sb_offset.sb_width, request->params.sb_offset.sb_height);
+    PyObject* buffer_cb = pixel_to_Py_list(request->params.sb_offset.buffer_cb, 
+        request->params.sb_offset.sb_width / 2, request->params.sb_offset.sb_height / 2);
+    PyObject* buffer_cr = pixel_to_Py_list(request->params.sb_offset.buffer_cr, 
+        request->params.sb_offset.sb_width / 2, request->params.sb_offset.sb_height / 2);
     if (py_thread_state.sb_offset_func && PyCallable_Check(py_thread_state.sb_offset_func)) {
         PyObject* args = Py_BuildValue(
-            "IIIiiiiiiiiiiiiidi",
+            "IIIiiiiiiiiiiiiidiOOO",
             request->params.sb_offset.sb_index,
             request->params.sb_offset.sb_origin_x,
             request->params.sb_offset.sb_origin_y,
@@ -149,7 +184,11 @@ static void process_sb_offset_request(PyRequest* request) {
             request->params.sb_offset.encoder_bit_depth,
             request->params.sb_offset.qindex,
             request->params.sb_offset.beta,
-            request->params.sb_offset.type);
+            request->params.sb_offset.type,
+            buffer_y,
+            buffer_cb,
+            buffer_cr
+        );
         
         PyObject* result = PyObject_CallObject(py_thread_state.sb_offset_func, args);
         if (result != NULL) {
@@ -160,6 +199,9 @@ static void process_sb_offset_request(PyRequest* request) {
             PyErr_Print();
         }
         Py_DECREF(args);
+        destroy_Py_list(buffer_y);
+        destroy_Py_list(buffer_cb);
+        destroy_Py_list(buffer_cr);
     } else {
         request->result.int_result = -1;
     }
@@ -296,7 +338,9 @@ int submit_frame_feedback_request(int picture_number, int temporal_layer_index, 
 int submit_sb_feedback_request(int picture_number, int sb_index, unsigned sb_origin_x, unsigned sb_origin_y,
     double luma_psnr, double cb_psnr, double cr_psnr,
     double mse_y, double mse_u, double mse_v,
-    double luma_ssim, double cb_ssim, double cr_ssim) {
+    double luma_ssim, double cb_ssim, double cr_ssim,
+    uint8_t* buffer_y, uint8_t* buffer_cb, uint8_t* buffer_cr,
+    u_int16_t sb_width, u_int16_t sb_height) {
 
     PyRequest* request = enqueue_request(&py_thread_state.queue);
     if (!request) return -1;
@@ -315,6 +359,11 @@ int submit_sb_feedback_request(int picture_number, int sb_index, unsigned sb_ori
     request->params.sb_feedback.luma_ssim = luma_ssim;
     request->params.sb_feedback.cb_ssim = cb_ssim;
     request->params.sb_feedback.cr_ssim = cr_ssim;
+    request->params.sb_feedback.buffer_y = buffer_y;
+    request->params.sb_feedback.buffer_cb = buffer_cb;
+    request->params.sb_feedback.buffer_cr = buffer_cr;
+    request->params.sb_feedback.sb_width = sb_width;
+    request->params.sb_feedback.sb_height = sb_height;
 
     pthread_mutex_lock(&request->mutex);
     while (!request->completed && py_thread_state.running) {
@@ -333,6 +382,8 @@ int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned s
                             int mi_col_start, int mi_col_end, int tg_horz_boundary,
                             int tile_row, int tile_col, int tile_rs_index,
                             int picture_number,
+                            u_int8_t* buffer_y, u_int8_t* buffer_cb, u_int8_t* buffer_cr,
+                            u_int16_t sb_width, u_int16_t sb_height,
                             int encoder_bit_depth, int qindex, double beta, int type) {
     
     PyRequest* request = enqueue_request(&py_thread_state.queue);
@@ -352,6 +403,11 @@ int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned s
     request->params.sb_offset.tile_row = tile_row;
     request->params.sb_offset.tile_col = tile_col;
     request->params.sb_offset.tile_rs_index = tile_rs_index;
+    request->params.sb_offset.buffer_y = buffer_y;
+    request->params.sb_offset.buffer_cb = buffer_cb;
+    request->params.sb_offset.buffer_cr = buffer_cr;
+    request->params.sb_offset.sb_width = sb_width;
+    request->params.sb_offset.sb_height = sb_height;
     request->params.sb_offset.picture_number = picture_number;
     request->params.sb_offset.encoder_bit_depth = encoder_bit_depth;
     request->params.sb_offset.qindex = qindex;

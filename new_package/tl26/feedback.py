@@ -83,11 +83,15 @@ class Superblock_feedback:
 def sb_report_feedback(picture_number: int, sb_index: int, sb_offset_x: int, sb_offset_y: int,
                  psnr_y: float, psnr_u: float, psnr_v: float,
                  mse_y: float, mse_u: float, mse_v: float,
-                 ssim_y: float, ssim_u: float, ssim_v: float):
+                 ssim_y: float, ssim_u: float, ssim_v: float,
+                 buffer_y: list, buffer_cb: list, buffer_cr: list):
     sb_feedback = Superblock_feedback(picture_number, sb_index, sb_offset_x, sb_offset_y,
                     psnr_y, psnr_u, psnr_v,
                     mse_y, mse_u, mse_v,
                     ssim_y, ssim_u, ssim_v)
     from tl26.global_variables import add_sb_feedback
     add_sb_feedback(sb_feedback)
+    print(f"Buffer Y shape: ({len(buffer_y)}, {len(buffer_y[0]) if buffer_y else 0})")
+    print(f"Buffer Cb shape: ({len(buffer_cb)}, {len(buffer_cb[0]) if buffer_cb else 0})")
+    print(f"Buffer Cr shape: ({len(buffer_cr)}, {len(buffer_cr[0]) if buffer_cr else 0})")
     return

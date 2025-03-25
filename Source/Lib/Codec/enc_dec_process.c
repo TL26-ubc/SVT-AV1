@@ -1848,7 +1848,8 @@ EbErrorType psnr_calculations(PictureControlSet *pcs, SequenceControlSet *scs, B
 }
 #ifdef TL26_RL
 EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory, 
-                                 uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out) {
+                                 uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out,
+                                 uint8_t** recon_buffer_y, uint8_t** recon_buffer_cb, uint8_t** recon_buffer_cr) {
     Bool is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
 
     const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width  - sb->org_x);
@@ -1904,6 +1905,7 @@ EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs
 
         recon_coeff_buffer = &((recon_ptr->buffer_y)[(recon_ptr->org_x + sb->org_x) +
             (recon_ptr->org_y + sb->org_y) * recon_ptr->stride_y]);
+        *recon_buffer_y = recon_coeff_buffer;
         input_buffer       = &(buffer_y[(input_pic->org_x + sb->org_x) + 
             (input_pic->org_y + sb->org_y) * input_pic->stride_y]);
 
@@ -1924,6 +1926,7 @@ EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs
         recon_coeff_buffer = &(
             (recon_ptr->buffer_cb)[(recon_ptr->org_x + sb->org_x) / 2 + 
                 (recon_ptr->org_y + sb->org_y) / 2 * recon_ptr->stride_cb]);
+        *recon_buffer_cb = recon_coeff_buffer;
         input_buffer       = &(buffer_cb[(input_pic->org_x + sb->org_x) / 2 + 
             (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cb]);
 
@@ -1943,6 +1946,7 @@ EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs
 
         recon_coeff_buffer  = &((recon_ptr->buffer_cr)[(recon_ptr->org_x + sb->org_x) / 2 + 
             (recon_ptr->org_y + sb->org_y) / 2 * recon_ptr->stride_cr]);
+        *recon_buffer_cr = recon_coeff_buffer;
         input_buffer        = &(buffer_cr[(input_pic->org_x + sb->org_x) / 2 + 
             (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cr]);
         residual_distortion = 0;
@@ -4066,7 +4070,9 @@ void *svt_aom_mode_decision_kernel(void *input_ptr) {
                         #ifdef TL26_RL
                         // Compute ssim and sse (used for mse/psnr)
                         uint64_t luma_sse; uint64_t cb_sse; uint64_t cr_sse;
-                        EbErrorType return_error = psnr_calculations_sb(pcs, scs, sb_ptr, FALSE, &luma_sse, &cb_sse, &cr_sse);
+                        uint8_t* recon_buffer_y, *recon_buffer_cb, *recon_buffer_cr;
+                        EbErrorType return_error = psnr_calculations_sb(pcs, scs, sb_ptr, FALSE, &luma_sse, &cb_sse, &cr_sse
+                        , &recon_buffer_y, &recon_buffer_cb, &recon_buffer_cr);
                         if (return_error != EB_ErrorNone) {
                             svt_aom_assert_err(0,
                                                "Couldn't allocate memory for uncompressed 10bit buffers for PSNR "
@@ -4093,7 +4099,8 @@ void *svt_aom_mode_decision_kernel(void *input_ptr) {
                             MIN(scs->sb_size, ppcs->aligned_width - sb_ptr->org_x),
                             MIN(scs->sb_size, ppcs->aligned_height - sb_ptr->org_y),
                             luma_sse, cb_sse, cr_sse, 
-                            luma_ssim, cb_ssim, cr_ssim
+                            luma_ssim, cb_ssim, cr_ssim,
+                            recon_buffer_y, recon_buffer_cb, recon_buffer_cr
                         );
                         #endif
 

@@ -1562,7 +1562,7 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
             double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
 
 #ifdef TL26_RL
-            int         offset = request_sb_offset(sb_ptr, pcs->picture_number,
+            int         offset = request_sb_offset(sb_ptr, pcs,
                 scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
 #else
             int         offset = svt_av1_get_deltaq_offset(

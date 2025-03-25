@@ -8,7 +8,8 @@ void report_sb_feedback(int picture_number, uint32_t max_luma_value,
     int sb_index, unsigned sb_origin_x, unsigned sb_origin_y,
     unsigned sb_width, unsigned sb_height,
     uint64_t luma_sse, uint64_t cb_sse, uint64_t cr_sse,
-    double luma_ssim, double cb_ssim, double cr_ssim) {
+    double luma_ssim, double cb_ssim, double cr_ssim,
+    uint8_t *buffer_y, uint8_t *buffer_cb, uint8_t *buffer_cr) {
 
     double   temp_var, luma_psnr, cb_psnr, cr_psnr;
 
@@ -31,7 +32,12 @@ void report_sb_feedback(int picture_number, uint32_t max_luma_value,
         (double)cr_sse / (sb_width / 2 * sb_height / 2),
         luma_ssim,
         cb_ssim,
-        cr_ssim);
+        cr_ssim,
+        buffer_y,
+        buffer_cb,
+        buffer_cr,
+        sb_width,
+        sb_height);
 }
 #else
 void report_sb_feedback(int picture_number, uint32_t max_luma_value,
