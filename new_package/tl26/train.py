@@ -5,8 +5,8 @@ import torch
 from tl26.dqn.agent import DQNAgent
 from tl26.feedback import Frame_feedback
 
-input_shape = (10, 10)  # Example 10x10 input
-num_actions = 64  # Example number of actions
+input_shape = 18  # 17 features as state
+num_actions = 64 * 2 # [-63,63] action space 
 agent = DQNAgent(input_shape, num_actions)
 
 
@@ -18,7 +18,6 @@ def reward_function(state: Frame_feedback, done):
 
 
 # this function will run periodically
-def train(state: Frame_feedback):
-    state_tensor = torch.tensor(state.to_float_list(), dtype=torch.float32)
-    print(state_tensor)
-    return agent.sample(state_tensor)
+def sample(state: torch.Tensor):
+    print(state)
+    return agent.sample(state)
