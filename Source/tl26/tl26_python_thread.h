@@ -53,8 +53,8 @@ typedef struct {
             uint8_t* buffer_y;
             uint8_t* buffer_cb;
             uint8_t* buffer_cr;
-            u_int16_t sb_width;
-            u_int16_t sb_height;
+            uint16_t sb_width;
+            uint16_t sb_height;
         } sb_feedback;
         
         struct {
@@ -74,8 +74,8 @@ typedef struct {
             uint8_t *buffer_y;
             uint8_t *buffer_cb;
             uint8_t *buffer_cr;
-            u_int16_t sb_width;
-            u_int16_t sb_height;
+            uint16_t sb_width;
+            uint16_t sb_height;
             int picture_number;
             int encoder_bit_depth;
             int qindex;
@@ -127,14 +127,14 @@ int submit_sb_feedback_request(int picture_number, int sb_index, unsigned sb_ori
                                double mse_y, double mse_u, double mse_v,
                                double luma_ssim, double cb_ssim, double cr_ssim,
                                uint8_t* buffer_y, uint8_t* buffer_cb, uint8_t* buffer_cr,
-                               u_int16_t sb_width, u_int16_t sb_height);
+                               uint16_t sb_width, uint16_t sb_height);
 int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned sb_origin_y,
                              int sb_qp, int sb_final_blk_cnt, int mi_row_start, int mi_row_end,
                              int mi_col_start, int mi_col_end, int tg_horz_boundary,
                              int tile_row, int tile_col, int tile_rs_index,
                              int picture_number,
-                             u_int8_t* buffer_y, u_int8_t* buffer_cb, u_int8_t* buffer_cr,
-                             u_int16_t sb_width, u_int16_t sb_height,
+                             uint8_t* buffer_y, uint8_t* buffer_cb, uint8_t* buffer_cr,
+                             uint16_t sb_width, uint16_t sb_height,
                              int encoder_bit_depth, int qindex, double beta, int type);
 
                             

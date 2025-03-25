@@ -340,7 +340,7 @@ int submit_sb_feedback_request(int picture_number, int sb_index, unsigned sb_ori
     double mse_y, double mse_u, double mse_v,
     double luma_ssim, double cb_ssim, double cr_ssim,
     uint8_t* buffer_y, uint8_t* buffer_cb, uint8_t* buffer_cr,
-    u_int16_t sb_width, u_int16_t sb_height) {
+    uint16_t sb_width, uint16_t sb_height) {
 
     PyRequest* request = enqueue_request(&py_thread_state.queue);
     if (!request) return -1;
@@ -382,8 +382,8 @@ int submit_sb_offset_request(unsigned sb_index, unsigned sb_origin_x, unsigned s
                             int mi_col_start, int mi_col_end, int tg_horz_boundary,
                             int tile_row, int tile_col, int tile_rs_index,
                             int picture_number,
-                            u_int8_t* buffer_y, u_int8_t* buffer_cb, u_int8_t* buffer_cr,
-                            u_int16_t sb_width, u_int16_t sb_height,
+                            uint8_t* buffer_y, uint8_t* buffer_cb, uint8_t* buffer_cr,
+                            uint16_t sb_width, uint16_t sb_height,
                             int encoder_bit_depth, int qindex, double beta, int type) {
     
     PyRequest* request = enqueue_request(&py_thread_state.queue);

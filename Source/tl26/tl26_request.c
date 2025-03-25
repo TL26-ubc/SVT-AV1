@@ -10,7 +10,7 @@
 int request_sb_offset(SuperBlock *sb_ptr, PictureControlSet *pcs, int encoder_bit_depth, int qindex, double beta,
                       bool slice_type_is_I_SLICE) {
 #ifdef TL26_RL
-    u_int8_t            *buffer_y, *buffer_cb, *buffer_cr;
+    uint8_t            *buffer_y, *buffer_cb, *buffer_cr;
     SequenceControlSet *scs = pcs->ppcs->scs;
     EbPictureBufferDesc *input_pic = (EbPictureBufferDesc *)pcs->ppcs->enhanced_unscaled_pic;
     if (pcs->ppcs->do_tf == TRUE) {
