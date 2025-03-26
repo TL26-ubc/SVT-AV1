@@ -37,3 +37,6 @@ Output/
 __pycache__/
 *.pyc
 *.egg-info/
+
+# GC
+*.csv
