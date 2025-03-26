@@ -1,5 +1,5 @@
-import torch
-from tl26.train import sample
+#import torch
+#from tl26.train import sample
 
 
 class TileInfo:
