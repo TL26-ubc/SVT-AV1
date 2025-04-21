@@ -91,7 +91,7 @@ def sb_report_feedback(picture_number: int, sb_index: int, sb_offset_x: int, sb_
                     ssim_y, ssim_u, ssim_v)
     from tl26.global_variables import add_sb_feedback
     add_sb_feedback(sb_feedback)
-    print(f"Buffer Y shape: ({len(buffer_y)}, {len(buffer_y[0]) if buffer_y else 0})")
-    print(f"Buffer Cb shape: ({len(buffer_cb)}, {len(buffer_cb[0]) if buffer_cb else 0})")
-    print(f"Buffer Cr shape: ({len(buffer_cr)}, {len(buffer_cr[0]) if buffer_cr else 0})")
+    # print(f"Buffer Y shape: ({len(buffer_y)}, {len(buffer_y[0]) if buffer_y else 0})")
+    # print(f"Buffer Cb shape: ({len(buffer_cb)}, {len(buffer_cb[0]) if buffer_cb else 0})")
+    # print(f"Buffer Cr shape: ({len(buffer_cr)}, {len(buffer_cr[0]) if buffer_cr else 0})")
     return

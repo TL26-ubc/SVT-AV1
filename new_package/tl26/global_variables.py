@@ -3,6 +3,10 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Dict, Tuple
 from tl26.feedback import Frame_feedback, Superblock_feedback
+# add locks
+from threading import Lock
+sb_feedback_lock = Lock()
+frame_feedback_lock = Lock()
 
 frame_feedbacks = {}  # type: Dict[int, Frame_feedback]  # key: picture_number
 sb_feedbacks = {}  # type: Dict[Tuple[int, int], Superblock_feedback]  # key: (picture_number, sb_index)
@@ -53,21 +57,30 @@ def get_sb_feedback(picture_number: int, sb_index: int) -> Superblock_feedback:
     global sb_feedbacks
     return sb_feedbacks[(picture_number, sb_index)]
 
+def report_length_sb_feedbacks():
+    global sb_feedbacks
+    print(f"Length of sb_feedbacks: {len(sb_feedbacks)}")
+    return
+
+def report_length_frame_feedbacks():
+    global frame_feedbacks
+    print(f"Length of frame_feedbacks: {len(frame_feedbacks)}")
+    return
+
 def add_frame_feedback(frame_feedback: Frame_feedback):
     global frame_feedbacks
     # check no previous feedback
-    if frame_feedback.picture_number in frame_feedbacks:
-        raise ValueError(f"Frame_feedback already exists for picture_number {frame_feedback.picture_number}")
-
-    frame_feedbacks[frame_feedback.picture_number] = frame_feedback
+    with frame_feedback_lock:
+        if frame_feedback.picture_number in frame_feedbacks:
+            raise ValueError(f"Frame_feedback already exists for picture_number {frame_feedback.picture_number}")
+        frame_feedbacks[frame_feedback.picture_number] = frame_feedback
     return
 
 def add_sb_feedback(sb_feedback: Superblock_feedback):    
     global sb_feedbacks
     # check no previous feedback
-    if (sb_feedback.picture_number, sb_feedback.sb_index) in sb_feedbacks:
-        raise ValueError(f"Frame_feedback already exists for picture_number {sb_feedback.picture_number}, sb_index {sb_feedback.sb_index}")
-
-    sb_feedbacks[(sb_feedback.picture_number, sb_feedback.sb_index)] = sb_feedback
-    sb_feedback.report()
+    with sb_feedback_lock:
+        if (sb_feedback.picture_number, sb_feedback.sb_index) in sb_feedbacks:
+            raise ValueError(f"Frame_feedback already exists for picture_number {sb_feedback.picture_number}, sb_index {sb_feedback.sb_index}")
+        sb_feedbacks[(sb_feedback.picture_number, sb_feedback.sb_index)] = sb_feedback
     return

@@ -404,8 +404,10 @@ static void* sb_offset_thread_func(void* arg) {
 
     if (result) {
         req->result = PyLong_AsLong(result);
+#ifdef DEBUG
         fprintf(
             stderr, "[Worker-%d] Python offset function call succeeded, result: %d\n", req->request_id, req->result);
+#endif
         Py_DECREF(result);
     } else {
         fprintf(stderr, "[Worker-%d] Python offset function call failed\n", req->request_id);

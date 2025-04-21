@@ -85,11 +85,11 @@ def sb_send_offset_request(
                             final_blk_cnt, tile_info)
     request = Reqeust_sb_offset(
         superblock, picture_number, encoder_bit_depth, same_qindex, beta, slice_type_is_I_SLICE)
-    print(f"Requesting SB offset from frame {picture_number}")
-    print(request.to_float_list())
-    print(f"Buffer Y shape: ({len(buffer_y)}, {len(buffer_y[0]) if buffer_y else 0})")
-    print(f"Buffer Cb shape: ({len(buffer_cb)}, {len(buffer_cb[0]) if buffer_cb else 0})")
-    print(f"Buffer Cr shape: ({len(buffer_cr)}, {len(buffer_cr[0]) if buffer_cr else 0})")
+    # print(f"Requesting SB offset from frame {picture_number}")
+    # print(request.to_float_list())
+    # print(f"Buffer Y shape: ({len(buffer_y)}, {len(buffer_y[0]) if buffer_y else 0})")
+    # print(f"Buffer Cb shape: ({len(buffer_cb)}, {len(buffer_cb[0]) if buffer_cb else 0})")
+    # print(f"Buffer Cr shape: ({len(buffer_cr)}, {len(buffer_cr[0]) if buffer_cr else 0})")
     
     done = False
     state = superblock.to_float_list()
