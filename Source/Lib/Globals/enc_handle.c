@@ -1472,6 +1472,10 @@ static EbErrorType svt_enc_handle_ctor(
     enc_handle_ptr->app_callback_ptr_array[0]->error_handler = lib_svt_encoder_send_error_exit;
     enc_handle_ptr->app_callback_ptr_array[0]->handle = ebHandlePtr;
 
+    #ifdef PYTHON_GYM
+        memset(&enc_handle_ptr->callbacks, 0, sizeof(enc_handle_ptr->callbacks));
+    #endif
+
     // Config Set Count
     enc_handle_ptr->scs_pool_total_count = EB_SequenceControlSetPoolInitCount;
     // Initialize Sequence Control Set Instance Array
@@ -6710,4 +6714,20 @@ EB_API EbErrorType svt_av1_enc_get_stream_info(EbComponentType *    svt_enc_comp
     }
     return EB_ErrorBadParameter;
 }
+
+/**********************************
+* Python gym callback registration
+**********************************/
+#ifdef SVT_ENABLE_USER_CALLBACKS
+EB_API EbErrorType python_gym_set_callbacks(EbComponentType *cmp, const SvtAv1PluginCallbacks *cbs)
+{
+    if (!cmp || !cmp->p_component_private || !cbs)
+        return EB_ErrorBadParameter;
+
+    EbEncHandle *enc = (EbEncHandle *)cmp->p_component_private;
+    enc->cbs   = *cbs;   /* struct copy – thread safe at init time */
+    return EB_ErrorNone;
+}
+#endif
+
 // clang-format on

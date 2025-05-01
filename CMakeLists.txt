@@ -14,13 +14,10 @@ message(STATUS "CMake version: ${CMAKE_VERSION}")
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 message(STATUS "Python3_INCLUDE_DIRS: ${Python3_INCLUDE_DIRS}")
 message(STATUS "Python3_LIBRARIES: ${Python3_LIBRARIES}")
-add_subdirectory(new_package)
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
     message(WARNING "Building in-source is highly not recommended\n"
                     "Please use the Build folder or create your own.")
 endif()
-
-message(STATUS "asdfasdfasd  ${Python3_LIBRARIES}")
 
 project(svt-av1 VERSION 2.3.0
     LANGUAGES C CXX)
@@ -50,6 +47,7 @@ endif()
 
 option(COMPILE_C_ONLY "Compile only C code with no simds (autodetect, default off for x86)" OFF)
 option(USE_EXTERNAL_CPUINFO "Consume system cpuinfo library only" OFF)
+option(SVT_ENABLE_USER_CALLBACKS "Build SVT-AV1 with external callback support" ON)
 
 if(USE_EXTERNAL_CPUINFO)
     find_package(cpuinfo CONFIG REQUIRED)
@@ -639,7 +637,6 @@ add_subdirectory(Source/Lib)
 if(BUILD_APPS)
 add_subdirectory(Source/App)
 endif()
-add_subdirectory(Source/tl26)
 if(SVT_AV1_PGO)
     string(REPLACE ";" "::" SVT_AV1_PGO_CUSTOM_VIDEOS "${SVT_AV1_PGO_CUSTOM_VIDEOS}")
 

@@ -1219,6 +1219,27 @@ EB_API EbErrorType svt_av1_enc_deinit(EbComponentType *svt_enc_component);
      * @ *svt_enc_component  Encoder handler. */
 EB_API EbErrorType svt_av1_enc_deinit_handle(EbComponentType *svt_enc_component);
 
+#ifdef SVT_ENABLE_USER_CALLBACKS
+typedef struct SvtAv1PluginCallbacks {
+    /* called from ENC_DEC threads once per super-block after final QP is known */
+    void (*on_qp_offset)(EbComponentType *cmp,
+                             uint32_t sb_addr,
+                             int32_t  final_qp,
+                             void    *user);
+
+    /* called from the PACKETIZATION thread after a frame is completely written */
+    void (*on_frame_end)(EbComponentType *cmp,
+                         const EbBufferHeaderType *bitstream,
+                         void *user);
+
+    void *user;
+} SvtAv1PluginCallbacks;
+
+// runtime setter
+EB_API EbErrorType svt_av1_enc_set_callbacks(EbComponentType *cmp, const SvtAv1PluginCallbacks *cbs);
+#endif // SVT_ENABLE_USER_CALLBACKS
+
+
 #ifdef __cplusplus
 }
 #endif // __cplusplus

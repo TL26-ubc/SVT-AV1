@@ -9,6 +9,19 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
+    },
+    {
+      "name": "mac-debug",
+      "displayName": "macOS - Debug (Native Clang)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/Bin/Debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "environment": {
+        "CC": "/usr/bin/clang",
+        "CXX": "/usr/bin/clang++"
+      }
     }
   ]
 }

@@ -45,6 +45,7 @@ add_library(GLOBALS OBJECT ${all_files})
 if (BUILD_SHARED_LIBS)
         target_compile_definitions(GLOBALS
                 PUBLIC EB_DLL
-                PRIVATE EB_BUILDING_SHARED_LIBS)
+                PRIVATE EB_BUILDING_SHARED_LIBS
+                $<$<BOOL:${SVT_ENABLE_USER_CALLBACKS}>:SVT_ENABLE_USER_CALLBACKS>)
 endif()
 add_dependencies(GLOBALS EbVersionHeaderGen)
