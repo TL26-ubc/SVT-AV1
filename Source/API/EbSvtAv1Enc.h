@@ -1220,25 +1220,32 @@ EB_API EbErrorType svt_av1_enc_deinit(EbComponentType *svt_enc_component);
 EB_API EbErrorType svt_av1_enc_deinit_handle(EbComponentType *svt_enc_component);
 
 #ifdef SVT_ENABLE_USER_CALLBACKS
-typedef struct SvtAv1PluginCallbacks {
-    /* called from ENC_DEC threads once per super-block after final QP is known */
-    void (*on_qp_offset)(EbComponentType *cmp,
-                             uint32_t sb_addr,
-                             int32_t  final_qp,
-                             void    *user);
-
-    /* called from the PACKETIZATION thread after a frame is completely written */
-    void (*on_frame_end)(EbComponentType *cmp,
-                         const EbBufferHeaderType *bitstream,
-                         void *user);
+typedef struct PluginCallbacks {
+    int (*user_get_deltaq_offset)(
+        unsigned sb_index,
+        unsigned sb_org_x,
+        unsigned sb_org_y,
+        uint8_t sb_qindex,
+        uint16_t sb_final_blk_cnt,
+        int32_t mi_row_start,
+        int32_t mi_row_end,
+        int32_t mi_col_start,
+        int32_t mi_col_end,
+        int32_t tg_horz_boundary,
+        int32_t tile_row,
+        int32_t tile_col,
+        int32_t tile_rs_index,
+        uint8_t encoder_bit_depth,
+        double beta,
+        bool is_intra,
+        void *user);
 
     void *user;
-} SvtAv1PluginCallbacks;
+} PluginCallbacks;
 
 // runtime setter
-EB_API EbErrorType svt_av1_enc_set_callbacks(EbComponentType *cmp, const SvtAv1PluginCallbacks *cbs);
+EB_API EbErrorType svt_av1_enc_set_callbacks(const PluginCallbacks *cbs);
 #endif // SVT_ENABLE_USER_CALLBACKS
-
 
 #ifdef __cplusplus
 }

@@ -34,9 +34,6 @@
 
 #include "app_output_ivf.h"
 
-#include "../tl26/tl26_feedback.h"
-#include "../tl26/tl26_flags.h"
-
 /***************************************
  * Macros
  ***************************************/

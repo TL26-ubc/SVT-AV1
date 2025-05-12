@@ -10,10 +10,7 @@
 #
 
 cmake_minimum_required(VERSION 3.16)
-message(STATUS "CMake version: ${CMAKE_VERSION}")
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-message(STATUS "Python3_INCLUDE_DIRS: ${Python3_INCLUDE_DIRS}")
-message(STATUS "Python3_LIBRARIES: ${Python3_LIBRARIES}")
+
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
     message(WARNING "Building in-source is highly not recommended\n"
                     "Please use the Build folder or create your own.")
@@ -47,7 +44,6 @@ endif()
 
 option(COMPILE_C_ONLY "Compile only C code with no simds (autodetect, default off for x86)" OFF)
 option(USE_EXTERNAL_CPUINFO "Consume system cpuinfo library only" OFF)
-option(SVT_ENABLE_USER_CALLBACKS "Build SVT-AV1 with external callback support" ON)
 
 if(USE_EXTERNAL_CPUINFO)
     find_package(cpuinfo CONFIG REQUIRED)
@@ -635,7 +631,7 @@ endif()
 # Add Subdirectories
 add_subdirectory(Source/Lib)
 if(BUILD_APPS)
-add_subdirectory(Source/App)
+    add_subdirectory(Source/App)
 endif()
 if(SVT_AV1_PGO)
     string(REPLACE ";" "::" SVT_AV1_PGO_CUSTOM_VIDEOS "${SVT_AV1_PGO_CUSTOM_VIDEOS}")

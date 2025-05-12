@@ -1,4 +1,23 @@
 [project]
 name = "av1-gym"
-version = "0.0.1"
+dynamic = ["version"]
+authors = [{ name = "TL26" }]
+readme = "README.md"
+requires-python = ">=3.9"
 dependencies = ["gymnasium>=0.29", "numpy>=2.1.3", "opencv-python>= 4.10"]
+
+[build-system]
+requires = [
+  "scikit-build-core>=0.11",
+  "setuptools_scm>=7",
+  "pybind11_stubgen>=2"
+]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+wheel.packages    = ["src/pyencoder"]
+wheel.install-dir = "pyencoder"
+
+[tool.scikit-build.cmake]
+define = { SVT_ENABLE_USER_CALLBACKS = "ON" }
+args   = ["-DCMAKE_BUILD_TYPE=Release"]

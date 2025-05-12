@@ -38,15 +38,9 @@ set(all_files
     # App Source Files
     add_executable(SvtAv1EncApp ${all_files})
 
-    target_link_libraries(SvtAv1EncApp tl26)
-
-# Python src
-include_directories(${Python3_INCLUDE_DIRS})
-
 # Link the executable to shared library and Python libraries
 target_link_libraries(SvtAv1EncApp
     SvtAv1Enc
-    ${Python3_LIBRARIES}
 )
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Android")
@@ -60,13 +54,6 @@ endif()
 
 if(TARGET safestringlib)
     target_sources(SvtAv1EncApp PRIVATE $<TARGET_OBJECTS:safestringlib>)
-endif()
-
-# On macOS, set the shared library (SvtAv1Enc) to use dynamic lookup for Python symbols
-if(APPLE)
-    if(TARGET SvtAv1Enc)
-        set_target_properties(SvtAv1Enc PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-    endif()
 endif()
 
 install(TARGETS SvtAv1EncApp RUNTIME DESTINATION ${CMAKE_INSTALL_FULL_BINDIR})

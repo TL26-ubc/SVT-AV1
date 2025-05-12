@@ -32,8 +32,10 @@ third_party/safestringlib/dummy.c
 Data/
 Output/
 .vscode/*
+repomix.*
 
 # python
 __pycache__/
 *.pyc
 *.egg-info/
+.venv
