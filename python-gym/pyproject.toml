@@ -20,4 +20,4 @@ wheel.install-dir = "pyencoder"
 
 [tool.scikit-build.cmake]
 define = { SVT_ENABLE_USER_CALLBACKS = "ON" }
-args   = ["-DCMAKE_BUILD_TYPE=Release"]
+args   = ["-DCMAKE_BUILD_TYPE=Debug"]

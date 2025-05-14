@@ -6,6 +6,7 @@ add_compile_definitions(SVT_ENABLE_USER_CALLBACKS)
 # 1.  Bring in the upstream SVT‑AV1 build (core only, static)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(BUILD_APPS        OFF CACHE BOOL "" FORCE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_subdirectory(
     ${CMAKE_CURRENT_LIST_DIR}/..
