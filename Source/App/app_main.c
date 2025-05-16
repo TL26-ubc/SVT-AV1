@@ -499,18 +499,27 @@ void debugger_signal_handler(int signum) {
 }
 
 void wait_for_debugger() {
+#ifdef _WIN32
+    printf("Waiting for debugger to attach (PID: %lu)...\n", GetCurrentProcessId());
+    fflush(stdout);
+
+    while (!IsDebuggerPresent()) {
+        Sleep(100); // Sleep for 100 milliseconds
+    }
+
+    printf("Debugger attached. Continuing execution...\n");
+#else
     printf("Waiting for debugger to attach (PID: %d)...\n", getpid());
     fflush(stdout);
 
-    // Set up a signal handler for SIGUSR1
     signal(SIGUSR1, debugger_signal_handler);
 
-    // Wait until the debugger sends SIGUSR1
     while (!debugger_attached) {
         pause(); // Wait for a signal
     }
 
     printf("Debugger attached. Continuing execution...\n");
+#endif
 }
 
 /***************************************
