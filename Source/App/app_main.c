@@ -489,6 +489,30 @@ EbErrorType enc_app_ctor(EncApp* enc_app) {
 
 void enc_app_dctor(EncApp* enc_app) { free(enc_app->rc_twopasses_stats.buf); }
 
+volatile bool debugger_attached = false;
+
+void debugger_signal_handler(int signum) {
+    (void)signum;
+    debugger_attached = true;
+    printf("Debugger attached signal received.\n");
+    fflush(stdout);
+}
+
+void wait_for_debugger() {
+    printf("Waiting for debugger to attach (PID: %d)...\n", getpid());
+    fflush(stdout);
+
+    // Set up a signal handler for SIGUSR1
+    signal(SIGUSR1, debugger_signal_handler);
+
+    // Wait until the debugger sends SIGUSR1
+    while (!debugger_attached) {
+        pause(); // Wait for a signal
+    }
+
+    printf("Debugger attached. Continuing execution...\n");
+}
+
 /***************************************
  * Encoder App Main
  ***************************************/
@@ -503,6 +527,9 @@ int32_t main(int32_t argc, char* argv[]) {
     EncPass     enc_pass[MAX_ENC_PASS];
     EncApp      enc_app;
     EncContext  enc_context;
+
+    // wait for debugger to attach
+    wait_for_debugger();
 
     signal(SIGINT, event_handler);
     if (get_version(argc, argv))
