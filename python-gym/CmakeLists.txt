@@ -74,6 +74,5 @@ target_link_libraries(_svtapp
         Threads::Threads
         m)
 
-set_target_properties(_svtapp PROPERTIES SUFFIX ".pyd")
 # Install path for scikit‑build‑core editable wheels
 install(TARGETS _svtapp LIBRARY DESTINATION . RUNTIME DESTINATION .)
