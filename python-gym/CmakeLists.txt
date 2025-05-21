@@ -54,7 +54,7 @@ add_library(_svtapp MODULE
     src/bridge/pybridge.c
     src/pyencoder/_binding.c)
 
-set_target_properties(_svtapp PROPERTIES PREFIX "")
+set_target_properties(_svtapp PROPERTIES SUFFIX ".pyd")
 
 target_include_directories(_svtapp PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/.."
@@ -73,6 +73,5 @@ target_link_libraries(_svtapp
         Python3::Python
         Threads::Threads
         m)
-
 # Install path for scikit‑build‑core editable wheels
 install(TARGETS _svtapp LIBRARY DESTINATION . RUNTIME DESTINATION .)
