@@ -14,7 +14,7 @@ add_subdirectory(
     EXCLUDE_FROM_ALL)
 
 find_package(Threads REQUIRED)
-find_package(Python3 COMPONENTS Development REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
 # 2.  Safe‑string library  (strcpy_s, strncpy_s, …)
 file(GLOB SAFE_SRC
@@ -54,7 +54,10 @@ add_library(_svtapp MODULE
     src/bridge/pybridge.c
     src/pyencoder/_binding.c)
 
-set_target_properties(_svtapp PROPERTIES SUFFIX ".pyd")
+set_target_properties(_svtapp PROPERTIES
+    OUTPUT_NAME "_svtapp"
+    PREFIX ""
+    SUFFIX ".pyd")
 
 target_include_directories(_svtapp PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/.."
