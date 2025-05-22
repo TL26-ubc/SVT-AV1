@@ -39,6 +39,10 @@ set(all_files
         enc_settings.h
         metadata_handle.c
         metadata_handle.h
+        enc_callbacks.c
+        enc_callbacks.h
+        rl_feedback.c
+        rl_feedback.h
         )
 
 add_library(GLOBALS OBJECT ${all_files})

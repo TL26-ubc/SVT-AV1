@@ -1,5 +1,5 @@
 #include "enc_callbacks.h"
-#include "Codec/coding_unit.h"
+#include "../Lib/Codec/coding_unit.h"
 
 #ifdef SVT_ENABLE_USER_CALLBACKS
 PluginCallbacks plugin_cbs;

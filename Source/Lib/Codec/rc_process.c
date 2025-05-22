@@ -41,6 +41,10 @@
 #include "src_ops_process.h"
 #include "enc_mode_config.h"
 
+#ifdef SVT_ENABLE_USER_CALLBACKS
+#include "enc_callbacks.h"
+#endif
+
 // Specifies the weights of the ref frame in calculating qindex of non base layer frames
 static const int non_base_qindex_weight_ref[EB_MAX_TEMPORAL_LAYERS] = {100, 100, 100, 100, 100, 100};
 // Specifies the weights of the worst quality in calculating qindex of non base layer frames
@@ -1559,6 +1563,26 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
             SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
             double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
         
+// #ifdef SVT_ENABLE_USER_CALLBACKS
+//             TileInfo *tile_info = &sb_ptr->tile_info;
+//             int offset = (plugin_cbs.user_get_deltaq_offset != NULL)
+//                 ? plugin_cbs.user_get_deltaq_offset(
+//                     sb_ptr->index, sb_ptr->org_x, sb_ptr->org_y, sb_ptr->qindex, sb_ptr->final_blk_cnt,
+//                     tile_info->mi_row_start, tile_info->mi_row_end, tile_info->mi_col_start, tile_info->mi_col_end,
+//                     tile_info->tg_horz_boundary, tile_info->tile_row, tile_info->tile_col, tile_info->tile_rs_index,
+//                     scs->static_config.encoder_bit_depth, beta, pcs->ppcs->slice_type == I_SLICE,
+//                     plugin_cbs.user)
+//                 : svt_av1_get_deltaq_offset(scs->static_config.encoder_bit_depth,
+//                                             sb_ptr->qindex,
+//                                             beta,
+//                                             pcs->ppcs->slice_type == I_SLICE);
+// #else
+//             int offset = svt_av1_get_deltaq_offset(scs->static_config.encoder_bit_depth,
+//                                                    sb_ptr->qindex,
+//                                                    beta,
+//                                                    pcs->ppcs->slice_type == I_SLICE);
+// #endif
+
 #ifdef SVT_ENABLE_USER_CALLBACKS
             TileInfo *tile_info = &sb_ptr->tile_info;
             int offset = (plugin_cbs.user_get_deltaq_offset != NULL)

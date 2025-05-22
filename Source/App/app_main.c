@@ -55,6 +55,8 @@
 int tot_frames_done = 0;
 #endif
 
+#include "../Lib/Globals/gym_buffer.h"
+
 /***************************************
  * External Functions
  ***************************************/
@@ -242,10 +244,16 @@ static EbErrorType enc_context_ctor(EncApp* enc_app, EncContext* enc_context, in
         } else
             c->active = FALSE;
     }
+    #ifdef SVT_ENABLE_USER_CALLBACKS
+        init_gym_buffer();
+    #endif
     return return_error;
 }
 
 static void enc_context_dctor(EncContext* enc_context) {
+    #ifdef SVT_ENABLE_USER_CALLBACKS
+        shutdown_gym_buffer();
+    #endif
     // DeInit Encoder
     for (int32_t inst_cnt = enc_context->num_channels - 1; inst_cnt >= 0; --inst_cnt) {
         EncChannel* c = enc_context->channels + inst_cnt;
