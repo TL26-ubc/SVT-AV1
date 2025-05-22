@@ -54,10 +54,14 @@ add_library(_svtapp MODULE
     src/bridge/pybridge.c
     src/pyencoder/_binding.c)
 
-set_target_properties(_svtapp PROPERTIES
-    OUTPUT_NAME "_svtapp"
-    PREFIX ""
-    SUFFIX ".pyd")
+if (WIN32)
+    set_target_properties(_svtapp PROPERTIES
+        OUTPUT_NAME "_svtapp"
+        PREFIX ""
+        SUFFIX ".pyd")
+else()
+    set_target_properties(_svtapp PROPERTIES PREFIX "")
+endif()
 
 target_include_directories(_svtapp PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/.."

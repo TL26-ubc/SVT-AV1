@@ -1,5 +1,18 @@
 import pyencoder, os
 
+# check for --file argument
+if "--file" in os.sys.argv:
+    file_index = os.sys.argv.index("--file") + 1
+    if file_index < len(os.sys.argv):
+        input_file = os.sys.argv[file_index]
+        # make it absolute path
+        input_file = os.path.abspath(input_file)
+        print(f"Input file: {input_file}")
+    else:
+        raise ValueError("No input file provided after --file argument.")
+else:
+    raise ValueError("No --file argument provided. Provide the video file to encode.")
+
 def get_deltaq_offset(
     sb_index: int, sb_org_x: int, sb_org_y: int, sb_qindex: int, sb_final_blk_cnt: int,
     mi_row_start: int, mi_row_end: int, mi_col_start: int, mi_col_end: int,
@@ -15,4 +28,4 @@ def get_deltaq_offset(
     return 32
 
 pyencoder.register_callbacks(get_deltaq_offset=get_deltaq_offset)
-pyencoder.run(input="../../playground/akiyo_qcif.y4m", rc=True, enable_stat_report=True)
+pyencoder.run(input=input_file, rc=True, enable_stat_report=True)
