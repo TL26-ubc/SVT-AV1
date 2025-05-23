@@ -68,11 +68,10 @@ py_register_cbs(PyObject *self, PyObject *args)
     PyObject *py_frame_feedback = Py_None;
     PyObject *py_sb_feedback = Py_None;
     
-    // 解析三个参数
+
     if (!PyArg_ParseTuple(args, "|OOO", &py_get_deltaq_offset, &py_frame_feedback, &py_sb_feedback))
         return PyErr_Format(PyExc_TypeError, "unable to parse callback arguments");
 
-    // 检查参数类型
     if (py_get_deltaq_offset != Py_None && !PyCallable_Check(py_get_deltaq_offset))
         return PyErr_Format(PyExc_TypeError, "get_deltaq_offset must be callable or None");
     

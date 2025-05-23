@@ -40,7 +40,7 @@ void svt_report_frame_feedback(
     cr_ssim = header_ptr->cr_ssim;
     cb_ssim = header_ptr->cb_ssim;
 
-    // 计算PSNR - 与TL26相同的逻辑
+    // PSNR calculation 
     temp_var = (double)max_luma_value * max_luma_value * (source_width * source_height);
     luma_psnr = get_psnr_rl((double)luma_sse, temp_var);
 
@@ -48,7 +48,7 @@ void svt_report_frame_feedback(
     cb_psnr = get_psnr_rl((double)cb_sse, temp_var);
     cr_psnr = get_psnr_rl((double)cr_sse, temp_var);
 
-    // 调用Python回调
+    // callbacks
     plugin_cbs.user_frame_feedback(
         picture_number,
         temporal_layer_index,
@@ -67,7 +67,6 @@ void svt_report_frame_feedback(
         plugin_cbs.user);
 }
 
-// 超级块级反馈实现 - 移植自TL26
 void svt_report_sb_feedback(
     int picture_number, 
     uint32_t max_luma_value,
@@ -91,7 +90,6 @@ void svt_report_sb_feedback(
 
     double temp_var, luma_psnr, cb_psnr, cr_psnr;
 
-    // 计算PSNR - 与TL26相同的逻辑
     temp_var = (double)max_luma_value * max_luma_value * (sb_width * sb_height);
     luma_psnr = get_psnr_rl((double)luma_sse, temp_var);
 
@@ -99,7 +97,6 @@ void svt_report_sb_feedback(
     cb_psnr = get_psnr_rl((double)cb_sse, temp_var);
     cr_psnr = get_psnr_rl((double)cr_sse, temp_var);
 
-    // 调用Python回调
     plugin_cbs.user_sb_feedback(
         picture_number,
         sb_index,
@@ -122,7 +119,6 @@ void svt_report_sb_feedback(
         plugin_cbs.user);
 }
 
-// 超级块QP offset请求实现 - 移植自TL26
 int svt_request_sb_offset(SuperBlock *sb_ptr, PictureControlSet *pcs, int encoder_bit_depth, int qindex, double beta, bool slice_type_is_I_SLICE) {
     if (!plugin_cbs.user_get_deltaq_offset) 
         return 0;
@@ -131,7 +127,6 @@ int svt_request_sb_offset(SuperBlock *sb_ptr, PictureControlSet *pcs, int encode
     SequenceControlSet *scs = pcs->ppcs->scs;
     EbPictureBufferDesc *input_pic = (EbPictureBufferDesc *)pcs->ppcs->enhanced_unscaled_pic;
     
-    // 获取buffer - 与TL26相同的逻辑
     if (pcs->ppcs->do_tf == TRUE) {
         assert(pcs->ppcs->save_source_picture_width == input_pic->width &&
                pcs->ppcs->save_source_picture_height == input_pic->height);
@@ -160,7 +155,6 @@ int svt_request_sb_offset(SuperBlock *sb_ptr, PictureControlSet *pcs, int encode
         mi_col_start = tile_info->mi_col_start, mi_col_end = tile_info->mi_col_end;
     int tg_horz_boundary = tile_info->tg_horz_boundary;
 
-    // 调用Python回调获取QP offset
     return plugin_cbs.user_get_deltaq_offset(
         sb_index,
         sb_origin_x,
@@ -183,7 +177,7 @@ int svt_request_sb_offset(SuperBlock *sb_ptr, PictureControlSet *pcs, int encode
 
 
 
-// 修复 svt_aom_sse_calculations_sb 函数
+// symplified version, should be fixed
 EbErrorType svt_aom_sse_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb,
                                         uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out) {
     *luma_sse_out = 0;
