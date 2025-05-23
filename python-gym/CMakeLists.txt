@@ -71,7 +71,7 @@ target_include_directories(_svtapp PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../Source"
     "${CMAKE_CURRENT_LIST_DIR}/../Source/App"
     "${CMAKE_CURRENT_LIST_DIR}/../Source/API"
-    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals"  # 添加这一行
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals" 
     ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(_svtapp
