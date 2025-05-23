@@ -11,8 +11,6 @@ def run(**kwargs):
     for key, val in kwargs.items():
         flag = f"--{key.replace('_', '-')}"  # ex: rc_mode -> --rc-mode
         if isinstance(val, bool):  # True/False -> 1/0
-        flag = f"--{key.replace('_', '-')}"  # ex: rc_mode -> --rc-mode
-        if isinstance(val, bool):  # True/False -> 1/0
             argv.extend([flag, "1" if val else "0"])
         else:
             argv.extend([flag, str(val)])
