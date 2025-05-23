@@ -54,10 +54,6 @@ int svt_request_sb_offset(SuperBlock *sb_ptr, PictureControlSet *pcs, int encode
 EbErrorType svt_aom_ssim_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory,
                                          double *luma_ssim_out, double *cb_ssim_out, double *cr_ssim_out);
 
-
-EbErrorType svt_aom_sse_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb,
-                                        uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out);
-
 #endif // SVT_ENABLE_USER_CALLBACKS
 
 #endif // EB_RL_FEEDBACK_H

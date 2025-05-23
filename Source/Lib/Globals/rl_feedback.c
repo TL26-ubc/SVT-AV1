@@ -175,16 +175,4 @@ int svt_request_sb_offset(SuperBlock *sb_ptr, PictureControlSet *pcs, int encode
         plugin_cbs.user);
 }
 
-
-
-// symplified version, should be fixed
-EbErrorType svt_aom_sse_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb,
-                                        uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out) {
-    *luma_sse_out = 0;
-    *cb_sse_out = 0;
-    *cr_sse_out = 0;
-
-    return EB_ErrorNone;
-}
-
 #endif // SVT_ENABLE_USER_CALLBACKS
