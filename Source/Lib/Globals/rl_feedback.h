@@ -3,10 +3,10 @@
 
 #include "EbSvtAv1Enc.h"
 #include "EbSvtAv1ErrorCodes.h"
-// #include "../Codec/coding_unit.h"
-// #include "../Codec/block_structures.h"
-// #include "../Codec/pcs.h"
-#include "../App/app_config.h"
+#include "../Codec/coding_unit.h"
+#include "../Codec/block_structures.h"
+#include "../Codec/pcs.h"
+// #include "../App/app_config.h"
 #include "../Lib/Codec/sequence_control_set.h"
 
 
@@ -23,7 +23,12 @@ static inline double get_psnr_rl(double sse, double max) {
 }
 
 // 帧级反馈
-void svt_report_frame_feedback(EbBufferHeaderType *header_ptr, EbConfig *app_cfg);
+void svt_report_frame_feedback(
+    EbBufferHeaderType *header_ptr, 
+    uint32_t max_luma_value,
+    uint32_t source_width,
+    uint32_t source_height
+);
 
 // 超级块级反馈
 void svt_report_sb_feedback(
