@@ -1,7 +1,6 @@
 from importlib import import_module as _imp
 
 _svtapp = _imp("._svtapp", package="pyencoder")
-_svtapp = _imp("._svtapp", package="pyencoder")
 _run = _svtapp.run
 _register = _svtapp.register_callbacks
 
