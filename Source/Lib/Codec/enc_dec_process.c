@@ -1166,7 +1166,7 @@ EbErrorType svt_aom_ssim_calculations(PictureControlSet *pcs, SequenceControlSet
     EB_DELETE(upscaled_recon);
     return EB_ErrorNone;
 }
-#ifdef TL26_RL
+#ifdef SVT_ENABLE_USER_CALLBACKS
 EbErrorType svt_aom_ssim_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory,
                                          double *luma_ssim_out, double *cb_ssim_out, double *cr_ssim_out) {
     Bool is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
@@ -1849,347 +1849,290 @@ EbErrorType psnr_calculations(PictureControlSet *pcs, SequenceControlSet *scs, B
     EB_DELETE(upscaled_recon);
     return EB_ErrorNone;
 }
-// #ifdef TL26_RL
-// EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory, 
-//                                  uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out) {
-//     Bool is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
-
-//     const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width  - sb->org_x);
-//     const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb->org_y);
-//     const uint32_t ss_x = scs->subsampling_x;
-//     const uint32_t ss_y = scs->subsampling_y;
-
-//     EbPictureBufferDesc *recon_ptr;
-//     EbPictureBufferDesc *input_pic = (EbPictureBufferDesc *)pcs->ppcs->enhanced_unscaled_pic;
-//     svt_aom_get_recon_pic(pcs, &recon_ptr, is_16bit);
-
-//     // upscale recon if resized
-//     EbPictureBufferDesc *upscaled_recon = NULL;
-//     Bool                 is_resized = recon_ptr->width != input_pic->width || recon_ptr->height != input_pic->height;
-//     if (is_resized) {
-//         superres_params_type spr_params = {input_pic->width, input_pic->height, 0};
-//         svt_aom_downscaled_source_buffer_desc_ctor(&upscaled_recon, recon_ptr, spr_params);
-//         svt_aom_resize_frame(recon_ptr,
-//                              upscaled_recon,
-//                              scs->static_config.encoder_bit_depth,
-//                              av1_num_planes(&scs->seq_header.color_config),
-//                              ss_x,
-//                              ss_y,
-//                              recon_ptr->packed_flag,
-//                              PICTURE_BUFFER_DESC_FULL_MASK,
-//                              0); // is_2bcompress
-//         recon_ptr = upscaled_recon;
-//     }
-
-//     if (!is_16bit) {
-//         uint64_t sse_total[3]        = {0};
-//         uint64_t residual_distortion = 0;
-//         EbByte   input_buffer;
-//         EbByte   recon_coeff_buffer;
-
-//         EbByte buffer_y;
-//         EbByte buffer_cb;
-//         EbByte buffer_cr;
-
-//         // if current source picture was temporally filtered, use an alternative buffer which stores
-//         // the original source picture
-//         if (pcs->ppcs->do_tf == TRUE) {
-//             assert(pcs->ppcs->save_source_picture_width == input_pic->width &&
-//                    pcs->ppcs->save_source_picture_height == input_pic->height);
-//             buffer_y  = pcs->ppcs->save_source_picture_ptr[0];
-//             buffer_cb = pcs->ppcs->save_source_picture_ptr[1];
-//             buffer_cr = pcs->ppcs->save_source_picture_ptr[2];
-//         } else {
-//             buffer_y  = input_pic->buffer_y;
-//             buffer_cb = input_pic->buffer_cb;
-//             buffer_cr = input_pic->buffer_cr;
-//         }
-
-//         recon_coeff_buffer = &((recon_ptr->buffer_y)[(recon_ptr->org_x + sb->org_x) +
-//             (recon_ptr->org_y + sb->org_y) * recon_ptr->stride_y]);
-//         input_buffer       = &(buffer_y[(input_pic->org_x + sb->org_x) + 
-//             (input_pic->org_y + sb->org_y) * input_pic->stride_y]);
-
-//         residual_distortion = 0;
-
-//         for (int row_index = 0; row_index < sb_height - scs->max_input_pad_bottom; ++row_index) {
-//             for (int column_index = 0; column_index < sb_width - scs->max_input_pad_right; ++column_index) {
-//                 residual_distortion += (int64_t)SQR((int64_t)(input_buffer[column_index]) -
-//                                                     (recon_coeff_buffer[column_index]));
-//             }
-
-//             input_buffer += input_pic->stride_y;
-//             recon_coeff_buffer += recon_ptr->stride_y;
-//         }
-
-//         sse_total[0] = residual_distortion;
-
-//         recon_coeff_buffer = &(
-//             (recon_ptr->buffer_cb)[(recon_ptr->org_x + sb->org_x) / 2 + 
-//                 (recon_ptr->org_y + sb->org_y) / 2 * recon_ptr->stride_cb]);
-//         input_buffer       = &(buffer_cb[(input_pic->org_x + sb->org_x) / 2 + 
-//             (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cb]);
-
-//         residual_distortion = 0;
-//         for (int row_index = 0; row_index < (sb_height - scs->max_input_pad_bottom) >> ss_y; ++row_index) {
-//             for (int column_index = 0; column_index < (sb_width - scs->max_input_pad_right) >> ss_x;
-//                  ++column_index) {
-//                 residual_distortion += (int64_t)SQR((int64_t)(input_buffer[column_index]) -
-//                                                     (recon_coeff_buffer[column_index]));
-//             }
-
-//             input_buffer += input_pic->stride_cb;
-//             recon_coeff_buffer += recon_ptr->stride_cb;
-//         }
-
-//         sse_total[1] = residual_distortion;
-
-//         recon_coeff_buffer  = &((recon_ptr->buffer_cr)[(recon_ptr->org_x + sb->org_x) / 2 + 
-//             (recon_ptr->org_y + sb->org_y) / 2 * recon_ptr->stride_cr]);
-//         input_buffer        = &(buffer_cr[(input_pic->org_x + sb->org_x) / 2 + 
-//             (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cr]);
-//         residual_distortion = 0;
-
-//         for (int row_index = 0; row_index < (sb_height - scs->max_input_pad_bottom) >> ss_y; ++row_index) {
-//             for (int column_index = 0; column_index < (sb_width - scs->max_input_pad_right) >> ss_x;
-//                  ++column_index) {
-//                 residual_distortion += (int64_t)SQR((int64_t)(input_buffer[column_index]) -
-//                                                     (recon_coeff_buffer[column_index]));
-//             }
-
-//             input_buffer += input_pic->stride_cr;
-//             recon_coeff_buffer += recon_ptr->stride_cr;
-//         }
-
-//         sse_total[2]        = residual_distortion;
-
-//         *luma_sse_out = sse_total[0];
-//         *cb_sse_out   = sse_total[1];
-//         *cr_sse_out   = sse_total[2];
-
-//         if (free_memory && pcs->ppcs->do_tf == TRUE) {
-//             EB_FREE_ARRAY(buffer_y);
-//             EB_FREE_ARRAY(buffer_cb);
-//             EB_FREE_ARRAY(buffer_cr);
-//         }
-//     } else {
-//         uint64_t  sse_total[3]        = {0};
-//         uint64_t  residual_distortion = 0;
-//         EbByte    input_buffer;
-//         EbByte    input_buffer_bit_inc;
-//         uint16_t *recon_coeff_buffer;
-
-//         if (scs->ten_bit_format == 1) {
-//             /* This format is not supported on this version, we should never get here */
-//             fprintf(stderr, "We should not be encoding with ten bit format\n");
-//             exit(1);
-//         } else {
-//             recon_coeff_buffer = (uint16_t *)(&(
-//                 (recon_ptr->buffer_y)[((recon_ptr->org_x + sb->org_x) << is_16bit) +
-//                                       ((recon_ptr->org_y + sb->org_y) << is_16bit) * recon_ptr->stride_y]));
-
-//             // if current source picture was temporally filtered, use an alternative buffer which stores
-//             // the original source picture
-//             EbByte buffer_y, buffer_bit_inc_y;
-//             EbByte buffer_cb, buffer_bit_inc_cb;
-//             EbByte buffer_cr, buffer_bit_inc_cr;
-
-//             if (pcs->ppcs->do_tf == TRUE) {
-//                 assert(pcs->ppcs->save_source_picture_width == input_pic->width &&
-//                        pcs->ppcs->save_source_picture_height == input_pic->height);
-//                 buffer_y          = pcs->ppcs->save_source_picture_ptr[0];
-//                 buffer_bit_inc_y  = pcs->ppcs->save_source_picture_bit_inc_ptr[0];
-//                 buffer_cb         = pcs->ppcs->save_source_picture_ptr[1];
-//                 buffer_bit_inc_cb = pcs->ppcs->save_source_picture_bit_inc_ptr[1];
-//                 buffer_cr         = pcs->ppcs->save_source_picture_ptr[2];
-//                 buffer_bit_inc_cr = pcs->ppcs->save_source_picture_bit_inc_ptr[2];
-//             } else {
-//                 uint32_t height_y  = (uint32_t)(input_pic->height + input_pic->org_y + input_pic->origin_bot_y);
-//                 uint32_t height_uv = (uint32_t)((input_pic->height + input_pic->org_y + input_pic->origin_bot_y) >>
-//                                                 ss_y);
-
-//                 uint8_t *uncompressed_pics[3];
-//                 EB_MALLOC_ARRAY(uncompressed_pics[0], pcs->ppcs->enhanced_unscaled_pic->luma_size);
-//                 EB_MALLOC_ARRAY(uncompressed_pics[1], pcs->ppcs->enhanced_unscaled_pic->chroma_size);
-//                 EB_MALLOC_ARRAY(uncompressed_pics[2], pcs->ppcs->enhanced_unscaled_pic->chroma_size);
-
-//                 svt_c_unpack_compressed_10bit(input_pic->buffer_bit_inc_y,
-//                                               input_pic->stride_bit_inc_y / 4,
-//                                               uncompressed_pics[0],
-//                                               input_pic->stride_bit_inc_y,
-//                                               height_y);
-//                 // U
-//                 svt_c_unpack_compressed_10bit(input_pic->buffer_bit_inc_cb,
-//                                               input_pic->stride_bit_inc_cb / 4,
-//                                               uncompressed_pics[1],
-//                                               input_pic->stride_bit_inc_cb,
-//                                               height_uv);
-//                 // V
-//                 svt_c_unpack_compressed_10bit(input_pic->buffer_bit_inc_cr,
-//                                               input_pic->stride_bit_inc_cr / 4,
-//                                               uncompressed_pics[2],
-//                                               input_pic->stride_bit_inc_cr,
-//                                               height_uv);
-
-//                 buffer_y          = input_pic->buffer_y;
-//                 buffer_bit_inc_y  = uncompressed_pics[0];
-//                 buffer_cb         = input_pic->buffer_cb;
-//                 buffer_bit_inc_cb = uncompressed_pics[1];
-//                 buffer_cr         = input_pic->buffer_cr;
-//                 buffer_bit_inc_cr = uncompressed_pics[2];
-//             }
-
-//             input_buffer         = &((buffer_y)[(input_pic->org_x + sb->org_x) + 
-//                 (input_pic->org_y + sb->org_y) * input_pic->stride_y]);
-//             input_buffer_bit_inc = &((buffer_bit_inc_y)[(input_pic->org_x + sb->org_x) + 
-//                 (input_pic->org_y + sb->org_y) * input_pic->stride_bit_inc_y]);
-
-//             residual_distortion = 0;
-
-//             for (int row_index = 0; row_index < sb_height - scs->max_input_pad_bottom; ++row_index) {
-//                 for (int column_index = 0; column_index < sb_width - scs->max_input_pad_right; ++column_index) {
-//                     residual_distortion += (int64_t)SQR((int64_t)((((input_buffer[column_index]) << 2) |
-//                                                                    ((input_buffer_bit_inc[column_index] >> 6) & 3))) -
-//                                                         (recon_coeff_buffer[column_index]));
-//                 }
-
-//                 input_buffer += input_pic->stride_y;
-//                 input_buffer_bit_inc += input_pic->stride_bit_inc_y;
-//                 recon_coeff_buffer += recon_ptr->stride_y;
-//             }
-
-//             sse_total[0] = residual_distortion;
-
-//             recon_coeff_buffer   = (uint16_t *)(&(
-//                 (recon_ptr->buffer_cb)[((recon_ptr->org_x + sb->org_x) << is_16bit) / 2 +
-//                                        ((recon_ptr->org_y + sb->org_y) << is_16bit) / 2 * recon_ptr->stride_cb]));
-//             input_buffer         = &((buffer_cb)[(input_pic->org_x + sb->org_x) / 2 + 
-//                 (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cb]);
-//             input_buffer_bit_inc = &((buffer_bit_inc_cb)[(input_pic->org_x + sb->org_x) / 2 + 
-//                 (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_bit_inc_cb]);
-
-//             residual_distortion = 0;
-//             for (int row_index = 0; row_index < (sb_height - scs->max_input_pad_bottom) >> ss_y; ++row_index) {
-//                 for (int column_index = 0; column_index < (sb_width - scs->max_input_pad_right) >> ss_x;
-//                      ++column_index) {
-//                     residual_distortion += (int64_t)SQR((int64_t)((((input_buffer[column_index]) << 2) |
-//                                                                    ((input_buffer_bit_inc[column_index] >> 6) & 3))) -
-//                                                         (recon_coeff_buffer[column_index]));
-//                 }
-
-//                 input_buffer += input_pic->stride_cb;
-//                 input_buffer_bit_inc += input_pic->stride_bit_inc_cb;
-//                 recon_coeff_buffer += recon_ptr->stride_cb;
-//             }
-
-//             sse_total[1] = residual_distortion;
-
-//             recon_coeff_buffer   = (uint16_t *)(&(
-//                 (recon_ptr->buffer_cr)[((recon_ptr->org_x + sb->org_x) << is_16bit) / 2 +
-//                                        ((recon_ptr->org_y + sb->org_y) << is_16bit) / 2 * recon_ptr->stride_cr]));
-//             input_buffer         = &((buffer_cr)[(input_pic->org_x + sb->org_x) / 2 + 
-//                 (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cr]);
-//             input_buffer_bit_inc = &((buffer_bit_inc_cr)[(input_pic->org_x + sb->org_x) / 2 + 
-//                 (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_bit_inc_cr]);
-
-//             residual_distortion = 0;
-
-//             for (int row_index = 0; row_index < (sb_height - scs->max_input_pad_bottom) >> ss_y; ++row_index) {
-//                 for (int column_index = 0; column_index < (sb_width - scs->max_input_pad_right) >> ss_x;
-//                      ++column_index) {
-//                     residual_distortion += (int64_t)SQR((int64_t)((((input_buffer[column_index]) << 2) |
-//                                                                    ((input_buffer_bit_inc[column_index] >> 6) & 3))) -
-//                                                         (recon_coeff_buffer[column_index]));
-//                 }
-
-//                 input_buffer += input_pic->stride_cr;
-//                 input_buffer_bit_inc += input_pic->stride_bit_inc_cr;
-//                 recon_coeff_buffer += recon_ptr->stride_cr;
-//             }
-
-//             sse_total[2] = residual_distortion;
-
-//             if (free_memory && pcs->ppcs->do_tf == TRUE) {
-//                 EB_FREE_ARRAY(buffer_y);
-//                 EB_FREE_ARRAY(buffer_cb);
-//                 EB_FREE_ARRAY(buffer_cr);
-//                 EB_FREE_ARRAY(buffer_bit_inc_y);
-//                 EB_FREE_ARRAY(buffer_bit_inc_cb);
-//                 EB_FREE_ARRAY(buffer_bit_inc_cr);
-//             }
-//             if (pcs->ppcs->do_tf == FALSE) {
-//                 EB_FREE_ARRAY(buffer_bit_inc_y);
-//                 EB_FREE_ARRAY(buffer_bit_inc_cb);
-//                 EB_FREE_ARRAY(buffer_bit_inc_cr);
-//             }
-//         }
-
-//         *luma_sse_out = sse_total[0];
-//         *cb_sse_out   = sse_total[1];
-//         *cr_sse_out   = sse_total[2];
-//     }
-//     EB_DELETE(upscaled_recon);
-//     return EB_ErrorNone;
-// }
-// #endif
-
-
 #ifdef SVT_ENABLE_USER_CALLBACKS
-    if (plugin_cbs.user_sb_feedback) {
-        uint32_t max_luma_value = (scs->static_config.encoder_bit_depth == 8) ? 255 : 1023;
-        
-        uint64_t luma_sse, cb_sse, cr_sse;
-        double luma_ssim, cb_ssim, cr_ssim;
-        
-        svt_aom_ssim_calculations_sb(pcs, scs, sb_ptr, FALSE, &luma_ssim, &cb_ssim, &cr_ssim);
-        
-        svt_aom_sse_calculations_sb(pcs, scs, sb_ptr, &luma_sse, &cb_sse, &cr_sse);
-        
-        uint8_t *buffer_y, *buffer_cb, *buffer_cr;
-        EbPictureBufferDesc *input_pic = (EbPictureBufferDesc *)pcs->ppcs->enhanced_unscaled_pic;
-        
+EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory, 
+                                 uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out) {
+    Bool is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
+
+    const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width  - sb->org_x);
+    const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb->org_y);
+    const uint32_t ss_x = scs->subsampling_x;
+    const uint32_t ss_y = scs->subsampling_y;
+
+    EbPictureBufferDesc *recon_ptr;
+    EbPictureBufferDesc *input_pic = (EbPictureBufferDesc *)pcs->ppcs->enhanced_unscaled_pic;
+    svt_aom_get_recon_pic(pcs, &recon_ptr, is_16bit);
+
+    // upscale recon if resized
+    EbPictureBufferDesc *upscaled_recon = NULL;
+    Bool                 is_resized = recon_ptr->width != input_pic->width || recon_ptr->height != input_pic->height;
+    if (is_resized) {
+        superres_params_type spr_params = {input_pic->width, input_pic->height, 0};
+        svt_aom_downscaled_source_buffer_desc_ctor(&upscaled_recon, recon_ptr, spr_params);
+        svt_aom_resize_frame(recon_ptr,
+                             upscaled_recon,
+                             scs->static_config.encoder_bit_depth,
+                             av1_num_planes(&scs->seq_header.color_config),
+                             ss_x,
+                             ss_y,
+                             recon_ptr->packed_flag,
+                             PICTURE_BUFFER_DESC_FULL_MASK,
+                             0); // is_2bcompress
+        recon_ptr = upscaled_recon;
+    }
+
+    if (!is_16bit) {
+        uint64_t sse_total[3]        = {0};
+        uint64_t residual_distortion = 0;
+        EbByte   input_buffer;
+        EbByte   recon_coeff_buffer;
+
+        EbByte buffer_y;
+        EbByte buffer_cb;
+        EbByte buffer_cr;
+
+        // if current source picture was temporally filtered, use an alternative buffer which stores
+        // the original source picture
         if (pcs->ppcs->do_tf == TRUE) {
-            buffer_y = pcs->ppcs->save_source_picture_ptr[0];
+            assert(pcs->ppcs->save_source_picture_width == input_pic->width &&
+                   pcs->ppcs->save_source_picture_height == input_pic->height);
+            buffer_y  = pcs->ppcs->save_source_picture_ptr[0];
             buffer_cb = pcs->ppcs->save_source_picture_ptr[1];
             buffer_cr = pcs->ppcs->save_source_picture_ptr[2];
         } else {
-            buffer_y = input_pic->buffer_y;
+            buffer_y  = input_pic->buffer_y;
             buffer_cb = input_pic->buffer_cb;
             buffer_cr = input_pic->buffer_cr;
         }
-        
-        // 调整指针到当前超级块
-        const uint16_t sb_width = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
-        const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
-        
-        buffer_y = &(buffer_y[(input_pic->org_x + sb_ptr->org_x) + 
-                              (input_pic->org_y + sb_ptr->org_y) * input_pic->stride_y]);
-        buffer_cb = &(buffer_cb[(input_pic->org_x + sb_ptr->org_x) / 2 + 
-                               (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cb]);
-        buffer_cr = &(buffer_cr[(input_pic->org_x + sb_ptr->org_x) / 2 + 
-                               (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cr]);
-        
-        // 调用反馈函数
-        svt_report_sb_feedback(
-            pcs->picture_number,
-            max_luma_value,
-            sb_ptr->index,
-            sb_ptr->org_x,
-            sb_ptr->org_y,
-            sb_width,
-            sb_height,
-            luma_sse,
-            cb_sse,
-            cr_sse,
-            luma_ssim,
-            cb_ssim,
-            cr_ssim,
-            buffer_y,
-            buffer_cb,
-            buffer_cr
-        );
+
+        recon_coeff_buffer = &((recon_ptr->buffer_y)[(recon_ptr->org_x + sb->org_x) +
+            (recon_ptr->org_y + sb->org_y) * recon_ptr->stride_y]);
+        input_buffer       = &(buffer_y[(input_pic->org_x + sb->org_x) + 
+            (input_pic->org_y + sb->org_y) * input_pic->stride_y]);
+
+        residual_distortion = 0;
+
+        for (int row_index = 0; row_index < sb_height - scs->max_input_pad_bottom; ++row_index) {
+            for (int column_index = 0; column_index < sb_width - scs->max_input_pad_right; ++column_index) {
+                residual_distortion += (int64_t)SQR((int64_t)(input_buffer[column_index]) -
+                                                    (recon_coeff_buffer[column_index]));
+            }
+
+            input_buffer += input_pic->stride_y;
+            recon_coeff_buffer += recon_ptr->stride_y;
+        }
+
+        sse_total[0] = residual_distortion;
+
+        recon_coeff_buffer = &(
+            (recon_ptr->buffer_cb)[(recon_ptr->org_x + sb->org_x) / 2 + 
+                (recon_ptr->org_y + sb->org_y) / 2 * recon_ptr->stride_cb]);
+        input_buffer       = &(buffer_cb[(input_pic->org_x + sb->org_x) / 2 + 
+            (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cb]);
+
+        residual_distortion = 0;
+        for (int row_index = 0; row_index < (sb_height - scs->max_input_pad_bottom) >> ss_y; ++row_index) {
+            for (int column_index = 0; column_index < (sb_width - scs->max_input_pad_right) >> ss_x;
+                 ++column_index) {
+                residual_distortion += (int64_t)SQR((int64_t)(input_buffer[column_index]) -
+                                                    (recon_coeff_buffer[column_index]));
+            }
+
+            input_buffer += input_pic->stride_cb;
+            recon_coeff_buffer += recon_ptr->stride_cb;
+        }
+
+        sse_total[1] = residual_distortion;
+
+        recon_coeff_buffer  = &((recon_ptr->buffer_cr)[(recon_ptr->org_x + sb->org_x) / 2 + 
+            (recon_ptr->org_y + sb->org_y) / 2 * recon_ptr->stride_cr]);
+        input_buffer        = &(buffer_cr[(input_pic->org_x + sb->org_x) / 2 + 
+            (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cr]);
+        residual_distortion = 0;
+
+        for (int row_index = 0; row_index < (sb_height - scs->max_input_pad_bottom) >> ss_y; ++row_index) {
+            for (int column_index = 0; column_index < (sb_width - scs->max_input_pad_right) >> ss_x;
+                 ++column_index) {
+                residual_distortion += (int64_t)SQR((int64_t)(input_buffer[column_index]) -
+                                                    (recon_coeff_buffer[column_index]));
+            }
+
+            input_buffer += input_pic->stride_cr;
+            recon_coeff_buffer += recon_ptr->stride_cr;
+        }
+
+        sse_total[2]        = residual_distortion;
+
+        *luma_sse_out = sse_total[0];
+        *cb_sse_out   = sse_total[1];
+        *cr_sse_out   = sse_total[2];
+
+        if (free_memory && pcs->ppcs->do_tf == TRUE) {
+            EB_FREE_ARRAY(buffer_y);
+            EB_FREE_ARRAY(buffer_cb);
+            EB_FREE_ARRAY(buffer_cr);
+        }
+    } else {
+        uint64_t  sse_total[3]        = {0};
+        uint64_t  residual_distortion = 0;
+        EbByte    input_buffer;
+        EbByte    input_buffer_bit_inc;
+        uint16_t *recon_coeff_buffer;
+
+        if (scs->ten_bit_format == 1) {
+            /* This format is not supported on this version, we should never get here */
+            fprintf(stderr, "We should not be encoding with ten bit format\n");
+            exit(1);
+        } else {
+            recon_coeff_buffer = (uint16_t *)(&(
+                (recon_ptr->buffer_y)[((recon_ptr->org_x + sb->org_x) << is_16bit) +
+                                      ((recon_ptr->org_y + sb->org_y) << is_16bit) * recon_ptr->stride_y]));
+
+            // if current source picture was temporally filtered, use an alternative buffer which stores
+            // the original source picture
+            EbByte buffer_y, buffer_bit_inc_y;
+            EbByte buffer_cb, buffer_bit_inc_cb;
+            EbByte buffer_cr, buffer_bit_inc_cr;
+
+            if (pcs->ppcs->do_tf == TRUE) {
+                assert(pcs->ppcs->save_source_picture_width == input_pic->width &&
+                       pcs->ppcs->save_source_picture_height == input_pic->height);
+                buffer_y          = pcs->ppcs->save_source_picture_ptr[0];
+                buffer_bit_inc_y  = pcs->ppcs->save_source_picture_bit_inc_ptr[0];
+                buffer_cb         = pcs->ppcs->save_source_picture_ptr[1];
+                buffer_bit_inc_cb = pcs->ppcs->save_source_picture_bit_inc_ptr[1];
+                buffer_cr         = pcs->ppcs->save_source_picture_ptr[2];
+                buffer_bit_inc_cr = pcs->ppcs->save_source_picture_bit_inc_ptr[2];
+            } else {
+                uint32_t height_y  = (uint32_t)(input_pic->height + input_pic->org_y + input_pic->origin_bot_y);
+                uint32_t height_uv = (uint32_t)((input_pic->height + input_pic->org_y + input_pic->origin_bot_y) >>
+                                                ss_y);
+
+                uint8_t *uncompressed_pics[3];
+                EB_MALLOC_ARRAY(uncompressed_pics[0], pcs->ppcs->enhanced_unscaled_pic->luma_size);
+                EB_MALLOC_ARRAY(uncompressed_pics[1], pcs->ppcs->enhanced_unscaled_pic->chroma_size);
+                EB_MALLOC_ARRAY(uncompressed_pics[2], pcs->ppcs->enhanced_unscaled_pic->chroma_size);
+
+                svt_c_unpack_compressed_10bit(input_pic->buffer_bit_inc_y,
+                                              input_pic->stride_bit_inc_y / 4,
+                                              uncompressed_pics[0],
+                                              input_pic->stride_bit_inc_y,
+                                              height_y);
+                // U
+                svt_c_unpack_compressed_10bit(input_pic->buffer_bit_inc_cb,
+                                              input_pic->stride_bit_inc_cb / 4,
+                                              uncompressed_pics[1],
+                                              input_pic->stride_bit_inc_cb,
+                                              height_uv);
+                // V
+                svt_c_unpack_compressed_10bit(input_pic->buffer_bit_inc_cr,
+                                              input_pic->stride_bit_inc_cr / 4,
+                                              uncompressed_pics[2],
+                                              input_pic->stride_bit_inc_cr,
+                                              height_uv);
+
+                buffer_y          = input_pic->buffer_y;
+                buffer_bit_inc_y  = uncompressed_pics[0];
+                buffer_cb         = input_pic->buffer_cb;
+                buffer_bit_inc_cb = uncompressed_pics[1];
+                buffer_cr         = input_pic->buffer_cr;
+                buffer_bit_inc_cr = uncompressed_pics[2];
+            }
+
+            input_buffer         = &((buffer_y)[(input_pic->org_x + sb->org_x) + 
+                (input_pic->org_y + sb->org_y) * input_pic->stride_y]);
+            input_buffer_bit_inc = &((buffer_bit_inc_y)[(input_pic->org_x + sb->org_x) + 
+                (input_pic->org_y + sb->org_y) * input_pic->stride_bit_inc_y]);
+
+            residual_distortion = 0;
+
+            for (int row_index = 0; row_index < sb_height - scs->max_input_pad_bottom; ++row_index) {
+                for (int column_index = 0; column_index < sb_width - scs->max_input_pad_right; ++column_index) {
+                    residual_distortion += (int64_t)SQR((int64_t)((((input_buffer[column_index]) << 2) |
+                                                                   ((input_buffer_bit_inc[column_index] >> 6) & 3))) -
+                                                        (recon_coeff_buffer[column_index]));
+                }
+
+                input_buffer += input_pic->stride_y;
+                input_buffer_bit_inc += input_pic->stride_bit_inc_y;
+                recon_coeff_buffer += recon_ptr->stride_y;
+            }
+
+            sse_total[0] = residual_distortion;
+
+            recon_coeff_buffer   = (uint16_t *)(&(
+                (recon_ptr->buffer_cb)[((recon_ptr->org_x + sb->org_x) << is_16bit) / 2 +
+                                       ((recon_ptr->org_y + sb->org_y) << is_16bit) / 2 * recon_ptr->stride_cb]));
+            input_buffer         = &((buffer_cb)[(input_pic->org_x + sb->org_x) / 2 + 
+                (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cb]);
+            input_buffer_bit_inc = &((buffer_bit_inc_cb)[(input_pic->org_x + sb->org_x) / 2 + 
+                (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_bit_inc_cb]);
+
+            residual_distortion = 0;
+            for (int row_index = 0; row_index < (sb_height - scs->max_input_pad_bottom) >> ss_y; ++row_index) {
+                for (int column_index = 0; column_index < (sb_width - scs->max_input_pad_right) >> ss_x;
+                     ++column_index) {
+                    residual_distortion += (int64_t)SQR((int64_t)((((input_buffer[column_index]) << 2) |
+                                                                   ((input_buffer_bit_inc[column_index] >> 6) & 3))) -
+                                                        (recon_coeff_buffer[column_index]));
+                }
+
+                input_buffer += input_pic->stride_cb;
+                input_buffer_bit_inc += input_pic->stride_bit_inc_cb;
+                recon_coeff_buffer += recon_ptr->stride_cb;
+            }
+
+            sse_total[1] = residual_distortion;
+
+            recon_coeff_buffer   = (uint16_t *)(&(
+                (recon_ptr->buffer_cr)[((recon_ptr->org_x + sb->org_x) << is_16bit) / 2 +
+                                       ((recon_ptr->org_y + sb->org_y) << is_16bit) / 2 * recon_ptr->stride_cr]));
+            input_buffer         = &((buffer_cr)[(input_pic->org_x + sb->org_x) / 2 + 
+                (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_cr]);
+            input_buffer_bit_inc = &((buffer_bit_inc_cr)[(input_pic->org_x + sb->org_x) / 2 + 
+                (input_pic->org_y + sb->org_y) / 2 * input_pic->stride_bit_inc_cr]);
+
+            residual_distortion = 0;
+
+            for (int row_index = 0; row_index < (sb_height - scs->max_input_pad_bottom) >> ss_y; ++row_index) {
+                for (int column_index = 0; column_index < (sb_width - scs->max_input_pad_right) >> ss_x;
+                     ++column_index) {
+                    residual_distortion += (int64_t)SQR((int64_t)((((input_buffer[column_index]) << 2) |
+                                                                   ((input_buffer_bit_inc[column_index] >> 6) & 3))) -
+                                                        (recon_coeff_buffer[column_index]));
+                }
+
+                input_buffer += input_pic->stride_cr;
+                input_buffer_bit_inc += input_pic->stride_bit_inc_cr;
+                recon_coeff_buffer += recon_ptr->stride_cr;
+            }
+
+            sse_total[2] = residual_distortion;
+
+            if (free_memory && pcs->ppcs->do_tf == TRUE) {
+                EB_FREE_ARRAY(buffer_y);
+                EB_FREE_ARRAY(buffer_cb);
+                EB_FREE_ARRAY(buffer_cr);
+                EB_FREE_ARRAY(buffer_bit_inc_y);
+                EB_FREE_ARRAY(buffer_bit_inc_cb);
+                EB_FREE_ARRAY(buffer_bit_inc_cr);
+            }
+            if (pcs->ppcs->do_tf == FALSE) {
+                EB_FREE_ARRAY(buffer_bit_inc_y);
+                EB_FREE_ARRAY(buffer_bit_inc_cb);
+                EB_FREE_ARRAY(buffer_bit_inc_cr);
+            }
+        }
+
+        *luma_sse_out = sse_total[0];
+        *cb_sse_out   = sse_total[1];
+        *cr_sse_out   = sse_total[2];
     }
+    EB_DELETE(upscaled_recon);
+    return EB_ErrorNone;
+}
 #endif
+
 
 void pad_ref_and_set_flags(PictureControlSet *pcs, SequenceControlSet *scs) {
     EbReferenceObject *ref_object = (EbReferenceObject *)pcs->ppcs->ref_pic_wrapper->object_ptr;

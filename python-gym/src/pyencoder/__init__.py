@@ -18,8 +18,4 @@ def run(**kwargs):
 
 
 def register_callbacks(*, get_deltaq_offset=None, frame_feedback=None, sb_feedback=None):
-    _register(
-        get_deltaq_offset=get_deltaq_offset,
-        frame_feedback=frame_feedback, 
-        sb_feedback=sb_feedback
-    )
+    _register(get_deltaq_offset, frame_feedback, sb_feedback)

@@ -42,7 +42,7 @@ pyencoder.register_callbacks(
 )
 
 pyencoder.run(
-    input="../../playground/akiyo_qcif.y4m",
+    input="/home/yjiayue/jiayue/SVT-AV1/Data/akiyo_qcif.y4m",
     preset=8,
     crf=30,
     enable_stat_report=True
