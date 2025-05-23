@@ -22,26 +22,32 @@ def get_deltaq_offset(
     beta: float,
     is_intra: bool,
 ) -> int:
-    print(
-        "In python:",
-        sb_index,
-        sb_org_x,
-        sb_org_y,
-        sb_qindex,
-        sb_final_blk_cnt,
-        mi_row_start,
-        mi_row_end,
-        mi_col_start,
-        mi_col_end,
-        tg_horz_boundary,
-        tile_row,
-        tile_col,
-        tile_rs_index,
-        encoder_bit_depth,
-        beta,
-        is_intra,
-    )
-    return 32
+   
+    print(f"QP offset request for SB {sb_index} at ({sb_org_x}, {sb_org_y})")
+    #call rl model?
+    return 0  # return QP offset
+
+def frame_feedback(
+    picture_number: int, temporal_layer_index: int, qp: int, avg_qp: int,
+    luma_psnr: float, cb_psnr: float, cr_psnr: float,
+    mse_y: float, mse_u: float, mse_v: float,
+    luma_ssim: float, cb_ssim: float, cr_ssim: float,
+    picture_stream_size: int
+):
+   
+    print(f"Frame {picture_number}: PSNR={luma_psnr:.2f}, bits={picture_stream_size}")
+    # update rl model
+
+def sb_feedback(
+    picture_number: int, sb_index: int, sb_origin_x: int, sb_origin_y: int,
+    luma_psnr: float, cb_psnr: float, cr_psnr: float,
+    mse_y: float, mse_u: float, mse_v: float,
+    luma_ssim: float, cb_ssim: float, cr_ssim: float,
+    buffer_y: list, buffer_cb: list, buffer_cr: list
+):
+    print(f"SB {sb_index} at ({sb_origin_x}, {sb_origin_y}): PSNR={luma_psnr:.2f}")
+    # process sb feedback
+
 
 
 if __name__ == "__main__":

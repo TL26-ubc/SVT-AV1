@@ -52,7 +52,9 @@ target_link_libraries(svtav1_app PUBLIC Threads::Threads safeclib)
 # 5.  Build the Python extension  _svtapp.{so,dylib,pyd}
 add_library(_svtapp MODULE
     src/bridge/pybridge.c
-    src/pyencoder/_binding.c)
+    src/pyencoder/_binding.c
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/app_bridge.c"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/rl_feedback.c")
 
 if (WIN32)
     set_target_properties(_svtapp PROPERTIES
@@ -69,6 +71,7 @@ target_include_directories(_svtapp PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../Source"
     "${CMAKE_CURRENT_LIST_DIR}/../Source/App"
     "${CMAKE_CURRENT_LIST_DIR}/../Source/API"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals"  # 添加这一行
     ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(_svtapp

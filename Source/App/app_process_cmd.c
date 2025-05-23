@@ -32,6 +32,10 @@
 #include <sys/mman.h>
 #endif
 
+#ifdef SVT_ENABLE_USER_CALLBACKS
+#include "../Lib/Globals/app_bridge.h"
+#endif
+
 #include "app_output_ivf.h"
 
 /***************************************
@@ -914,9 +918,14 @@ void process_output_stream_buffer(EncChannel *channel, EncApp *enc_app, int32_t 
 
                 if (app_cfg->config.stat_report && !(flags & EB_BUFFERFLAG_IS_ALT_REF))
                     process_output_statistics_buffer(header_ptr, app_cfg);
-#ifdef TL26_RL
-                // update the python code with frame info:
-                report_frame_feedback(header_ptr, app_cfg);
+
+#ifdef SVT_ENABLE_USER_CALLBACKS
+    svt_report_frame_feedback_bridge(
+        header_ptr, 
+        (app_cfg->config.encoder_bit_depth == 8) ? 255 : 1023,
+        app_cfg->config.source_width,
+        app_cfg->config.source_height
+    );
 #endif
 
                 // Update Output Port Activity State

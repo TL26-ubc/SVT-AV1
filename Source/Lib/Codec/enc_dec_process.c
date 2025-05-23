@@ -27,6 +27,11 @@
 #include "resize.h"
 #include "enc_mode_config.h"
 
+#ifdef SVT_ENABLE_USER_CALLBACKS
+#include "rl_feedback.h"
+#include "enc_callbacks.h"
+#endif
+
 void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, Bool is_highbd);
 void copy_mv_rate(PictureControlSet *pcs, MdRateEstimationContext *dst_rate);
 void svt_c_unpack_compressed_10bit(const uint8_t *inn_bit_buffer, uint32_t inn_stride, uint8_t *in_compn_bit_buffer,
@@ -1161,7 +1166,7 @@ EbErrorType svt_aom_ssim_calculations(PictureControlSet *pcs, SequenceControlSet
     EB_DELETE(upscaled_recon);
     return EB_ErrorNone;
 }
-#ifdef TL26_RL
+#ifdef SVT_ENABLE_USER_CALLBACKS
 EbErrorType svt_aom_ssim_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory,
                                          double *luma_ssim_out, double *cb_ssim_out, double *cr_ssim_out) {
     Bool is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
@@ -1844,7 +1849,7 @@ EbErrorType psnr_calculations(PictureControlSet *pcs, SequenceControlSet *scs, B
     EB_DELETE(upscaled_recon);
     return EB_ErrorNone;
 }
-#ifdef TL26_RL
+#ifdef SVT_ENABLE_USER_CALLBACKS
 EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory, 
                                  uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out) {
     Bool is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
@@ -2127,6 +2132,7 @@ EbErrorType psnr_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs
     return EB_ErrorNone;
 }
 #endif
+
 
 void pad_ref_and_set_flags(PictureControlSet *pcs, SequenceControlSet *scs) {
     EbReferenceObject *ref_object = (EbReferenceObject *)pcs->ppcs->ref_pic_wrapper->object_ptr;
@@ -4061,38 +4067,125 @@ void *svt_aom_mode_decision_kernel(void *input_ptr) {
                             svt_aom_encode_decode(scs, pcs, sb_ptr, sb_index, sb_origin_x, sb_origin_y, ed_ctx);
                         }
 
-                        #ifdef TL26_RL
-                        // Compute ssim and sse (used for mse/psnr)
-                        uint64_t luma_sse; uint64_t cb_sse; uint64_t cr_sse;
-                        EbErrorType return_error = psnr_calculations_sb(pcs, scs, sb_ptr, FALSE, &luma_sse, &cb_sse, &cr_sse);
-                        if (return_error != EB_ErrorNone) {
-                            svt_aom_assert_err(0,
-                                               "Couldn't allocate memory for uncompressed 10bit buffers for PSNR "
-                                               "calculations");
+                        // #ifdef TL26_RL
+                        // // Compute ssim and sse (used for mse/psnr)
+                        // uint64_t luma_sse; uint64_t cb_sse; uint64_t cr_sse;
+                        // EbErrorType return_error = psnr_calculations_sb(pcs, scs, sb_ptr, FALSE, &luma_sse, &cb_sse, &cr_sse);
+                        // if (return_error != EB_ErrorNone) {
+                        //     svt_aom_assert_err(0,
+                        //                        "Couldn't allocate memory for uncompressed 10bit buffers for PSNR "
+                        //                        "calculations");
+                        // }
+
+                        // double luma_ssim; double cb_ssim; double cr_ssim;
+                        // return_error = svt_aom_ssim_calculations_sb(pcs, scs, sb_ptr, FALSE /* free memory here */, 
+                        //                                                 &luma_ssim, &cb_ssim, &cr_ssim);
+                        // if (return_error != EB_ErrorNone) {
+                        //     svt_aom_assert_err(0,
+                        //                        "Couldn't allocate memory for uncompressed 10bit buffers for SSIM "
+                        //                        "calculations");
+                        // }
+
+                        // // printf("Superblock stats for Frame %llu, SB %d\n[SSE] luma: %llu, cr: %llu, cb: %llu\n[SSIM] luma: %f, cr: %f, cb: %f\n", pcs->picture_number, sb_index, luma_sse, cb_sse, cr_sse, luma_ssim, cb_ssim, cr_ssim);
+
+                        // uint32_t max_luma_value = (scs->static_config.encoder_bit_depth == 8) ? 255 : 1023;
+
+                        // report_sb_feedback(
+                        //     pcs->picture_number, 
+                        //     max_luma_value,
+                        //     sb_index, sb_origin_x, sb_origin_y,
+                        //     MIN(scs->sb_size, ppcs->aligned_width - sb_ptr->org_x),
+                        //     MIN(scs->sb_size, ppcs->aligned_height - sb_ptr->org_y),
+                        //     luma_sse, cb_sse, cr_sse, 
+                        //     luma_ssim, cb_ssim, cr_ssim
+                        // );
+                        // #endif
+                        #ifdef SVT_ENABLE_USER_CALLBACKS
+                        
+                        if (plugin_cbs.user_sb_feedback) {
+                            // Compute ssim and sse (used for mse/psnr) 
+                            uint64_t luma_sse = 0; 
+                            uint64_t cb_sse = 0; 
+                            uint64_t cr_sse = 0;
+                            
+                            
+                            EbErrorType return_error = EB_ErrorNone;
+                            
+                            // 检查是否存在psnr_calculations_sb函数
+                            #ifdef ORIGINAL_PSNR_FUNCTION_EXISTS
+                            return_error = psnr_calculations_sb(pcs, scs, sb_ptr, FALSE, &luma_sse, &cb_sse, &cr_sse);
+                            #endif
+                            
+                            if (return_error != EB_ErrorNone) {
+                                // 使用我们自己实现的SSE计算
+                                return_error = svt_aom_sse_calculations_sb(pcs, scs, sb_ptr, &luma_sse, &cb_sse, &cr_sse);
+                            }
+
+                            double luma_ssim = 0.0; 
+                            double cb_ssim = 0.0; 
+                            double cr_ssim = 0.0;
+                            
+                            // 计算SSIM
+                            return_error = svt_aom_ssim_calculations_sb(pcs, scs, sb_ptr, FALSE /* free memory here */,
+                                                                       &luma_ssim, &cb_ssim, &cr_ssim);
+                            if (return_error != EB_ErrorNone) {
+                                // 如果SSIM计算失败，使用默认值
+                                luma_ssim = cb_ssim = cr_ssim = 0.0;
+                                SVT_WARN("SSIM calculation failed for SB %d\n", sb_ptr->index);
+                            }
+
+                            uint32_t max_luma_value = (scs->static_config.encoder_bit_depth == 8) ? 255 : 1023;
+                            
+                            // 获取buffer数据
+                            uint8_t *buffer_y = NULL, *buffer_cb = NULL, *buffer_cr = NULL;
+                            EbPictureBufferDesc *input_pic = (EbPictureBufferDesc *)pcs->ppcs->enhanced_unscaled_pic;
+                            
+                            if (input_pic) {
+                                // 获取源buffer
+                                if (pcs->ppcs->do_tf == TRUE && pcs->ppcs->save_source_picture_ptr[0]) {
+                                    buffer_y = pcs->ppcs->save_source_picture_ptr[0];
+                                    buffer_cb = pcs->ppcs->save_source_picture_ptr[1];
+                                    buffer_cr = pcs->ppcs->save_source_picture_ptr[2];
+                                } else {
+                                    buffer_y = input_pic->buffer_y;
+                                    buffer_cb = input_pic->buffer_cb;
+                                    buffer_cr = input_pic->buffer_cr;
+                                }
+                                
+                                // 调整指针到当前超级块位置
+                                if (buffer_y) {
+                                    buffer_y = &(buffer_y[(input_pic->org_x + sb_ptr->org_x) + 
+                                                          (input_pic->org_y + sb_ptr->org_y) * input_pic->stride_y]);
+                                    buffer_cb = &(buffer_cb[(input_pic->org_x + sb_ptr->org_x) / 2 + 
+                                                           (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cb]);
+                                    buffer_cr = &(buffer_cr[(input_pic->org_x + sb_ptr->org_x) / 2 + 
+                                                           (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cr]);
+                                }
+                            }
+                            
+                            const uint16_t sb_width = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
+                            const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
+
+                            // 调用新的反馈函数
+                            svt_report_sb_feedback(
+                                pcs->picture_number, 
+                                max_luma_value,
+                                sb_ptr->index, 
+                                sb_ptr->org_x, 
+                                sb_ptr->org_y,
+                                sb_width,
+                                sb_height,
+                                luma_sse, 
+                                cb_sse, 
+                                cr_sse, 
+                                luma_ssim, 
+                                cb_ssim, 
+                                cr_ssim,
+                                buffer_y,    
+                                buffer_cb,   
+                                buffer_cr    
+                            );
                         }
-
-                        double luma_ssim; double cb_ssim; double cr_ssim;
-                        return_error = svt_aom_ssim_calculations_sb(pcs, scs, sb_ptr, FALSE /* free memory here */, 
-                                                                        &luma_ssim, &cb_ssim, &cr_ssim);
-                        if (return_error != EB_ErrorNone) {
-                            svt_aom_assert_err(0,
-                                               "Couldn't allocate memory for uncompressed 10bit buffers for SSIM "
-                                               "calculations");
-                        }
-
-                        // printf("Superblock stats for Frame %llu, SB %d\n[SSE] luma: %llu, cr: %llu, cb: %llu\n[SSIM] luma: %f, cr: %f, cb: %f\n", pcs->picture_number, sb_index, luma_sse, cb_sse, cr_sse, luma_ssim, cb_ssim, cr_ssim);
-
-                        uint32_t max_luma_value = (scs->static_config.encoder_bit_depth == 8) ? 255 : 1023;
-
-                        report_sb_feedback(
-                            pcs->picture_number, 
-                            max_luma_value,
-                            sb_index, sb_origin_x, sb_origin_y,
-                            MIN(scs->sb_size, ppcs->aligned_width - sb_ptr->org_x),
-                            MIN(scs->sb_size, ppcs->aligned_height - sb_ptr->org_y),
-                            luma_sse, cb_sse, cr_sse, 
-                            luma_ssim, cb_ssim, cr_ssim
-                        );
                         #endif
 
                         svt_aom_encdec_update(scs, pcs, sb_ptr, sb_index, sb_origin_x, sb_origin_y, ed_ctx);
