@@ -43,10 +43,6 @@ class VideoReader:
     def get_frame_count(self) -> int:
         return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    def get_color_format(self) -> str:
-        # Placeholder: actual probing requires ffprobe or similar tool
-        return "BGR (raw OpenCV format)"
-
     def render_frame_number(self, frame_number: int):
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
         frame = self.read()

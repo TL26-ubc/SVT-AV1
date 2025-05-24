@@ -6,6 +6,7 @@ from typing import Any, Dict, Tuple
 import gymnasium as gym
 import numpy as np
 from pyencoder.environment.utils import _probe_resolution
+from pyencoder.utils.video_reader import VideoReader
 
 # Constants
 QP_MIN, QP_MAX = 0, 63
@@ -20,15 +21,17 @@ class Av1Env(gym.Env):
     def __init__(self, video_path: str | Path, *, lambda_rd: float = 0.1, av1_):
         super().__init__()
         self.video_path = Path(video_path)
+        self.video_reader = VideoReader(video_path)
         self.lambda_rd = float(lambda_rd)
 
-        self.w_px, self.h_px = _probe_resolution(self.video_path)
+        self.w_px, self.h_px = self.video_reader.get_resolution()
         self.w_sb = (self.w_px + SB_SIZE - 1) // SB_SIZE
         self.h_sb = (self.h_px + SB_SIZE - 1) // SB_SIZE
 
         # Action space = QP offset grid
         self.action_space = gym.spaces.MultiDiscrete(
-            np.full((self.h_sb, self.w_sb), QP_MAX - QP_MIN + 1, dtype=np.int64)
+            np.full((self.h_sb, self.w_sb), QP_MAX -
+                    QP_MIN + 1, dtype=np.int64)
         )
 
         # Observation space = previous frame summary
@@ -42,7 +45,8 @@ class Av1Env(gym.Env):
 
         # RL/encoder communication
         self._action_q: queue.Queue[np.ndarray] = queue.Queue(maxsize=1)
-        self._frame_report_q: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
+        self._frame_report_q: queue.Queue[Dict[str, Any]] = queue.Queue(
+            maxsize=1)
         self._episode_done = threading.Event()
         self._encoder_thread: threading.Thread | None = None
         self._frame_action: np.ndarray | None = None
@@ -60,7 +64,8 @@ class Av1Env(gym.Env):
         self._episode_done.clear()
 
         # Spawn encoder worker
-        self._encoder_thread = threading.Thread(target=self._encode_loop, daemon=True)
+        self._encoder_thread = threading.Thread(
+            target=self._encode_loop, daemon=True)
         self._encoder_thread.start()
 
         # Return first observation
@@ -74,7 +79,8 @@ class Av1Env(gym.Env):
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.step
     def step(self, action: np.ndarray) -> Tuple[dict, float, bool, bool, dict]:
         if self._terminated:
-            raise RuntimeError("Call reset() before step() after episode ends.")
+            raise RuntimeError(
+                "Call reset() before step() after episode ends.")
 
         if action.shape != (self.h_sb, self.w_sb):
             raise ValueError(
