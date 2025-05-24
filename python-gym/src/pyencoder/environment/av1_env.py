@@ -18,7 +18,13 @@ SB_SIZE = 64  # superblock size
 class Av1Env(gym.Env):
     metadata = {"render_modes": []}
 
-    def __init__(self, video_path: str | Path, *, lambda_rd: float = 0.1, av1_):
+    def __init__(
+        self,
+        video_path: str | Path,
+        *,
+        lambda_rd: float = 0.1,
+        av1_runner: function = None,
+    ):
         super().__init__()
         self.video_path = Path(video_path)
         self.video_reader = VideoReader(video_path)
@@ -48,12 +54,18 @@ class Av1Env(gym.Env):
 
         # RL/encoder communication
         # self._action_q: queue.Queue[np.ndarray] = queue.Queue(maxsize=1) no need action ti
+
         self._frame_report_q: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
         self._episode_done = threading.Event()
         self._encoder_thread: threading.Thread | None = None
         self._frame_action: np.ndarray | None = None
         self._next_frame_idx = 0
         self._terminated = False
+
+        self.av1_runner = av1_runner
+        if self.av1_runner is None:
+            raise ValueError("av1_runner function must be provided.")
+        self.av1_runner()
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
     def reset(
