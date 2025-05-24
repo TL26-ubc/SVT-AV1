@@ -9,8 +9,8 @@ from pyencoder.environment.utils import _probe_resolution
 from pyencoder.utils.video_reader import VideoReader
 
 # Constants
-QP_MIN, QP_MAX = 0, 63
-SB_SIZE = 64
+QP_MIN, QP_MAX = -3, 3  # delta QP range which will be action
+SB_SIZE = 64  # superblock size
 
 
 # Extending gymnasium's Env class
@@ -30,8 +30,7 @@ class Av1Env(gym.Env):
 
         # Action space = QP offset grid
         self.action_space = gym.spaces.MultiDiscrete(
-            np.full((self.h_sb, self.w_sb), QP_MAX -
-                    QP_MIN + 1, dtype=np.int64)
+            np.full((self.h_sb, self.w_sb), QP_MAX - QP_MIN + 1, dtype=np.int64)
         )
 
         # Observation space = previous frame summary
@@ -39,14 +38,17 @@ class Av1Env(gym.Env):
             {
                 "bits": gym.spaces.Box(0, np.finfo("float32").max, (1,), np.float32),
                 "psnr": gym.spaces.Box(0, np.finfo("float32").max, (1,), np.float32),
+                "y_comp": gym.spaces.Box(0, 255, (self.h_px, self.w_px), np.uint8),
+                "frame_number": gym.spaces.Discrete(
+                    self.video_reader.get_frame_count()
+                ),
                 # "frame": gym.spaces.Discrete(1_000_000), guess no frame number for now
             }
         )
 
         # RL/encoder communication
-        self._action_q: queue.Queue[np.ndarray] = queue.Queue(maxsize=1)
-        self._frame_report_q: queue.Queue[Dict[str, Any]] = queue.Queue(
-            maxsize=1)
+        # self._action_q: queue.Queue[np.ndarray] = queue.Queue(maxsize=1) no need action ti
+        self._frame_report_q: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
         self._episode_done = threading.Event()
         self._encoder_thread: threading.Thread | None = None
         self._frame_action: np.ndarray | None = None
@@ -64,41 +66,35 @@ class Av1Env(gym.Env):
         self._episode_done.clear()
 
         # Spawn encoder worker
-        self._encoder_thread = threading.Thread(
-            target=self._encode_loop, daemon=True)
+        self._encoder_thread = threading.Thread(target=self._encode_loop, daemon=True)
         self._encoder_thread.start()
 
         # Return first observation
         obs = {
             "bits": np.array([0.0], dtype=np.float32),
             "psnr": np.array([0.0], dtype=np.float32),
-            "frame": 0,
+            "y_comp": np.zeros((self.h_px, self.w_px), dtype=np.uint8),
+            "frame_number": np.array([0], dtype=np.int32),
         }
         return obs, {}
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.step
     def step(self, action: np.ndarray) -> Tuple[dict, float, bool, bool, dict]:
         if self._terminated:
-            raise RuntimeError(
-                "Call reset() before step() after episode ends.")
+            raise RuntimeError("Call reset() before step() after episode ends.")
 
         if action.shape != (self.h_sb, self.w_sb):
             raise ValueError(
                 f"Action grid shape {action.shape} != ({self.h_sb},{self.w_sb})"
             )
 
-        # Send grid to encoder (blocks until encoder requests it)
-        self._action_q.put(action.astype(np.int32, copy=False))
+        # send action to encoder
+        # self._action_q.put(action.astype(np.int32, copy=False))
+        obs, reward, self._terminated, _, info = self.get_frame_feedback(
+            self._frame_report_q.get()
+        )
+        self.send_action(action)
 
-        # Wait for encoder to finish the frame
-        report = self._frame_report_q.get()  # dict with stats + next obs
-        reward = self._reward_fn(report)  # scalar
-        obs = report["next_obs"]
-
-        self._terminated = report["is_last_frame"]
-        self._next_frame_idx += 1
-
-        info: dict = {}
         return obs, reward, self._terminated, False, info
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.close
@@ -108,9 +104,9 @@ class Av1Env(gym.Env):
             self._encoder_thread.join(timeout=1.0)
 
         # drain queues
-        for q in (self._action_q, self._frame_report_q):
-            while not q.empty():
-                q.get_nowait()
+        # for q in (self._action_q, self._frame_report_q):
+        #     while not q.empty():
+        #         q.get_nowait()
 
         self._encoder_thread = None
 
@@ -119,43 +115,60 @@ class Av1Env(gym.Env):
         pass
 
     # Encoding
-    def _encode_loop(self):
-        from mycodec import encode
+    # def _encode_loop(self):
+    #     from mycodec import encode
 
-        encode(
-            str(self.video_path),
-            on_superblock=self._on_superblock,
-            on_frame_done=self._on_frame_done,
-        )
+    #     encode(
+    #         str(self.video_path),
+    #         on_superblock=self._on_superblock,
+    #         on_frame_done=self._on_frame_done,
+    #     )
 
-    def _on_superblock(self, sb_stats: Dict[str, Any], sb_index: int) -> int:
-        if self._frame_action is None:
-            # Wait until RL has produced a grid for *this* frame
-            self._frame_action = self._action_q.get()
+    # use this in c callback
+    def send_action(self, action: np.ndarray):
+        return action, action.size
 
-        y, x = divmod(sb_index, self.w_sb)
-        qp_int = int(self._frame_action[y, x])
-        return qp_int
+    def get_frame_feedback(self, frame_report: Dict[str, Any]):
+        # Wait for encoder to finish the frame
+        report = self._frame_report_q.get()  # dict with stats + next obs
+        reward = self._reward_fn(report)  # scalar
+        obs = report["next_obs"]
 
-    def _on_frame_done(self, frame_report: Dict[str, Any]):
-        obs_next = {
-            "bits": np.array([frame_report["bits"]], dtype=np.float32),
-            "psnr": np.array([frame_report["psnr"]], dtype=np.float32),
-            "frame": self._next_frame_idx + 1,
-        }
+        self._terminated = report["is_last_frame"]
+        self._next_frame_idx += 1
 
-        self._frame_report_q.put(
-            {
-                **frame_report,
-                "next_obs": obs_next,
-                "is_last_frame": bool(frame_report.get("last_frame", False)),
-            }
-        )
-        self._frame_action = None
+        info: dict = {}
 
-        if frame_report.get("last_frame", False):
-            self._episode_done.set()
+        return obs, reward, self._terminated, False, info
 
     # Reward function
     def _reward_fn(self, rpt: Dict[str, Any]) -> float:
         return -float(rpt["bits"]) + self.lambda_rd * float(rpt["psnr"])
+
+    # def _on_superblock(self, sb_stats: Dict[str, Any], sb_index: int) -> int:
+    #     if self._frame_action is None:
+    #         # Wait until RL has produced a grid for *this* frame
+    #         self._frame_action = self._action_q.get()
+
+    #     y, x = divmod(sb_index, self.w_sb)
+    #     qp_int = int(self._frame_action[y, x])
+    #     return qp_int
+
+    # def _on_frame_done(self, frame_report: Dict[str, Any]):
+    #     obs_next = {
+    #         "bits": np.array([frame_report["bits"]], dtype=np.float32),
+    #         "psnr": np.array([frame_report["psnr"]], dtype=np.float32),
+    #         "frame": self._next_frame_idx + 1,
+    #     }
+
+    #     self._frame_report_q.put(
+    #         {
+    #             **frame_report,
+    #             "next_obs": obs_next,
+    #             "is_last_frame": bool(frame_report.get("last_frame", False)),
+    #         }
+    #     )
+    #     self._frame_action = None
+
+    #     if frame_report.get("last_frame", False):
+    #         self._episode_done.set()
