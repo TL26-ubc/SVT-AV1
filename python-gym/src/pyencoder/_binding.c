@@ -2,8 +2,17 @@
 #include "../Source/App/app_main.c"
 #undef main
 
+#ifndef SVT_ENABLE_USER_CALLBACKS
+#define SVT_ENABLE_USER_CALLBACKS 1
+#endif
+
 #include <Python.h>
-#include <pybridge.h>
+#include "../bridge/cb_validation.h"
+#include "../bridge/cb_registration.h"
+#include "../bridge/pybridge.h"
+#include "../Source/Lib/Globals/enc_callbacks.h"
+#include "../Source/API/EbSvtAv1Enc.h"
+#include <EbSvtAv1Enc.h>
 
 static PyObject *
 py_run_app(PyObject *self, PyObject *args)
@@ -36,61 +45,24 @@ py_run_app(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-// static PyObject *
-// py_register_cbs(PyObject *self, PyObject *args)
-// {
-//     PyObject *py_sb = Py_None;
-//     if (!PyArg_ParseTuple(args, "O", &py_sb))
-//         return PyErr_Format(PyExc_TypeError,
-//                             "unable to parse get_deltaq_offset");
-
-//     if (py_sb != Py_None && !PyCallable_Check(py_sb))
-//         return PyErr_Format(PyExc_TypeError,
-//                             "get_deltaq_offset must be callable or None");
-
-//     // keep global ref
-//     pybridge_set_cb(py_sb == Py_None ? NULL : py_sb);
-
-//     static PluginCallbacks cbs;
-//     cbs.user_get_deltaq_offset = get_deltaq_offset_cb;
-
-//     if (svt_av1_enc_set_callbacks(&cbs) != EB_ErrorNone)
-//         return PyErr_Format(PyExc_TypeError,
-//             "failed to set callbacks");
-
-//     Py_RETURN_NONE;
-// }
-
 static PyObject *
 py_register_cbs(PyObject *self, PyObject *args)
 {
     PyObject *py_get_deltaq_offset = Py_None;
-    PyObject *py_frame_feedback = Py_None;
-    PyObject *py_sb_feedback = Py_None;
+    PyObject *py_recv_frame_feedback = Py_None;
+    PyObject *py_recv_sb_feedback = Py_None;
     
-
-    if (!PyArg_ParseTuple(args, "|OOO", &py_get_deltaq_offset, &py_frame_feedback, &py_sb_feedback))
+    if (!PyArg_ParseTuple(args, "|OOO", &py_get_deltaq_offset, &py_recv_frame_feedback, &py_recv_sb_feedback))
         return PyErr_Format(PyExc_TypeError, "unable to parse callback arguments");
 
-    if (py_get_deltaq_offset != Py_None && !PyCallable_Check(py_get_deltaq_offset))
-        return PyErr_Format(PyExc_TypeError, "get_deltaq_offset must be callable or None");
-    
-    if (py_frame_feedback != Py_None && !PyCallable_Check(py_frame_feedback))
-        return PyErr_Format(PyExc_TypeError, "frame_feedback must be callable or None");
-        
-    if (py_sb_feedback != Py_None && !PyCallable_Check(py_sb_feedback))
-        return PyErr_Format(PyExc_TypeError, "sb_feedback must be callable or None");
-
-    pybridge_set_callbacks(
-        py_get_deltaq_offset == Py_None ? NULL : py_get_deltaq_offset,
-        py_frame_feedback == Py_None ? NULL : py_frame_feedback,
-        py_sb_feedback == Py_None ? NULL : py_sb_feedback
-    );
+    pybridge_set_cb(CB_GET_DELTAQ_OFFSET, py_get_deltaq_offset);
+    pybridge_set_cb(CB_RECV_FRAME_FEEDBACK, py_recv_frame_feedback);
+    pybridge_set_cb(CB_RECV_SB_FEEDBACK, py_recv_sb_feedback);
 
     static PluginCallbacks cbs;
-    cbs.user_get_deltaq_offset = get_deltaq_offset_cb;
-    cbs.user_frame_feedback = frame_feedback_cb;
-    cbs.user_sb_feedback = sb_feedback_cb;
+    cbs.user_get_deltaq_offset = get_deltaq_offset_trampoline;
+    cbs.user_frame_feedback = recv_frame_feedback_trampoline;
+    cbs.user_sb_feedback = recv_sb_feedback_trampoline;
 
     if (svt_av1_enc_set_callbacks(&cbs) != EB_ErrorNone)
         return PyErr_Format(PyExc_RuntimeError, "failed to set callbacks");

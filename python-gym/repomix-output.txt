@@ -1,0 +1,1684 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+================================================================
+File Summary
+================================================================
+
+Purpose:
+--------
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+File Format:
+------------
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Multiple file entries, each consisting of:
+  a. A separator line (================)
+  b. The file path (File: path/to/file)
+  c. Another separator line
+  d. The full contents of the file
+  e. A blank line
+
+Usage Guidelines:
+-----------------
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+Notes:
+------
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+
+Additional Info:
+----------------
+
+================================================================
+Directory Structure
+================================================================
+src/
+  bridge/
+    cb_registration.c
+    cb_registration.h
+    cb_validation.c
+    cb_validation.h
+    py_trampoline.c
+    py_trampoline.h
+    pybridge.c
+    pybridge.h
+  pyencoder/
+    environment/
+      __init__.py
+      av1_env.py
+    utils/
+      video_reader.py
+    __init__.py
+    _binding.c
+CMakeLists.txt
+pyproject.toml
+run_env.py
+test.py
+
+================================================================
+Files
+================================================================
+
+================
+File: src/bridge/cb_registration.c
+================
+#include "cb_registration.h"
+#include <stdbool.h>
+#include "pybridge.h"
+#include "cb_validation.h"
+
+Callback g_callbacks[CB_ENUM_COUNT] = {
+    /* CB_GET_DELTAQ_OFFSET */   { NULL, NULL, "(IIIIIiiiiiiiidMMMIIIidb)i" },
+    /* CB_RECV_FRAME_FEEDBACK */ { NULL, NULL, "(iiiidddddddddi)v" },
+    /* CB_RECV_SB_FEEDBACK */    { NULL, NULL, "(IiiidddddddddMMMHH)v" }
+};
+
+static int set_cb_ptr(CallbackEnum cb, bool unset) {
+    switch (cb) {
+        case CB_GET_DELTAQ_OFFSET:
+            get_deltaq_offset_cb = unset ? NULL : get_deltaq_offset_trampoline;
+            return 0;
+        case CB_RECV_FRAME_FEEDBACK:
+            recv_frame_feedback_cb = unset ? NULL : recv_frame_feedback_trampoline;
+            return 0;
+        case CB_RECV_SB_FEEDBACK:
+            recv_sb_feedback_cb = unset ? NULL : recv_sb_feedback_trampoline;
+            return 0;
+        default:
+            return -1;
+    }
+}
+
+static int pybridge_clear(CallbackEnum cb)
+{
+    Callback *cb_struct = &g_callbacks[cb];
+    Py_XDECREF(cb_struct->py_callable);
+    cb_struct->py_callable = NULL;
+    
+    // Remove the global pointer for the encoder
+    return set_cb_ptr(cb, false);
+}
+
+int pybridge_set_cb(CallbackEnum cb, PyObject *callable)
+{
+    // Unset if none
+    if (callable == Py_None) {
+        return pybridge_clear(cb);
+    }
+
+    Callback *cb_struct = &g_callbacks[cb];
+
+    if (validate_callable_signature(callable, cb_struct->cb_fmt) != 0)
+        return -1;
+
+    Py_XINCREF(callable);
+    Py_XDECREF(cb_struct->py_callable);
+    cb_struct->py_callable = callable;
+
+    // Update the global pointer for the encoder
+    return set_cb_ptr(cb, false);
+}
+
+================
+File: src/bridge/cb_registration.h
+================
+#ifndef CB_REGISTRATION_H
+#define CB_REGISTRATION_H
+
+#include <Python.h>
+
+typedef enum CallbackEnum { 
+    CB_GET_DELTAQ_OFFSET,
+    CB_RECV_FRAME_FEEDBACK, 
+    CB_RECV_SB_FEEDBACK,
+    CB_ENUM_COUNT
+} CallbackEnum;
+
+typedef struct {
+    PyObject *py_callable;
+    void *c_trampoline;
+    char *cb_fmt;
+} Callback;
+
+extern Callback g_callbacks[CB_ENUM_COUNT];
+
+int pybridge_set_cb(CallbackEnum cb, PyObject *callable);
+
+#endif /* CB_REGISTRATION_H */
+
+================
+File: src/bridge/cb_validation.c
+================
+#include "cb_validation.h"
+#include <regex.h>
+
+static int count_fmt_args(const char *fmt) {
+    regex_t regex;
+    regmatch_t matches[2];
+
+    if (regcomp(&regex, "^\\(([^()]*)\\).$", REG_EXTENDED) != 0) 
+        return -1;
+
+    int rc = regexec(&regex, fmt, 2, matches, 0);
+    if (rc != 0) {
+        regfree(&regex);
+        return -1;
+    }
+
+    int count = matches[1].rm_eo - matches[1].rm_so;
+
+    regfree(&regex);
+    return count;
+}
+
+int validate_callable_signature(PyObject *callable, const char *fmt)
+{
+    if (!PyCallable_Check(callable)) {
+        PyErr_SetString(PyExc_TypeError, "object must be callable");
+        return -1;
+    }
+
+    PyObject *code = PyObject_GetAttrString(callable, "__code__");
+    if (!code)
+        return -1;
+
+    if (!PyCode_Check(code)) {
+        Py_DECREF(code);
+        PyErr_SetString(PyExc_TypeError, "callable has no valid __code__");
+        return -1;
+    }
+
+    PyCodeObject *co = (PyCodeObject *)code;
+    const int expected = count_fmt_args(fmt);
+    if (expected == -1) {
+        Py_DECREF(code);
+        PyErr_Format(PyExc_ValueError,
+            "invalid format string: %s", fmt);
+        return -1;
+    }
+
+    const int nargs = co->co_argcount + co->co_posonlyargcount;
+    const int has_varargs = (co->co_flags & CO_VARARGS) != 0;
+    const int has_varkw = (co->co_flags & CO_VARKEYWORDS) != 0;
+
+    if (has_varargs || has_varkw) {
+        Py_DECREF(code);
+        PyErr_SetString(PyExc_TypeError,
+            "callback may not use *args or **kwargs");
+        return -1;
+    }
+
+    if (nargs != expected) {
+        Py_DECREF(code);
+        PyErr_Format(PyExc_TypeError,
+            "callback must take exactly %d positional arguments (got %d)",
+            expected, nargs);
+        return -1;
+    }
+
+    Py_DECREF(code);
+    return 0;
+}
+
+================
+File: src/bridge/cb_validation.h
+================
+#ifndef CB_VALIDATION_H
+#define CB_VALIDATION_H
+
+#include <Python.h>
+
+int validate_callable_signature(PyObject *callable, const char *fmt);
+
+#endif /* CB_VALIDATION_H */
+
+================
+File: src/bridge/py_trampoline.c
+================
+#include "py_trampoline.h"
+#include <regex.h>
+#include <stdbool.h>
+
+static PyObject* PyList_Create(uint8_t* buffer, int length) {
+    if (!buffer || length <= 0) {
+        PyErr_SetString(PyExc_ValueError, "Invalid buffer or length");
+        return NULL;
+    }
+
+    PyObject* list = PyList_New(length);
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to allocate Python list");
+        return NULL;
+    }
+
+    for (int i = 0; i < length; i++) {
+        PyObject* value = PyLong_FromLong((long)buffer[i]);
+        if (!value) {
+            Py_DECREF(list);
+            return NULL;
+        }
+        PyList_SetItem(list, i, value);  // steals reference
+    }
+
+    return list;
+}
+
+static PyObject* PyMat_Create(uint8_t* buffer, int width, int height) {
+    if (!buffer || width <= 0 || height <= 0) {
+        PyErr_SetString(PyExc_ValueError, "Invalid buffer or dimensions");
+        return NULL;
+    }
+
+    PyObject* mat = PyList_New(height);
+    if (!mat) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to allocate Python list");
+        return NULL;
+    }
+
+    for (int i = 0; i < height; i++) {
+        int offset = i * width;
+        PyObject* row = PyList_Create(&buffer[offset], width);
+        if (!row) {
+            Py_DECREF(mat);
+            return NULL;
+        }
+
+        PyList_SetItem(mat, i, row);  // steals reference
+    }
+
+    return mat;
+}
+
+static bool validateArgFormat(const char *fmt) {
+    regex_t r;
+    int err = regcomp(&r, "^\\([^()]+\\).$", REG_EXTENDED);
+    if (err) { return false; }
+    err = regexec(&r, fmt, 0, NULL, 0);
+    regfree(&r);
+    return !err;
+}
+
+static int PyReadArgs(const char *fmt, PyObject *tuple, Py_ssize_t n_args, va_list args, char **pyfmt_ret, char *retfmt_ret) {
+    if (n_args >= 64) {
+        PyErr_SetString(PyExc_ValueError, "too many arguments in trampoline format (max 64)");
+        return -1;
+    }
+
+    char pyfmt_buf[64] = {0};
+    Py_ssize_t i;
+    for (i = 1; i < n_args + 1; ++i) {
+        PyObject *item = NULL;
+
+        switch (fmt[i]) {
+            case 'i': {
+                long v = va_arg(args, long);
+                item = PyLong_FromLong(v);
+                strncat(pyfmt_buf, "i", sizeof(pyfmt_buf) - strlen(pyfmt_buf) - 1);
+                break;
+            }
+            case 'u': {
+                unsigned long v = va_arg(args, unsigned long);
+                item = PyLong_FromUnsignedLong(v);
+                strncat(pyfmt_buf, "I", sizeof(pyfmt_buf) - strlen(pyfmt_buf) - 1);
+                break;
+            }
+            case 'd': {
+                double v = va_arg(args, double);
+                item = PyFloat_FromDouble(v);
+                strncat(pyfmt_buf, "d", sizeof(pyfmt_buf) - strlen(pyfmt_buf) - 1);
+                break;
+            }
+            case 'b': {
+                int v = va_arg(args, int);
+                item = PyBool_FromLong(v);
+                strncat(pyfmt_buf, "O", sizeof(pyfmt_buf) - strlen(pyfmt_buf) - 1);
+                break;
+            }
+            case 's': {
+                const char *v = va_arg(args, const char *);
+                item = PyUnicode_FromString(v);
+                strncat(pyfmt_buf, "s", sizeof(pyfmt_buf) - strlen(pyfmt_buf) - 1);
+                break;
+            }
+            case 'O': {
+                PyObject *v = va_arg(args, PyObject *);
+                if (v) {
+                    Py_INCREF(v);
+                    item = v;
+                    strncat(pyfmt_buf, "O", sizeof(pyfmt_buf) - strlen(pyfmt_buf) - 1);
+                }
+                break;
+            }
+            case 'M': {
+                uint8_t *b = va_arg(args, uint8_t *);
+                int w = va_arg(args, int);
+                int h = va_arg(args, int);
+
+                PyObject *mat = PyMat_Create(b, w, h);
+                if (mat) {
+                    item = mat;
+                    strncat(pyfmt_buf, "O", sizeof(pyfmt_buf) - strlen(pyfmt_buf) - 1);
+                }
+                break;
+            }
+            case 'L': {
+                uint8_t *b = va_arg(args, uint8_t *);
+                int l = va_arg(args, int);
+
+                PyObject *list = PyList_Create(b, l);
+                if (list) {
+                    item = list;
+                    strncat(pyfmt_buf, "O", sizeof(pyfmt_buf) - strlen(pyfmt_buf) - 1);
+                }
+                break;
+            }
+            case ')':
+                PyErr_Format(PyExc_ValueError,
+                            "format string terminated with %d args left", n_args - i);
+                return -1;
+            default:
+                PyErr_Format(PyExc_ValueError,
+                            "unknown format code '%c' at index %zd", fmt[i], i);
+                return -1;
+        }
+
+        if (!item || PyTuple_SetItem(tuple, i - 1, item) < 0) {
+            PyErr_SetString(PyExc_RuntimeError, "Failed to allocate or set Python object");
+            Py_XDECREF(item);
+            return -1;
+        }
+    }
+
+    if (fmt[i] != ')') {
+        PyErr_SetString(PyExc_ValueError,
+                "arg list terminated without terminating the format string");
+        return -1;
+    }
+
+    *pyfmt_ret = strdup(pyfmt_buf);
+    *retfmt_ret = fmt[i + 1];
+    return 0;
+}
+
+int py_trampoline(PyObject *cb, const char *fmt, void* ret, ...)
+{
+    PyGILState_STATE g = PyGILState_Ensure();
+
+    if (!PyCallable_Check(cb)) {
+        PyErr_SetString(PyExc_TypeError, "callback object is not callable");
+        PyGILState_Release(g);
+        return -1;
+    }
+
+    // Validate format
+    if (!validateArgFormat(fmt)) {
+        PyErr_SetString(PyExc_RuntimeError, "Internal Error: Invalid trampoline format string");
+        PyGILState_Release(g);
+        return -1;
+    }
+
+    Py_ssize_t n_args = (Py_ssize_t)strlen(fmt) - 3;
+    PyObject *tuple = PyTuple_New(n_args);
+    if (!tuple) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to allocate Python tuple");
+        PyGILState_Release(g);
+        return -1;
+    }
+
+    // Build args
+    va_list args;
+    va_start(args, ret);
+    char *pyfmt;
+    char retfmt;
+    if (PyReadArgs(fmt, tuple, n_args, args, &pyfmt, &retfmt) != 0) {
+        va_end(args);
+        Py_DECREF(tuple);
+        PyGILState_Release(g);
+        return -1;
+    }
+
+    PyObject *result = PyObject_CallObject(cb, tuple);
+    va_end(args);
+    Py_DECREF(tuple);
+
+    if (!result) {
+        PyGILState_Release(g);
+        return -1;
+    }
+
+    int rc = 0;
+    switch (retfmt) {
+        case 'i': {
+            if (!PyLong_Check(result)) {
+                PyErr_SetString(PyExc_TypeError, "Expected int return");
+                rc = -1;
+                break;
+            }
+            *(int*)ret = (int)PyLong_AsLong(result);
+            break;
+        }
+        case 'u': {
+            if (!PyLong_Check(result)) {
+                PyErr_SetString(PyExc_TypeError, "Expected unsigned int return");
+                rc = -1;
+                break;
+            }
+            *(unsigned int*)ret = (unsigned int)PyLong_AsUnsignedLong(result);
+            break;
+        }
+        case 'd': {
+            if (!PyFloat_Check(result)) {
+                PyErr_SetString(PyExc_TypeError, "Expected float return");
+                rc = -1;
+                break;
+            }
+            *(double*)ret = PyFloat_AsDouble(result);
+            break;
+        }
+        case 'b': {
+            if (!PyBool_Check(result)) {
+                PyErr_SetString(PyExc_TypeError, "Expected bool return");
+                rc = -1;
+                break;
+            }
+            *(bool*)ret = (result == Py_True);
+            break;
+        }
+        case 'O': {
+            *(PyObject**)ret = result;  // transfer ownership to caller
+            Py_INCREF(result);
+            break;
+        }
+        case 'v': {
+            // void return: do nothing
+            break;
+        }
+        default:
+            PyErr_Format(PyExc_ValueError, "Unknown return format code '%c'", retfmt);
+            rc = -1;
+    }
+
+    Py_DECREF(result);
+    PyGILState_Release(g);
+    return rc;
+}
+
+================
+File: src/bridge/py_trampoline.h
+================
+#ifndef PY_TRAMPOLINE_H
+#define PY_TRAMPOLINE_H
+
+#include <Python.h>
+
+/* --------------------------------------------------------------------
+ *  py_trampoline() – call a Python callable with typed C arguments
+ *
+ *  cb         : PyCallable to invoke
+ *  fmt        : format string of the form "(args...)r"
+ *               - args... : one char per positional argument
+ *               - r       : return value type
+ *
+ *               Supported argument codes:
+ *                    i  → signed int/long           → PyLong_FromLong
+ *                    u  → unsigned int/long         → PyLong_FromUnsignedLong
+ *                    d  → double                    → PyFloat_FromDouble
+ *                    b  → int/bool                  → PyBool_FromLong
+ *                    s  → const char*               → PyUnicode_FromString
+ *                    O  → PyObject* (borrowed ref)  → INCREF + pass-through
+ *                    M  → uint8_t*,int,int          → matrix → list of lists
+ *                    L  → uint8_t*,int              → list of ints
+ *
+ *               Supported return codes:
+ *                    i  → int                       ← PyLong_AsLong
+ *                    u  → unsigned int              ← PyLong_AsUnsignedLong
+ *                    d  → double                    ← PyFloat_AsDouble
+ *                    b  → bool                      ← PyBool_Check / Py_True
+ *                    O  → PyObject*                 ← returned with INCREF
+ *                    v  → void                      ← return ignored
+ *
+ *  ret        : pointer to return value (output, may be NULL if return is 'v')
+ *  …          : positional arguments matching the format string
+ *
+ *  Returns 0 on success, -1 on error (with Python exception set).
+ * ------------------------------------------------------------------ */
+int py_trampoline(PyObject *cb, const char *fmt, void* ret, ...);
+
+#endif /* PY_TRAMPOLINE_H */
+
+================
+File: src/bridge/pybridge.c
+================
+#define PY_SSIZE_T_CLEAN
+#include "pybridge.h"
+#include "cb_registration.h"
+#include "py_trampoline.h"
+
+int (*get_deltaq_offset_cb)(
+    unsigned sb_index,
+    unsigned sb_org_x,
+    unsigned sb_org_y,
+    uint8_t sb_qindex,
+    uint16_t sb_final_blk_cnt,
+    int32_t mi_row_start,
+    int32_t mi_row_end,
+    int32_t mi_col_start,
+    int32_t mi_col_end,
+    int32_t tg_horz_boundary,
+    int32_t tile_row,
+    int32_t tile_col,
+    int32_t tile_rs_index,
+    int32_t picture_number,      
+    uint8_t *buffer_y,           
+    uint8_t *buffer_cb,          
+    uint8_t *buffer_cr,          
+    uint16_t sb_width,           
+    uint16_t sb_height,          
+    uint8_t encoder_bit_depth,
+    int32_t qindex,              
+    double beta,
+    int32_t type,                
+    void* user);
+
+void (*recv_frame_feedback_cb)(
+    int,
+    int,
+    int,
+    int,
+    double,
+    double,
+    double,
+    double,
+    double,
+    double,
+    double,
+    double,
+    double,
+    int,
+    void*) = NULL;
+
+void (*recv_sb_feedback_cb)(
+    int,
+    unsigned,
+    unsigned,
+    unsigned,
+    double,
+    double,
+    double,
+    double,
+    double,
+    double,
+    double,
+    double,
+    double,
+    uint8_t*,
+    uint8_t*,
+    uint8_t*,
+    uint16_t,
+    uint16_t,
+    void*) = NULL;
+
+int get_deltaq_offset_trampoline(
+    unsigned sb_index,
+    unsigned sb_org_x,
+    unsigned sb_org_y,
+    uint8_t sb_qindex,
+    uint16_t sb_final_blk_cnt,
+    int32_t mi_row_start,
+    int32_t mi_row_end,
+    int32_t mi_col_start,
+    int32_t mi_col_end,
+    int32_t tg_horz_boundary,
+    int32_t tile_row,
+    int32_t tile_col,
+    int32_t tile_rs_index,
+    int32_t picture_number,
+    uint8_t *buffer_y,
+    uint8_t *buffer_cb,
+    uint8_t *buffer_cr,
+    uint16_t sb_width,
+    uint16_t sb_height,
+    uint8_t encoder_bit_depth,
+    int32_t qindex,
+    double beta,
+    int32_t type,
+    void *user
+) {
+    int deltaq = 0;
+    Callback *cb = &g_callbacks[CB_GET_DELTAQ_OFFSET];
+    if (cb->py_callable) {
+        py_trampoline(cb->py_callable,
+            cb->cb_fmt,  // Format string
+            &deltaq,
+            sb_index,           // I: unsigned
+            sb_org_x,           // I: unsigned
+            sb_org_y,           // I: unsigned
+            sb_qindex,          // B: unsigned
+            sb_final_blk_cnt,   // H: unsigned
+            mi_row_start,       // i: int32_t
+            mi_row_end,         // i: int32_t
+            mi_col_start,       // i: int32_t
+            mi_col_end,         // i: int32_t
+            tg_horz_boundary,   // i: int32_t
+            tile_row,           // i: int32_t
+            tile_col,           // i: int32_t
+            tile_rs_index,      // i: int32_t
+            picture_number,     // i: int32_t
+            buffer_y, sb_width, sb_height,       // M: uint8_t*, int, int
+            buffer_cb, sb_width / 2, sb_height / 2, // M: uint8_t*, int, int
+            buffer_cr, sb_width / 2, sb_height / 2, // M: uint8_t*, int, int
+            sb_width,           // I: uint16_t
+            sb_height,          // I: uint16_t
+            encoder_bit_depth,  // I: uint8_t
+            qindex,             // i: int32_t
+            beta,               // d: double
+            type == 1           // b: int (converted to bool)
+        );
+    }
+    return deltaq;
+}
+
+void recv_frame_feedback_trampoline(
+    int picture_number,
+    int temporal_layer_index,
+    int qp,
+    int avg_qp,
+    double luma_psnr,
+    double cb_psnr,
+    double cr_psnr,
+    double mse_y,
+    double mse_u,
+    double mse_v,
+    double luma_ssim,
+    double cb_ssim,
+    double cr_ssim,
+    int picture_stream_size,
+    void *user
+) {
+    Callback *cb = &g_callbacks[CB_RECV_FRAME_FEEDBACK];
+    if (cb->py_callable) {
+        py_trampoline(cb->py_callable,
+            cb->cb_fmt,
+            NULL,
+            picture_number,        // i: int
+            temporal_layer_index,  // i: int
+            qp,                    // i: int
+            avg_qp,                // i: int
+            luma_psnr,             // d: double
+            cb_psnr,               // d: double
+            cr_psnr,               // d: double
+            mse_y,                 // d: double
+            mse_u,                 // d: double
+            mse_v,                 // d: double
+            luma_ssim,             // d: double
+            cb_ssim,               // d: double
+            cr_ssim,               // d: double
+            picture_stream_size    // i: int
+        );
+    }
+}
+
+void recv_sb_feedback_trampoline(
+    int picture_number,
+    unsigned sb_index,
+    unsigned sb_origin_x,
+    unsigned sb_origin_y,
+    double luma_psnr,
+    double cb_psnr,
+    double cr_psnr,
+    double mse_y,
+    double mse_u,
+    double mse_v,
+    double luma_ssim,
+    double cb_ssim,
+    double cr_ssim,
+    uint8_t *buffer_y,
+    uint8_t *buffer_cb,
+    uint8_t *buffer_cr,
+    uint16_t sb_width,
+    uint16_t sb_height,
+    void *user
+) {
+    Callback *cb = &g_callbacks[CB_RECV_SB_FEEDBACK];
+    if (cb->py_callable) {
+        py_trampoline(cb->py_callable,
+            cb->cb_fmt,
+            NULL,
+            picture_number,         // I: unsigned
+            sb_index,               // i: int (promoted unsigned)
+            sb_origin_x,            // i: int (promoted unsigned)
+            sb_origin_y,            // i: int (promoted unsigned)
+            luma_psnr,              // d: double
+            cb_psnr,                // d: double
+            cr_psnr,                // d: double
+            mse_y,                  // d: double
+            mse_u,                  // d: double
+            mse_v,                  // d: double
+            luma_ssim,              // d: double
+            cb_ssim,                // d: double
+            cr_ssim,                // d: double
+            buffer_y, sb_width, sb_height,       // M: uint8_t*, int, int
+            buffer_cb, sb_width / 2, sb_height / 2, // M: uint8_t*, int, int
+            buffer_cr, sb_width / 2, sb_height / 2, // M: uint8_t*, int, int
+            sb_width,              // H: uint16_t
+            sb_height              // H: uint16_t
+        );
+    }
+}
+
+================
+File: src/bridge/pybridge.h
+================
+#ifndef PYBRIDGE_H
+#define PYBRIDGE_H
+
+#include <Python.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+extern int (*get_deltaq_offset_cb)(
+    unsigned sb_index,
+    unsigned sb_org_x,
+    unsigned sb_org_y,
+    uint8_t sb_qindex,
+    uint16_t sb_final_blk_cnt,
+    int32_t mi_row_start,
+    int32_t mi_row_end,
+    int32_t mi_col_start,
+    int32_t mi_col_end,
+    int32_t tg_horz_boundary,
+    int32_t tile_row,
+    int32_t tile_col,
+    int32_t tile_rs_index,
+    int32_t picture_number,      
+    uint8_t *buffer_y,           
+    uint8_t *buffer_cb,          
+    uint8_t *buffer_cr,          
+    uint16_t sb_width,           
+    uint16_t sb_height,          
+    uint8_t encoder_bit_depth,
+    int32_t qindex,              
+    double beta,
+    int32_t type,                
+    void* user);
+
+
+extern void (*recv_frame_feedback_cb)(
+    int picture_number,
+    int temporal_layer_index,
+    int qp,
+    int avg_qp,
+    double luma_psnr,
+    double cb_psnr,
+    double cr_psnr,
+    double mse_y,
+    double mse_u,
+    double mse_v,
+    double luma_ssim,
+    double cb_ssim,
+    double cr_ssim,
+    int picture_stream_size,
+    void *user);
+
+extern void (*recv_sb_feedback_cb)(
+    int picture_number,
+    unsigned sb_index,
+    unsigned sb_origin_x,
+    unsigned sb_origin_y,
+    double luma_psnr,
+    double cb_psnr,
+    double cr_psnr,
+    double mse_y,
+    double mse_u,
+    double mse_v,
+    double luma_ssim,
+    double cb_ssim,
+    double cr_ssim,
+    uint8_t *buffer_y,
+    uint8_t *buffer_cb,
+    uint8_t *buffer_cr,
+    uint16_t sb_width,
+    uint16_t sb_height,
+    void *user);
+
+int get_deltaq_offset_trampoline(
+    unsigned sb_index,
+    unsigned sb_org_x,
+    unsigned sb_org_y,
+    uint8_t sb_qindex,
+    uint16_t sb_final_blk_cnt,
+    int32_t mi_row_start,
+    int32_t mi_row_end,
+    int32_t mi_col_start,
+    int32_t mi_col_end,
+    int32_t tg_horz_boundary,
+    int32_t tile_row,
+    int32_t tile_col,
+    int32_t tile_rs_index,
+    int32_t picture_number,
+    uint8_t *buffer_y,
+    uint8_t *buffer_cb,
+    uint8_t *buffer_cr,
+    uint16_t sb_width,
+    uint16_t sb_height,
+    uint8_t encoder_bit_depth,
+    int32_t qindex,
+    double beta,
+    int32_t type,
+    void *user
+);
+
+void recv_frame_feedback_trampoline(
+    int picture_number,
+    int temporal_layer_index,
+    int qp,
+    int avg_qp,
+    double luma_psnr,
+    double cb_psnr,
+    double cr_psnr,
+    double mse_y,
+    double mse_u,
+    double mse_v,
+    double luma_ssim,
+    double cb_ssim,
+    double cr_ssim,
+    int picture_stream_size,
+    void *user
+);
+
+void recv_sb_feedback_trampoline(
+    int picture_number,
+    unsigned sb_index,
+    unsigned sb_origin_x,
+    unsigned sb_origin_y,
+    double luma_psnr,
+    double cb_psnr,
+    double cr_psnr,
+    double mse_y,
+    double mse_u,
+    double mse_v,
+    double luma_ssim,
+    double cb_ssim,
+    double cr_ssim,
+    uint8_t *buffer_y,
+    uint8_t *buffer_cb,
+    uint8_t *buffer_cr,
+    uint16_t sb_width,
+    uint16_t sb_height,
+    void *user
+);
+
+#endif /* PYBRIDGE_H */
+
+================
+File: src/pyencoder/environment/__init__.py
+================
+from gymnasium.envs.registration import register
+
+register(
+    id="Av1Env-v0",
+    entry_point="src.environment:Av1Env"
+)
+
+================
+File: src/pyencoder/environment/av1_env.py
+================
+import queue
+import threading
+from pathlib import Path
+from typing import Any, Dict, Tuple
+
+import gymnasium as gym
+import numpy as np
+from pyencoder.environment.utils import _probe_resolution
+from pyencoder.utils.video_reader import VideoReader
+
+# Constants
+QP_MIN, QP_MAX = -3, 3  # delta QP range which will be action
+SB_SIZE = 64  # superblock size
+
+
+# Extending gymnasium's Env class
+# https://gymnasium.farama.org/api/env/#gymnasium.Env
+class Av1Env(gym.Env):
+    metadata = {"render_modes": []}
+
+    def __init__(
+        self,
+        video_path: str | Path,
+        *,
+        lambda_rd: float = 0.1,
+        av1_runner: function = None,
+    ):
+        super().__init__()
+        self.video_path = Path(video_path)
+        self.video_reader = VideoReader(video_path)
+        self.lambda_rd = float(lambda_rd)
+
+        self.w_px, self.h_px = self.video_reader.get_resolution()
+        self.w_sb = (self.w_px + SB_SIZE - 1) // SB_SIZE
+        self.h_sb = (self.h_px + SB_SIZE - 1) // SB_SIZE
+
+        # Action space = QP offset grid
+        self.action_space = gym.spaces.MultiDiscrete(
+            np.full((self.h_sb, self.w_sb), QP_MAX - QP_MIN + 1, dtype=np.int64)
+        )
+
+        # Observation space = previous frame summary
+        self.observation_space = gym.spaces.Dict(
+            {
+                "bits": gym.spaces.Box(0, np.finfo("float32").max, (1,), np.float32),
+                "psnr": gym.spaces.Box(0, np.finfo("float32").max, (1,), np.float32),
+                "y_comp": gym.spaces.Box(0, 255, (self.h_px, self.w_px), np.uint8),
+                "frame_number": gym.spaces.Discrete(
+                    self.video_reader.get_frame_count()
+                ),
+                # "frame": gym.spaces.Discrete(1_000_000), guess no frame number for now
+            }
+        )
+
+        # RL/encoder communication
+        # self._action_q: queue.Queue[np.ndarray] = queue.Queue(maxsize=1) no need action ti
+
+        self._frame_report_q: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
+        self._episode_done = threading.Event()
+        self._encoder_thread: threading.Thread | None = None
+        self._frame_action: np.ndarray | None = None
+        self._next_frame_idx = 0
+        self._terminated = False
+
+        self.av1_runner = av1_runner
+        if self.av1_runner is None:
+            raise ValueError("av1_runner function must be provided.")
+        self.av1_runner()
+
+    # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
+    def reset(
+        self, *, seed: int | None = None, options: dict | None = None
+    ) -> Tuple[dict, dict]:
+        super().reset(seed=seed)
+        self.close()
+        self._terminated = False
+        self._next_frame_idx = 0
+        self._episode_done.clear()
+
+        # Spawn encoder worker
+        self._encoder_thread = threading.Thread(target=self._encode_loop, daemon=True)
+        self._encoder_thread.start()
+
+        # Return first observation
+        obs = {
+            "bits": np.array([0.0], dtype=np.float32),
+            "psnr": np.array([0.0], dtype=np.float32),
+            "y_comp": np.zeros((self.h_px, self.w_px), dtype=np.uint8),
+            "frame_number": np.array([0], dtype=np.int32),
+        }
+        return obs, {}
+
+    # https://gymnasium.farama.org/api/env/#gymnasium.Env.step
+    def step(self, action: np.ndarray) -> Tuple[dict, float, bool, bool, dict]:
+        if self._terminated:
+            raise RuntimeError("Call reset() before step() after episode ends.")
+
+        if action.shape != (self.h_sb, self.w_sb):
+            raise ValueError(
+                f"Action grid shape {action.shape} != ({self.h_sb},{self.w_sb})"
+            )
+
+        # send action to encoder
+        # self._action_q.put(action.astype(np.int32, copy=False))
+        obs, reward, self._terminated, _, info = self.get_frame_feedback(
+            self._frame_report_q.get()
+        )
+        self.send_action(action)
+
+        return obs, reward, self._terminated, False, info
+
+    # https://gymnasium.farama.org/api/env/#gymnasium.Env.close
+    def close(self):
+        if self._encoder_thread and self._encoder_thread.is_alive():
+            self._episode_done.set()
+            self._encoder_thread.join(timeout=1.0)
+
+        # drain queues
+        # for q in (self._action_q, self._frame_report_q):
+        #     while not q.empty():
+        #         q.get_nowait()
+
+        self._encoder_thread = None
+
+    # https://gymnasium.farama.org/api/env/#gymnasium.Env.render
+    def render(self):
+        pass
+
+    # Encoding
+    # def _encode_loop(self):
+    #     from mycodec import encode
+
+    #     encode(
+    #         str(self.video_path),
+    #         on_superblock=self._on_superblock,
+    #         on_frame_done=self._on_frame_done,
+    #     )
+
+    # use this in c callback
+    def send_action(self, action: np.ndarray):
+        return action, action.size
+
+    def get_frame_feedback(self, frame_report: Dict[str, Any]):
+        # Wait for encoder to finish the frame
+        report = self._frame_report_q.get()  # dict with stats + next obs
+        reward = self._reward_fn(report)  # scalar
+        obs = report["next_obs"]
+
+        self._terminated = report["is_last_frame"]
+        self._next_frame_idx += 1
+
+        info: dict = {}
+
+        return obs, reward, self._terminated, False, info
+
+    # Reward function
+    def _reward_fn(self, rpt: Dict[str, Any]) -> float:
+        return -float(rpt["bits"]) + self.lambda_rd * float(rpt["psnr"])
+
+    # def _on_superblock(self, sb_stats: Dict[str, Any], sb_index: int) -> int:
+    #     if self._frame_action is None:
+    #         # Wait until RL has produced a grid for *this* frame
+    #         self._frame_action = self._action_q.get()
+
+    #     y, x = divmod(sb_index, self.w_sb)
+    #     qp_int = int(self._frame_action[y, x])
+    #     return qp_int
+
+    # def _on_frame_done(self, frame_report: Dict[str, Any]):
+    #     obs_next = {
+    #         "bits": np.array([frame_report["bits"]], dtype=np.float32),
+    #         "psnr": np.array([frame_report["psnr"]], dtype=np.float32),
+    #         "frame": self._next_frame_idx + 1,
+    #     }
+
+    #     self._frame_report_q.put(
+    #         {
+    #             **frame_report,
+    #             "next_obs": obs_next,
+    #             "is_last_frame": bool(frame_report.get("last_frame", False)),
+    #         }
+    #     )
+    #     self._frame_action = None
+
+    #     if frame_report.get("last_frame", False):
+    #         self._episode_done.set()
+
+================
+File: src/pyencoder/utils/video_reader.py
+================
+import enum
+from pathlib import Path
+from typing import Optional, Tuple
+
+import cv2
+import numpy as np
+from skimage.metrics import structural_similarity as ssim
+
+
+class VideoComponent(enum.Enum):
+    Y = "Y"
+    Cb = "Cb"
+    Cr = "Cr"
+
+
+class VideoReader:
+    def __init__(self, path: str):
+        self.path = path
+        self.cap = cv2.VideoCapture(path)
+        if not self.cap.isOpened():
+            raise ValueError(f"Cannot open video file: {path}")
+        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    def read(self) -> Optional[np.ndarray]:
+        ret, frame = self.cap.read()
+        return frame if ret else None
+
+    def release(self):
+        self.cap.release()
+
+    def get_resolution(self) -> Tuple[int, int]:
+        return self.width, self.height
+
+    def read_ycbcr_components(
+        self, frame_number: int
+    ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+        frame = self.read()
+        if frame is None:
+            return None
+        ycbcr = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+        y, cr, cb = cv2.split(ycbcr)
+        return y, cb, cr  # Return in standard order
+
+    def read_ycbcr_components_chopped(
+        self,
+        frame_number: int,
+        left_top: Tuple[int, int],
+        right_bottom: Tuple[int, int],
+    ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+        frame = self.read()
+        if frame is None:
+            return None
+        ycbcr = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+        y, cr, cb = cv2.split(ycbcr)
+        y = y[left_top[1] : right_bottom[1], left_top[0] : right_bottom[0]]
+        cb = cb[left_top[1] : right_bottom[1], left_top[0] : right_bottom[0]]
+        cr = cr[left_top[1] : right_bottom[1], left_top[0] : right_bottom[0]]
+        return y, cb, cr
+
+    def get_frame_count(self) -> int:
+        return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    def render_frame_number(self, frame_number: int):
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+        frame = self.read()
+        if frame is not None:
+            self.render_frame(frame)
+
+    def render_frame(self, frame: np.ndarray):
+        cv2.imshow("Frame", frame)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    @staticmethod
+    def render_single_component(
+        component_array: np.ndarray, component_type: VideoComponent
+    ):
+        cv2.imshow(str(component_type.value), component_array)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    @staticmethod
+    def render_components(y: np.ndarray, cb: np.ndarray, cr: np.ndarray):
+        # OpenCV uses Y, Cr, Cb order
+        ycbcr_image = cv2.merge((y, cr, cb))
+
+        bgr_image = cv2.cvtColor(ycbcr_image, cv2.COLOR_YCrCb2BGR)
+        cv2.imshow("BGR", bgr_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    @staticmethod
+    def calculate_psnr(original: np.ndarray, compressed: np.ndarray) -> float:
+        if original.shape != compressed.shape:
+            raise ValueError("Original and compressed images must have the same shape.")
+
+        mse = np.mean(
+            (original.astype(np.float64) - compressed.astype(np.float64)) ** 2
+        )
+        if mse == 0:
+            return float("inf")
+        PIXEL_MAX = 255.0
+        return 20 * np.log10(PIXEL_MAX / np.sqrt(mse))
+
+    @staticmethod
+    def calculate_ssim(original: np.ndarray, compressed: np.ndarray) -> float:
+        if original.shape != compressed.shape:
+            raise ValueError("Original and compressed images must have the same shape.")
+        return ssim(
+            original,
+            compressed,
+            data_range=original.max() - original.min(),
+            multichannel=True,
+        )
+
+    @staticmethod
+    def calculate_mse(original: np.ndarray, compressed: np.ndarray) -> float:
+        if original.shape != compressed.shape:
+            raise ValueError("Original and compressed images must have the same shape.")
+        return np.mean((original - compressed) ** 2)
+
+
+# simple test
+if __name__ == "__main__":
+    reader = VideoReader("Data\\akiyo_qcif.y4m")
+
+    reader.get_resolution()
+    reader.get_frame_count()
+    y, cb, cr = reader.read_ycbcr_components(1)
+
+    reader.render_single_component(y, VideoComponent.Y)
+
+    VideoReader.render_components(y, cb, cr)
+
+================
+File: src/pyencoder/__init__.py
+================
+from importlib import import_module as _imp
+
+_svtapp = _imp("._svtapp", package="pyencoder")
+_run = _svtapp.run
+_register = _svtapp.register_callbacks
+
+
+def run(**kwargs):
+    argv = ["svtav1"]
+    for key, val in kwargs.items():
+        flag = f"--{key.replace('_', '-')}"  # ex: rc_mode -> --rc-mode
+        if isinstance(val, bool):  # True/False -> 1/0
+            argv.extend([flag, "1" if val else "0"])
+        else:
+            argv.extend([flag, str(val)])
+
+    print(argv)
+    _run(argv)
+
+
+def register_callbacks(*, get_deltaq_offset=None, frame_feedback=None, sb_feedback=None):
+    _register(get_deltaq_offset, frame_feedback, sb_feedback)
+
+================
+File: src/pyencoder/_binding.c
+================
+#define main app_main
+#include "../Source/App/app_main.c"
+#undef main
+
+#ifndef SVT_ENABLE_USER_CALLBACKS
+#define SVT_ENABLE_USER_CALLBACKS 1
+#endif
+
+#include <Python.h>
+#include "../bridge/cb_validation.h"
+#include "../bridge/cb_registration.h"
+#include "../bridge/pybridge.h"
+#include "../Source/Lib/Globals/enc_callbacks.h"
+#include "../Source/API/EbSvtAv1Enc.h"
+#include <EbSvtAv1Enc.h>
+
+static PyObject *
+py_run_app(PyObject *self, PyObject *args)
+{
+    PyObject *py_argv;
+    if (!PyArg_ParseTuple(args, "O!", &PyList_Type, &py_argv))
+        return NULL;
+
+    int argc = (int)PyList_Size(py_argv);
+    char **argv = malloc((argc + 1) * sizeof(char*));
+    for (int i = 0; i < argc; i++) {
+        PyObject *item = PyList_GetItem(py_argv, i);
+        argv[i] = strdup(PyUnicode_AsUTF8(item));
+    }
+    argv[argc] = NULL;
+
+    int rc;
+    Py_BEGIN_ALLOW_THREADS
+    rc = app_main(argc, argv);
+    Py_END_ALLOW_THREADS
+
+    for (int i = 0; i < argc; i++) free(argv[i]);
+    free(argv);
+
+    if (rc != 0) {
+        PyErr_Format(PyExc_RuntimeError,
+                     "SvtAv1EncApp returned non-zero exit code %d", rc);
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+py_register_cbs(PyObject *self, PyObject *args)
+{
+    PyObject *py_get_deltaq_offset = Py_None;
+    PyObject *py_recv_frame_feedback = Py_None;
+    PyObject *py_recv_sb_feedback = Py_None;
+    
+    if (!PyArg_ParseTuple(args, "|OOO", &py_get_deltaq_offset, &py_recv_frame_feedback, &py_recv_sb_feedback))
+        return PyErr_Format(PyExc_TypeError, "unable to parse callback arguments");
+
+    pybridge_set_cb(CB_GET_DELTAQ_OFFSET, py_get_deltaq_offset);
+    pybridge_set_cb(CB_RECV_FRAME_FEEDBACK, py_recv_frame_feedback);
+    pybridge_set_cb(CB_RECV_SB_FEEDBACK, py_recv_sb_feedback);
+
+    static PluginCallbacks cbs;
+    cbs.user_get_deltaq_offset = get_deltaq_offset_trampoline;
+    cbs.user_frame_feedback = recv_frame_feedback_trampoline;
+    cbs.user_sb_feedback = recv_sb_feedback_trampoline;
+
+    if (svt_av1_enc_set_callbacks(&cbs) != EB_ErrorNone)
+        return PyErr_Format(PyExc_RuntimeError, "failed to set callbacks");
+
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef SvtAppMethods[] = {
+    {"run", py_run_app, METH_VARARGS, "Run the SVT-AV1 encoder CLI in-process."},
+    {"register_callbacks", py_register_cbs, METH_VARARGS, "Attach callbacks to the SVT-AV1 encoder."},
+    {NULL, NULL, 0, NULL}
+};
+
+static struct PyModuleDef svtappmodule = {
+    PyModuleDef_HEAD_INIT,
+    "_svtapp",   /* name of module */
+    NULL,        /* module doc */
+    -1,
+    SvtAppMethods
+};
+
+PyMODINIT_FUNC
+PyInit__svtapp(void)
+{
+    return PyModule_Create(&svtappmodule);
+}
+
+================
+File: CMakeLists.txt
+================
+cmake_minimum_required(VERSION 3.20)
+project(av1_gym_bridge LANGUAGES C CXX ASM)
+
+add_compile_definitions(SVT_ENABLE_USER_CALLBACKS)
+
+# 1.  Bring in the upstream SVT‑AV1 build (core only, static)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BUILD_APPS        OFF CACHE BOOL "" FORCE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+add_subdirectory(
+    ${CMAKE_CURRENT_LIST_DIR}/..
+    ${CMAKE_CURRENT_BINARY_DIR}/svtcore
+    EXCLUDE_FROM_ALL)
+
+find_package(Threads REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+
+# 2.  Safe‑string library  (strcpy_s, strncpy_s, …)
+file(GLOB SAFE_SRC
+     "${CMAKE_CURRENT_LIST_DIR}/../third_party/safestringlib/*.c")
+
+add_library(safeclib STATIC ${SAFE_SRC})
+target_include_directories(safeclib PUBLIC
+    "${CMAKE_CURRENT_LIST_DIR}/../third_party/safestringlib")
+
+# 3.  Plugin callbacks (defines svt_av1_enc_set_callbacks / plugin_cbs)
+add_library(svtav1_plugin STATIC
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/enc_callbacks.c")
+
+target_include_directories(svtav1_plugin PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/.."
+    "${CMAKE_CURRENT_LIST_DIR}/../Source"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/API")
+
+target_link_libraries(svtav1_plugin PRIVATE Threads::Threads)
+
+# 4.  Re‑build Source/App/ as a static lib, renaming main()
+file(GLOB APP_SRC "${CMAKE_CURRENT_LIST_DIR}/../Source/App/*.c")
+add_library(svtav1_app STATIC ${APP_SRC})
+
+target_compile_definitions(svtav1_app PRIVATE main=svt_enc_app_main)
+target_include_directories(svtav1_app PUBLIC
+    "${CMAKE_CURRENT_LIST_DIR}/.."
+    "${CMAKE_CURRENT_LIST_DIR}/../Source"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/App"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/API")
+
+target_link_libraries(svtav1_app PUBLIC Threads::Threads safeclib)
+
+# 5.  Build the Python extension  _svtapp.{so,dylib,pyd}
+add_library(_svtapp MODULE
+    src/bridge/pybridge.c
+    src/bridge/cb_registration.c
+    src/bridge/cb_validation.c
+    src/bridge/py_trampoline.c
+    src/pyencoder/_binding.c
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/app_bridge.c"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/rl_feedback.c")
+
+if (WIN32)
+    set_target_properties(_svtapp PROPERTIES
+        OUTPUT_NAME "_svtapp"
+        PREFIX ""
+        SUFFIX ".pyd")
+else()
+    set_target_properties(_svtapp PROPERTIES PREFIX "")
+endif()
+
+target_include_directories(_svtapp PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/.."
+    src/bridge
+    "${CMAKE_CURRENT_LIST_DIR}/../Source"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/App"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/API"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals" 
+    ${Python3_INCLUDE_DIRS})
+
+target_link_libraries(_svtapp
+    PRIVATE
+        svtav1_plugin
+        svtav1_app
+        SvtAv1Enc
+        safeclib
+        Python3::Python
+        Threads::Threads
+        m)
+# Install path for scikit‑build‑core editable wheels
+install(TARGETS _svtapp LIBRARY DESTINATION . RUNTIME DESTINATION .)
+
+================
+File: pyproject.toml
+================
+[project]
+name = "av1-gym"
+dynamic = ["version"]
+authors = [{ name = "TL26" }]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["gymnasium>=0.29", "numpy>=2.1.3", "opencv-python>= 4.10"]
+
+[build-system]
+requires = [
+  "scikit-build-core>=0.11",
+  "setuptools_scm>=7",
+  "pybind11_stubgen>=2"
+]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+wheel.packages    = ["src/pyencoder"]
+wheel.install-dir = "pyencoder"
+install.strip = false
+
+[tool.scikit-build.cmake]
+define = { SVT_ENABLE_USER_CALLBACKS = "ON" }
+args = [
+    "-DCMAKE_BUILD_TYPE=Debug",
+    "-DCMAKE_C_FLAGS=-g",
+    "-DCMAKE_CXX_FLAGS=-g",
+    "-DCMAKE_INSTALL_DO_STRIP=OFF"
+]
+
+================
+File: run_env.py
+================
+import argparse
+
+import pyencoder
+from pyencoder.environment.av1_env import Av1Env
+from stable_baselines3 import A2C
+
+env = Av1Env(
+    "Data/akiyo_qcif.y4m",
+    av1_runner=lambda x: pyencoder.run(
+        input="../Data/akiyo_qcif.y4m", rc=True, enable_stat_report=True
+    ),
+)
+
+model = A2C("MlpPolicy", env, verbose=1)
+model.learn(total_timesteps=100000)
+
+episodes = 5
+for ep in range(episodes):
+    obs = env.reset()
+    done = False
+    while not done:
+        action, _states = model.predict(obs)
+        obs, rewards, done, info = env.step(action)
+        env.render()
+        # print(rewards)
+
+================
+File: test.py
+================
+import argparse
+import os
+
+import pyencoder
+
+
+def get_deltaq_offset(
+    sb_index: int,
+    sb_org_x: int,
+    sb_org_y: int,
+    sb_qindex: int,
+    sb_final_blk_cnt: int,
+    mi_row_start: int,
+    mi_row_end: int,
+    mi_col_start: int,
+    mi_col_end: int,
+    tg_horz_boundary: int,
+    tile_row: int,
+    tile_col: int,
+    tile_rs_index: int,
+    picture_number: int,
+    buffer_y: list,
+    buffer_cb: list,
+    buffer_cr: list,
+    sb_width: int,
+    sb_height: int,
+    encoder_bit_depth: int,
+    qindex: int,
+    beta: float,
+    is_intra: bool,
+) -> int:
+    print(len(buffer_y), "buffer_y")
+    if buffer_y and len(buffer_y) > 0:
+        total_pixels = sb_width * sb_height
+        luma_sum = sum(sum(row) for row in buffer_y)
+        avg_luma = luma_sum / total_pixels
+
+        luma_variance = (
+            sum(sum((pixel - avg_luma) ** 2 for pixel in row) for row in buffer_y)
+            / total_pixels
+        )
+        texture_complexity = luma_variance**0.5
+    else:
+        avg_luma = 128
+        texture_complexity = 0
+
+    print(f"RL Model - Frame {picture_number}, SB {sb_index}:")
+    print(f"  Position: ({sb_org_x},{sb_org_y}), Size: {sb_width}x{sb_height}")
+    print(f"  QP: {sb_qindex}, QIndex: {qindex}, Beta: {beta:.4f}")
+    print(f"  Tile: ({tile_row},{tile_col}), Type: {'INTRA' if is_intra else 'INTER'}")
+    print(f"  Avg Luma: {avg_luma:.1f}, Texture: {texture_complexity:.1f}")
+
+    qp_offset = 0
+
+    if texture_complexity < 10:
+        if avg_luma > 200:
+            qp_offset = 3
+        elif avg_luma < 50:
+            qp_offset = -1
+    elif texture_complexity > 50:
+        qp_offset = -2
+
+    if is_intra:
+        qp_offset -= 1
+
+    center_x, center_y = sb_org_x + sb_width // 2, sb_org_y + sb_height // 2
+    if center_x < 320 and center_y < 240:
+        qp_offset -= 1
+
+    qp_offset = max(-5, min(5, qp_offset))
+
+    print(f"  Decision: QP offset = {qp_offset}")
+    print()
+
+    return qp_offset
+
+
+def frame_feedback(
+    picture_number: int,
+    temporal_layer_index: int,
+    qp: int,
+    avg_qp: int,
+    luma_psnr: float,
+    cb_psnr: float,
+    cr_psnr: float,
+    mse_y: float,
+    mse_u: float,
+    mse_v: float,
+    luma_ssim: float,
+    cb_ssim: float,
+    cr_ssim: float,
+    picture_stream_size: int,
+):
+
+    print(f"Frame {picture_number}: PSNR={luma_psnr:.2f}, bits={picture_stream_size}")
+    # update rl model
+
+
+def sb_feedback(
+    picture_number: int,
+    sb_index: int,
+    sb_origin_x: int,
+    sb_origin_y: int,
+    luma_psnr: float,
+    cb_psnr: float,
+    cr_psnr: float,
+    mse_y: float,
+    mse_u: float,
+    mse_v: float,
+    luma_ssim: float,
+    cb_ssim: float,
+    cr_ssim: float,
+    buffer_y: list,
+    buffer_cb: list,
+    buffer_cr: list,
+):
+    print(f"SB {sb_index} at ({sb_origin_x}, {sb_origin_y}): PSNR={luma_psnr:.2f}")
+    # process sb feedback
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--file", help="Input video file", required=True)
+
+    args = parser.parse_args()
+    print(args)
+    pyencoder.register_callbacks(
+        get_deltaq_offset=get_deltaq_offset,
+        frame_feedback=frame_feedback,
+        sb_feedback=sb_feedback,
+    )
+    pyencoder.run(input=args.file, rc=True, enable_stat_report=True)
+
+
+
+================================================================
+End of Codebase
+================================================================
