@@ -64,6 +64,7 @@ class VideoReader:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
+    @staticmethod
     def render_components(y: np.ndarray, cb: np.ndarray, cr: np.ndarray):
         # OpenCV uses Y, Cr, Cb order
         ycbcr_image = cv2.merge((y, cr, cb))
