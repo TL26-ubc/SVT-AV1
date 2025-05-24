@@ -3778,6 +3778,7 @@ static EbErrorType save_src_pic_buffers(PictureParentControlSet *centre_pcs,
         centre_pcs->enhanced_unscaled_pic;
     assert(src_pic_ptr != NULL);
     // allocate memory for the copy of the original enhanced buffer
+    // tl26 frame raw data malloc 
     EB_MALLOC_ARRAY(centre_pcs->save_source_picture_ptr[C_Y],
                     src_pic_ptr->luma_size);
     EB_MALLOC_ARRAY(centre_pcs->save_source_picture_ptr[C_U],
