@@ -1,20 +1,23 @@
 import queue
 import threading
-import gymnasium as gym
-import numpy as np
 from pathlib import Path
 from typing import Any, Dict, Tuple
+
+import gymnasium as gym
+import numpy as np
+from pyencoder.environment.utils import _probe_resolution
 
 # Constants
 QP_MIN, QP_MAX = 0, 63
 SB_SIZE = 64
+
 
 # Extending gymnasium's Env class
 # https://gymnasium.farama.org/api/env/#gymnasium.Env
 class Av1Env(gym.Env):
     metadata = {"render_modes": []}
 
-    def __init__(self, video_path: str | Path, *, lambda_rd: float = 0.1):
+    def __init__(self, video_path: str | Path, *, lambda_rd: float = 0.1, av1_):
         super().__init__()
         self.video_path = Path(video_path)
         self.lambda_rd = float(lambda_rd)
@@ -31,9 +34,9 @@ class Av1Env(gym.Env):
         # Observation space = previous frame summary
         self.observation_space = gym.spaces.Dict(
             {
-                "bits":  gym.spaces.Box(0, np.finfo("float32").max, (1,), np.float32),
-                "psnr":  gym.spaces.Box(0, np.finfo("float32").max, (1,), np.float32),
-                "frame": gym.spaces.Discrete(1_000_000),
+                "bits": gym.spaces.Box(0, np.finfo("float32").max, (1,), np.float32),
+                "psnr": gym.spaces.Box(0, np.finfo("float32").max, (1,), np.float32),
+                # "frame": gym.spaces.Discrete(1_000_000), guess no frame number for now
             }
         )
 
@@ -47,7 +50,9 @@ class Av1Env(gym.Env):
         self._terminated = False
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
-    def reset(self, *, seed: int | None = None, options: dict | None = None) -> Tuple[dict, dict]:
+    def reset(
+        self, *, seed: int | None = None, options: dict | None = None
+    ) -> Tuple[dict, dict]:
         super().reset(seed=seed)
         self.close()
         self._terminated = False
@@ -55,15 +60,13 @@ class Av1Env(gym.Env):
         self._episode_done.clear()
 
         # Spawn encoder worker
-        self._encoder_thread = threading.Thread(
-            target=self._encode_loop, daemon=True
-        )
+        self._encoder_thread = threading.Thread(target=self._encode_loop, daemon=True)
         self._encoder_thread.start()
 
         # Return first observation
         obs = {
-            "bits":  np.array([0.0], dtype=np.float32),
-            "psnr":  np.array([0.0], dtype=np.float32),
+            "bits": np.array([0.0], dtype=np.float32),
+            "psnr": np.array([0.0], dtype=np.float32),
             "frame": 0,
         }
         return obs, {}
@@ -74,15 +77,17 @@ class Av1Env(gym.Env):
             raise RuntimeError("Call reset() before step() after episode ends.")
 
         if action.shape != (self.h_sb, self.w_sb):
-            raise ValueError(f"Action grid shape {action.shape} != ({self.h_sb},{self.w_sb})")
+            raise ValueError(
+                f"Action grid shape {action.shape} != ({self.h_sb},{self.w_sb})"
+            )
 
         # Send grid to encoder (blocks until encoder requests it)
         self._action_q.put(action.astype(np.int32, copy=False))
 
         # Wait for encoder to finish the frame
-        report = self._frame_report_q.get()            # dict with stats + next obs
-        reward = self._reward_fn(report)               # scalar
-        obs    = report["next_obs"]
+        report = self._frame_report_q.get()  # dict with stats + next obs
+        reward = self._reward_fn(report)  # scalar
+        obs = report["next_obs"]
 
         self._terminated = report["is_last_frame"]
         self._next_frame_idx += 1
@@ -100,14 +105,14 @@ class Av1Env(gym.Env):
         for q in (self._action_q, self._frame_report_q):
             while not q.empty():
                 q.get_nowait()
-        
+
         self._encoder_thread = None
-    
+
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.render
     def render(self):
         pass
 
-    # Encoding 
+    # Encoding
     def _encode_loop(self):
         from mycodec import encode
 
@@ -128,16 +133,16 @@ class Av1Env(gym.Env):
 
     def _on_frame_done(self, frame_report: Dict[str, Any]):
         obs_next = {
-            "bits":  np.array([frame_report["bits"]], dtype=np.float32),
-            "psnr":  np.array([frame_report["psnr"]], dtype=np.float32),
+            "bits": np.array([frame_report["bits"]], dtype=np.float32),
+            "psnr": np.array([frame_report["psnr"]], dtype=np.float32),
             "frame": self._next_frame_idx + 1,
         }
 
         self._frame_report_q.put(
             {
                 **frame_report,
-                "next_obs":       obs_next,
-                "is_last_frame":  bool(frame_report.get("last_frame", False)),
+                "next_obs": obs_next,
+                "is_last_frame": bool(frame_report.get("last_frame", False)),
             }
         )
         self._frame_action = None

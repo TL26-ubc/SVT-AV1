@@ -19,10 +19,18 @@ extern int (*get_deltaq_offset_cb)(
     int32_t tile_row,
     int32_t tile_col,
     int32_t tile_rs_index,
+    int32_t picture_number,      
+    uint8_t *buffer_y,           
+    uint8_t *buffer_cb,          
+    uint8_t *buffer_cr,          
+    uint16_t sb_width,           
+    uint16_t sb_height,          
     uint8_t encoder_bit_depth,
+    int32_t qindex,              
     double beta,
-    bool is_intra, 
+    int32_t type,                
     void* user);
+
 
 extern void (*frame_feedback_cb)(
     int picture_number,
