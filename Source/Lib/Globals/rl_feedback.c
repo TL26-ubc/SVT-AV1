@@ -27,7 +27,6 @@ void svt_report_frame_feedback(
     double luma_ssim, cr_ssim, cb_ssim;
     double temp_var, luma_psnr, cb_psnr, cr_psnr;
 
-    // 提取数据 - 与TL26相同的逻辑
     picture_stream_size = header_ptr->n_filled_len;
     luma_sse = header_ptr->luma_sse;
     cr_sse = header_ptr->cr_sse;
@@ -119,60 +118,5 @@ void svt_report_sb_feedback(
         plugin_cbs.user);
 }
 
-int svt_request_sb_offset(SuperBlock *sb_ptr, PictureControlSet *pcs, int encoder_bit_depth, int qindex, double beta, bool slice_type_is_I_SLICE) {
-    if (!plugin_cbs.user_get_deltaq_offset) 
-        return 0;
-
-    uint8_t *buffer_y, *buffer_cb, *buffer_cr;
-    SequenceControlSet *scs = pcs->ppcs->scs;
-    EbPictureBufferDesc *input_pic = (EbPictureBufferDesc *)pcs->ppcs->enhanced_unscaled_pic;
-    
-    if (pcs->ppcs->do_tf == TRUE) {
-        assert(pcs->ppcs->save_source_picture_width == input_pic->width &&
-               pcs->ppcs->save_source_picture_height == input_pic->height);
-        buffer_y = pcs->ppcs->save_source_picture_ptr[0];
-        buffer_cb = pcs->ppcs->save_source_picture_ptr[1];
-        buffer_cr = pcs->ppcs->save_source_picture_ptr[2];
-    } else {
-        buffer_y = input_pic->buffer_y;
-        buffer_cb = input_pic->buffer_cb;
-        buffer_cr = input_pic->buffer_cr;
-    }
-    
-    buffer_y = &(buffer_y[(input_pic->org_x + sb_ptr->org_x) + (input_pic->org_y + sb_ptr->org_y) * input_pic->stride_y]);
-    buffer_cb = &(buffer_cb[(input_pic->org_x + sb_ptr->org_x) / 2 + (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cb]);
-    buffer_cr = &(buffer_cr[(input_pic->org_x + sb_ptr->org_x) / 2 + (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cr]);
-    
-    const uint16_t sb_width = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
-    const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
-
-    TileInfo *tile_info = &sb_ptr->tile_info;
-    unsigned sb_index = sb_ptr->index, sb_origin_x = sb_ptr->org_x, sb_origin_y = sb_ptr->org_y;
-    int sb_qp = (int)sb_ptr->qindex, sb_final_blk_cnt = (int)sb_ptr->final_blk_cnt;
-
-    int tile_row = tile_info->tile_row, tile_col = tile_info->tile_col, tile_rs_index = tile_info->tile_rs_index;
-    int mi_row_start = tile_info->mi_row_start, mi_row_end = tile_info->mi_row_end,
-        mi_col_start = tile_info->mi_col_start, mi_col_end = tile_info->mi_col_end;
-    int tg_horz_boundary = tile_info->tg_horz_boundary;
-
-    return plugin_cbs.user_get_deltaq_offset(
-        sb_index,
-        sb_origin_x,
-        sb_origin_y,
-        sb_qp,
-        sb_final_blk_cnt,
-        mi_row_start,
-        mi_row_end,
-        mi_col_start,
-        mi_col_end,
-        tg_horz_boundary,
-        tile_row,
-        tile_col,
-        tile_rs_index,
-        encoder_bit_depth,
-        beta,
-        slice_type_is_I_SLICE,
-        plugin_cbs.user);
-}
 
 #endif // SVT_ENABLE_USER_CALLBACKS
