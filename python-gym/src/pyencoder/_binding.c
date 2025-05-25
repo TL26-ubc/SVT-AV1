@@ -60,14 +60,13 @@ py_register_cbs(PyObject *self, PyObject *args)
     if (py_frame_feedback != Py_None && !PyCallable_Check(py_frame_feedback))
         return PyErr_Format(PyExc_TypeError, "frame_feedback must be callable or None");
 
-    pybridge_set_callbacks(
-        py_get_deltaq_offset == Py_None ? NULL : py_get_deltaq_offset,
-        py_frame_feedback == Py_None ? NULL : py_frame_feedback
-    );
+    pybridge_set_cb(CB_GET_DELTAQ_OFFSET, py_get_deltaq_offset);
+    pybridge_set_cb(CB_RECV_FRAME_FEEDBACK, py_frame_feedback);
+    // Set the callbacks in the SVT-AV1 encoder
 
     static PluginCallbacks cbs;
     cbs.user_get_deltaq_offset = get_deltaq_offset_cb;
-    cbs.user_frame_feedback = frame_feedback_cb;
+    cbs.user_frame_feedback = recv_frame_feedback_cb;
 
     if (svt_av1_enc_set_callbacks(&cbs) != EB_ErrorNone)
         return PyErr_Format(PyExc_RuntimeError, "failed to set callbacks");
