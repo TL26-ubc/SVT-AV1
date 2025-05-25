@@ -1,13 +1,18 @@
 import argparse
 
+import pyencoder
 from pyencoder.environment.av1_env import Av1Env
 from stable_baselines3 import A2C
 
+env = Av1Env(
+    "Data/akiyo_qcif.y4m",
+    av1_runner=lambda x: pyencoder.run(
+        input="../Data/akiyo_qcif.y4m", rc=True, enable_stat_report=True
+    ),
+)
+
 model = A2C("MlpPolicy", env, verbose=1)
 model.learn(total_timesteps=100000)
-
-
-env = Av1Env("Data/akiyo_qcif.y4m")
 
 episodes = 5
 for ep in range(episodes):

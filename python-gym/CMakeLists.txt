@@ -52,6 +52,9 @@ target_link_libraries(svtav1_app PUBLIC Threads::Threads safeclib)
 # 5.  Build the Python extension  _svtapp.{so,dylib,pyd}
 add_library(_svtapp MODULE
     src/bridge/pybridge.c
+    src/bridge/cb_registration.c
+    src/bridge/cb_validation.c
+    src/bridge/py_trampoline.c
     src/pyencoder/_binding.c
     "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/rl_feedback.c")
 

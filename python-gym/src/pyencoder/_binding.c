@@ -2,8 +2,17 @@
 #include "../Source/App/app_main.c"
 #undef main
 
+#ifndef SVT_ENABLE_USER_CALLBACKS
+#define SVT_ENABLE_USER_CALLBACKS 1
+#endif
+
 #include <Python.h>
-#include <pybridge.h>
+#include "../bridge/cb_validation.h"
+#include "../bridge/cb_registration.h"
+#include "../bridge/pybridge.h"
+#include "../Source/Lib/Globals/enc_callbacks.h"
+#include "../Source/API/EbSvtAv1Enc.h"
+#include <EbSvtAv1Enc.h>
 
 static PyObject *
 py_run_app(PyObject *self, PyObject *args)
