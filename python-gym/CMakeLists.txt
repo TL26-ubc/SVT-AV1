@@ -53,7 +53,6 @@ target_link_libraries(svtav1_app PUBLIC Threads::Threads safeclib)
 add_library(_svtapp MODULE
     src/bridge/pybridge.c
     src/pyencoder/_binding.c
-    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/app_bridge.c"
     "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/rl_feedback.c")
 
 if (WIN32)

@@ -3,6 +3,9 @@ import os
 
 import pyencoder
 
+global frame_counter, value_keeper
+frame_counter = {}
+value_keeper = {}
 
 def get_deltaq_offset(
     sb_index: int,
@@ -29,7 +32,6 @@ def get_deltaq_offset(
     beta: float,
     is_intra: bool,
 ) -> int:
-    print(len(buffer_y), "buffer_y")
     if buffer_y and len(buffer_y) > 0:
         total_pixels = sb_width * sb_height
         luma_sum = sum(sum(row) for row in buffer_y)
@@ -44,11 +46,11 @@ def get_deltaq_offset(
         avg_luma = 128
         texture_complexity = 0
 
-    print(f"RL Model - Frame {picture_number}, SB {sb_index}:")
-    print(f"  Position: ({sb_org_x},{sb_org_y}), Size: {sb_width}x{sb_height}")
-    print(f"  QP: {sb_qindex}, QIndex: {qindex}, Beta: {beta:.4f}")
-    print(f"  Tile: ({tile_row},{tile_col}), Type: {'INTRA' if is_intra else 'INTER'}")
-    print(f"  Avg Luma: {avg_luma:.1f}, Texture: {texture_complexity:.1f}")
+    # print(f"RL Model - Frame {picture_number}, SB {sb_index}:")
+    # print(f"  Position: ({sb_org_x},{sb_org_y}), Size: {sb_width}x{sb_height}")
+    # print(f"  QP: {sb_qindex}, QIndex: {qindex}, Beta: {beta:.4f}")
+    # print(f"  Tile: ({tile_row},{tile_col}), Type: {'INTRA' if is_intra else 'INTER'}")
+    # print(f"  Avg Luma: {avg_luma:.1f}, Texture: {texture_complexity:.1f}")
 
     qp_offset = 0
 
@@ -69,54 +71,30 @@ def get_deltaq_offset(
 
     qp_offset = max(-5, min(5, qp_offset))
 
-    print(f"  Decision: QP offset = {qp_offset}")
-    print()
+    # print(f"  Decision: QP offset = {qp_offset}")
+    # print()
 
     return qp_offset
 
 
 def frame_feedback(
     picture_number: int,
-    temporal_layer_index: int,
-    qp: int,
-    avg_qp: int,
-    luma_psnr: float,
-    cb_psnr: float,
-    cr_psnr: float,
-    mse_y: float,
-    mse_u: float,
-    mse_v: float,
-    luma_ssim: float,
-    cb_ssim: float,
-    cr_ssim: float,
-    picture_stream_size: int,
-):
-
-    print(f"Frame {picture_number}: PSNR={luma_psnr:.2f}, bits={picture_stream_size}")
-    # update rl model
-
-
-def sb_feedback(
-    picture_number: int,
-    sb_index: int,
-    sb_origin_x: int,
-    sb_origin_y: int,
-    luma_psnr: float,
-    cb_psnr: float,
-    cr_psnr: float,
-    mse_y: float,
-    mse_u: float,
-    mse_v: float,
-    luma_ssim: float,
-    cb_ssim: float,
-    cr_ssim: float,
+    width: int,
+    height: int,
     buffer_y: list,
     buffer_cb: list,
     buffer_cr: list,
 ):
-    print(f"SB {sb_index} at ({sb_origin_x}, {sb_origin_y}): PSNR={luma_psnr:.2f}")
-    # process sb feedback
-
+    print(f"Frame {picture_number}: width={width}, height={height}, ")
+    # update rl model
+    
+    global frame_counter
+    if picture_number not in frame_counter:
+        frame_counter[picture_number] = 0
+    frame_counter[picture_number] += 1
+    
+    global value_keeper
+    value_keeper[picture_number] = (buffer_y, buffer_cb, buffer_cr)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -127,6 +105,67 @@ if __name__ == "__main__":
     pyencoder.register_callbacks(
         get_deltaq_offset=get_deltaq_offset,
         frame_feedback=frame_feedback,
-        sb_feedback=sb_feedback,
     )
     pyencoder.run(input=args.file, rc=True, enable_stat_report=True)
+    
+    for frame, count in sorted(frame_counter.items()):
+        if count != 2:
+            print(f"Frame {frame} - count: {count}")
+            
+    # assemble the video with the buffers
+    import cv2
+    import numpy as np
+
+    # Sort frames by frame number
+    frames = []
+    for frame_num in sorted(value_keeper.keys()):
+        buffer_y, buffer_cb, buffer_cr = value_keeper[frame_num]
+        buffer_y_np = np.array(buffer_y, dtype=np.uint8)
+        buffer_cb_np = np.array(buffer_cb, dtype=np.uint8)
+        buffer_cr_np = np.array(buffer_cr, dtype=np.uint8)
+
+        # Resize chroma planes to match luma plane
+        buffer_cb_np = cv2.resize(buffer_cb_np, (buffer_y_np.shape[1], buffer_y_np.shape[0]), interpolation=cv2.INTER_LINEAR)
+        buffer_cr_np = cv2.resize(buffer_cr_np, (buffer_y_np.shape[1], buffer_y_np.shape[0]), interpolation=cv2.INTER_LINEAR)
+
+        # Merge Y, Cr, Cb for OpenCV (Y, Cr, Cb order)
+        ycbcr_image = cv2.merge((buffer_y_np, buffer_cr_np, buffer_cb_np))
+        bgr_image = cv2.cvtColor(ycbcr_image, cv2.COLOR_YCrCb2BGR)
+        frames.append(bgr_image)
+
+    if frames:
+        height, width, _ = frames[0].shape
+        out = cv2.VideoWriter("output.avi", cv2.VideoWriter_fourcc(*"XVID"), 30, (width, height))
+        for img in frames:
+            out.write(img)
+        out.release()
+        print(f"Video saved as output.avi")
+        
+        
+                
+    # # assemble a frame and display it for the first frame
+    # if len(value_keeper) > 0:
+    #     frame = list(value_keeper.keys())[0]
+        
+    #     buffer_y, buffer_cb, buffer_cr = value_keeper[frame]
+        
+    #     # Assuming the buffers are numpy arrays or similar
+    #     # You can use OpenCV or any other library to display the image
+    #     import cv2
+    #     import numpy as np
+    #     from src.pyencoder.utils.video_reader import VideoReader
+    #     # Convert Y, Cb, Cr buffers to numpy arrays
+    #     buffer_y_np = np.array(buffer_y, dtype=np.uint8)
+    #     buffer_cb_np = np.array(buffer_cb, dtype=np.uint8)
+    #     buffer_cr_np = np.array(buffer_cr, dtype=np.uint8)
+
+    #     # OpenCV uses Y, Cr, Cb order
+    #     buffer_cb_np = cv2.resize(buffer_cb_np, (buffer_y_np.shape[1], buffer_y_np.shape[0]), interpolation=cv2.INTER_LINEAR)
+    #     buffer_cr_np = cv2.resize(buffer_cr_np, (buffer_y_np.shape[1], buffer_y_np.shape[0]), interpolation=cv2.INTER_LINEAR)
+    #     ycbcr_image = cv2.merge((buffer_y_np, buffer_cb_np, buffer_cr_np))
+
+    #     bgr_image = cv2.cvtColor(ycbcr_image, cv2.COLOR_YCrCb2BGR)
+    #     cv2.imwrite(f"frame_{frame}_{i}.png", bgr_image)
+        
+        
+        

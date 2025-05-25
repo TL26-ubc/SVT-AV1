@@ -1550,6 +1550,7 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
     // super res pictures scaled with different sb count, should use sb_total_count for each picture
     uint16_t sb_cnt = scs->sb_total_count;
     if (ppcs_ptr->frame_superres_enabled || ppcs_ptr->frame_resize_enabled)
+
 #if FIX_SUPERRES
         sb_cnt = pcs->sb_total_count;
 #else
@@ -1562,19 +1563,19 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
 #endif
 
 #ifdef SVT_ENABLE_USER_CALLBACKS
-        uint8_t *base_buffer_y = NULL, *base_buffer_cb = NULL, *base_buffer_cr = NULL;
+        uint8_t             *base_buffer_y = NULL, *base_buffer_cb = NULL, *base_buffer_cr = NULL;
         EbPictureBufferDesc *input_pic = (EbPictureBufferDesc *)pcs->ppcs->enhanced_unscaled_pic;
-        
+
         if (plugin_cbs.user_get_deltaq_offset && input_pic) {
             // Handle temporal filtering case
             if (pcs->ppcs->do_tf == TRUE) {
                 assert(pcs->ppcs->save_source_picture_width == input_pic->width &&
                        pcs->ppcs->save_source_picture_height == input_pic->height);
-                base_buffer_y = pcs->ppcs->save_source_picture_ptr[0];
+                base_buffer_y  = pcs->ppcs->save_source_picture_ptr[0];
                 base_buffer_cb = pcs->ppcs->save_source_picture_ptr[1];
                 base_buffer_cr = pcs->ppcs->save_source_picture_ptr[2];
             } else {
-                base_buffer_y = input_pic->buffer_y;
+                base_buffer_y  = input_pic->buffer_y;
                 base_buffer_cb = input_pic->buffer_cb;
                 base_buffer_cr = input_pic->buffer_cr;
             }
@@ -1588,70 +1589,57 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
 
 #ifdef SVT_ENABLE_USER_CALLBACKS
             if (plugin_cbs.user_get_deltaq_offset) {
-                
                 TileInfo *tile_info = &sb_ptr->tile_info;
-                
-                const uint16_t sb_width = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
+
+                const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
                 const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
-                
+
                 uint8_t *buffer_y = NULL, *buffer_cb = NULL, *buffer_cr = NULL;
                 if (base_buffer_y && base_buffer_cb && base_buffer_cr) {
-                    buffer_y = &(base_buffer_y[(input_pic->org_x + sb_ptr->org_x) + 
-                                              (input_pic->org_y + sb_ptr->org_y) * input_pic->stride_y]);
-                    buffer_cb = &(base_buffer_cb[(input_pic->org_x + sb_ptr->org_x) / 2 + 
-                                                (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cb]);
-                    buffer_cr = &(base_buffer_cr[(input_pic->org_x + sb_ptr->org_x) / 2 + 
-                                                (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cr]);
+                    buffer_y  = &(base_buffer_y[(input_pic->org_x + sb_ptr->org_x) +
+                                               (input_pic->org_y + sb_ptr->org_y) * input_pic->stride_y]);
+                    buffer_cb = &(base_buffer_cb[(input_pic->org_x + sb_ptr->org_x) / 2 +
+                                                 (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cb]);
+                    buffer_cr = &(base_buffer_cr[(input_pic->org_x + sb_ptr->org_x) / 2 +
+                                                 (input_pic->org_y + sb_ptr->org_y) / 2 * input_pic->stride_cr]);
                 }
-                
+
                 offset = plugin_cbs.user_get_deltaq_offset(
-                    sb_ptr->index,                              // sb_index
-                    sb_ptr->org_x,                             // sb_org_x
-                    sb_ptr->org_y,                             // sb_org_y
-                    (uint8_t)sb_ptr->qindex,                   // sb_qindex
-                    (uint16_t)sb_ptr->final_blk_cnt,           // sb_final_blk_cnt
-                    tile_info->mi_row_start,                   // mi_row_start
-                    tile_info->mi_row_end,                     // mi_row_end
-                    tile_info->mi_col_start,                   // mi_col_start
-                    tile_info->mi_col_end,                     // mi_col_end
-                    tile_info->tg_horz_boundary,              // tg_horz_boundary
-                    tile_info->tile_row,                       // tile_row
-                    tile_info->tile_col,                       // tile_col
-                    tile_info->tile_rs_index,                  // tile_rs_index
-                    (int32_t)pcs->picture_number,              // picture_number 
-                    buffer_y,                                  // buffer_y 
-                    buffer_cb,                                 // buffer_cb 
-                    buffer_cr,                                 // buffer_cr 
-                    sb_width,                                  // sb_width 
-                    sb_height,                                 // sb_height -
+                    sb_ptr->index, // sb_index
+                    sb_ptr->org_x, // sb_org_x
+                    sb_ptr->org_y, // sb_org_y
+                    (uint8_t)sb_ptr->qindex, // sb_qindex
+                    (uint16_t)sb_ptr->final_blk_cnt, // sb_final_blk_cnt
+                    tile_info->mi_row_start, // mi_row_start
+                    tile_info->mi_row_end, // mi_row_end
+                    tile_info->mi_col_start, // mi_col_start
+                    tile_info->mi_col_end, // mi_col_end
+                    tile_info->tg_horz_boundary, // tg_horz_boundary
+                    tile_info->tile_row, // tile_row
+                    tile_info->tile_col, // tile_col
+                    tile_info->tile_rs_index, // tile_rs_index
+                    (int32_t)pcs->picture_number, // picture_number
+                    buffer_y, // buffer_y
+                    buffer_cb, // buffer_cb
+                    buffer_cr, // buffer_cr
+                    sb_width, // sb_width
+                    sb_height, // sb_height -
                     (uint8_t)scs->static_config.encoder_bit_depth, // encoder_bit_depth
-                    (int32_t)sb_ptr->qindex,                   // qindex
-                    beta,                                      // beta
+                    (int32_t)sb_ptr->qindex, // qindex
+                    beta, // beta
                     (int32_t)(pcs->ppcs->slice_type == I_SLICE ? 1 : 0), // type
-                    plugin_cbs.user                            // user
+                    plugin_cbs.user // user
                 );
-                
-                
-                printf("RL: Frame %llu, SB %d at (%d,%d), size=%dx%d, QP=%d, offset=%d, beta=%.4f, %s\n", 
-                       pcs->picture_number, sb_ptr->index, sb_ptr->org_x, sb_ptr->org_y, 
-                       sb_width, sb_height, sb_ptr->qindex, offset, beta,
-                       (pcs->ppcs->slice_type == I_SLICE) ? "INTRA" : "INTER");
-                
+
             } else {
-                
-                offset = svt_av1_get_deltaq_offset(scs->static_config.encoder_bit_depth,
-                                                   sb_ptr->qindex,
-                                                   beta,
-                                                   pcs->ppcs->slice_type == I_SLICE);
+                offset = svt_av1_get_deltaq_offset(
+                    scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
             }
 #else
-            offset = svt_av1_get_deltaq_offset(scs->static_config.encoder_bit_depth,
-                                               sb_ptr->qindex,
-                                               beta,
-                                               pcs->ppcs->slice_type == I_SLICE);
+            offset = svt_av1_get_deltaq_offset(
+                scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
 #endif
 
-           
             offset = AOMMIN(offset, pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 - 1);
             offset = AOMMAX(offset, -pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 + 1);
 

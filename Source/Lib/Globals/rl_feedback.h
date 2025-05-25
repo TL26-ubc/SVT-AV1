@@ -19,41 +19,10 @@ static inline double get_psnr_rl(double sse, double max) {
     return psnr;
 }
 
-// Frame-level feedback after encoding completes
-void svt_report_frame_feedback(
-    EbBufferHeaderType *header_ptr, 
-    uint32_t max_luma_value,
-    uint32_t source_width,
-    uint32_t source_height
-);
-
 // Superblock-level feedback with quality metrics and pixel data
-void svt_report_sb_feedback(
-    int picture_number, 
-    uint32_t max_luma_value,
-    int sb_index, 
-    unsigned sb_origin_x, 
-    unsigned sb_origin_y,
-    unsigned sb_width, 
-    unsigned sb_height,
-    uint64_t luma_sse, 
-    uint64_t cb_sse, 
-    uint64_t cr_sse,
-    double luma_ssim, 
-    double cb_ssim, 
-    double cr_ssim,
-    uint8_t *buffer_y, 
-    uint8_t *buffer_cb, 
-    uint8_t *buffer_cr);
-
-
-
-// Quality metric calculation functions
-EbErrorType svt_aom_ssim_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb, Bool free_memory,
-                                         double *luma_ssim_out, double *cb_ssim_out, double *cr_ssim_out);
-
-EbErrorType svt_aom_sse_calculations_sb(PictureControlSet *pcs, SequenceControlSet *scs, SuperBlock *sb,
-                                        uint64_t *luma_sse_out, uint64_t *cb_sse_out, uint64_t *cr_sse_out);
+void svt_report_encoded_frame(uint8_t *buffer_y, uint8_t *buffer_cb, uint8_t *buffer_cr, uint32_t picture_number,
+                              uint32_t origin_x, uint32_t origin_y, uint32_t stride_y, uint32_t stride_cb,
+                              uint32_t stride_cr, uint32_t width, uint32_t height);
 
 #endif // SVT_ENABLE_USER_CALLBACKS
 
