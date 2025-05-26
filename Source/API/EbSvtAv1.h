@@ -89,7 +89,7 @@ typedef struct EbBufferHeaderType {
 
     // picture (input or output) buffer
     uint8_t *p_buffer;
-    uint32_t n_filled_len;
+    uint32_t n_filled_len; // tl26 bit rate
     uint32_t n_alloc_len;
 
     // pic private data
