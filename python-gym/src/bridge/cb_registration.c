@@ -4,7 +4,7 @@
 #include "cb_validation.h"
 
 Callback g_callbacks[CB_ENUM_COUNT] = {
-    /* CB_GET_DELTAQ_OFFSET */   { NULL, NULL, "(IIIIIiiiiiiiidMMMIIIidb)i" },
+    /* CB_GET_DELTAQ_OFFSET */   { NULL, NULL, "(OOuii)i" },
     /* CB_RECV_FRAME_FEEDBACK */ { NULL, NULL, "(iiiOOO)v" },
 };
 

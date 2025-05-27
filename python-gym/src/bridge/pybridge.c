@@ -36,60 +36,100 @@ static PyObject *create_buffer_list(uint8_t *buffer, int width, int height, int 
     return list;
 }
 
-int (*get_deltaq_offset_cb)(unsigned sb_index, unsigned sb_org_x, unsigned sb_org_y, uint8_t sb_qindex,
-                            uint16_t sb_final_blk_cnt, int32_t mi_row_start, int32_t mi_row_end, int32_t mi_col_start,
-                            int32_t mi_col_end, int32_t tg_horz_boundary, int32_t tile_row, int32_t tile_col,
-                            int32_t tile_rs_index, int32_t picture_number, uint8_t *buffer_y, uint8_t *buffer_cb,
-                            uint8_t *buffer_cr, uint16_t sb_width, uint16_t sb_height, uint8_t encoder_bit_depth,
-                            int32_t qindex, double beta, int32_t type, void *user);
+int (*get_deltaq_offset_cb)(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count,
+                            int32_t picture_number, int32_t frame_type, void *user);
 
 void (*recv_frame_feedback_cb)(uint8_t *buffer_y, uint8_t *buffer_cb, uint8_t *buffer_cr, uint32_t picture_number,
                                uint32_t origin_x, uint32_t origin_y, uint32_t stride_y, uint32_t stride_cb,
                                uint32_t stride_cr, uint32_t width, uint32_t height, void *user) = NULL;
 
-int get_deltaq_offset_trampoline(unsigned sb_index, unsigned sb_org_x, unsigned sb_org_y, uint8_t sb_qindex,
-                                 uint16_t sb_final_blk_cnt, int32_t mi_row_start, int32_t mi_row_end,
-                                 int32_t mi_col_start, int32_t mi_col_end, int32_t tg_horz_boundary, int32_t tile_row,
-                                 int32_t tile_col, int32_t tile_rs_index, int32_t picture_number, uint8_t *buffer_y,
-                                 uint8_t *buffer_cb, uint8_t *buffer_cr, uint16_t sb_width, uint16_t sb_height,
-                                 uint8_t encoder_bit_depth, int32_t qindex, double beta, int32_t type, void *user) {
-    int       deltaq = 0;
-    Callback *cb     = &g_callbacks[CB_GET_DELTAQ_OFFSET];
+int get_deltaq_offset_trampoline(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count,
+                                int32_t picture_number, int32_t frame_type, void *user) {
+    int deltaq = 0;
+    PyObject *py_sb_list = NULL;
+    PyObject *py_offset_list = NULL;
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    // Convert offset_array to a Python list of integers
+    py_offset_list = PyList_New(sb_count);
+    if (!py_offset_list) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to create Python list for offsets");
+        goto cleanup;
+    }
+    for (uint32_t i = 0; i < sb_count; ++i) {
+        PyObject *item = PyLong_FromLong(offset_array[i]);
+        if (!item) {
+            PyErr_SetString(PyExc_MemoryError, "Failed to create Python integer for offset");
+            goto cleanup;
+        }
+        PyList_SetItem(py_offset_list, i, item); // Steals reference
+    }
+
+    // Convert sb_info_array to a Python list of dictionaries
+    py_sb_list = PyList_New(sb_count);
+    if (!py_sb_list) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to create Python list for SuperBlockInfo");
+        goto cleanup;
+    }
+    for (uint32_t i = 0; i < sb_count; ++i) {
+        SuperBlockInfo *current_sb_info = &sb_info_array[i];
+        PyObject *sb_dict = PyDict_New();
+        if (!sb_dict) {
+            PyErr_SetString(PyExc_MemoryError, "Failed to create Python dictionary for SuperBlockInfo");
+            goto cleanup;
+        }
+
+        PyObject *val_sb_org_x = PyLong_FromUnsignedLong(current_sb_info->sb_org_x);
+        PyObject *val_sb_org_y = PyLong_FromUnsignedLong(current_sb_info->sb_org_y);
+        PyObject *val_sb_width = PyLong_FromUnsignedLong(current_sb_info->sb_width);
+        PyObject *val_sb_height = PyLong_FromUnsignedLong(current_sb_info->sb_height);
+        PyObject *val_sb_qindex = PyLong_FromUnsignedLong(current_sb_info->sb_qindex);
+        PyObject *val_beta = PyFloat_FromDouble(current_sb_info->beta);
+
+        if (!val_sb_org_x || !val_sb_org_y || !val_sb_width || !val_sb_height || !val_sb_qindex || !val_beta) {
+            Py_XDECREF(val_sb_org_x); Py_XDECREF(val_sb_org_y); Py_XDECREF(val_sb_width);
+            Py_XDECREF(val_sb_height); Py_XDECREF(val_sb_qindex); Py_XDECREF(val_beta);
+            Py_DECREF(sb_dict);
+            PyErr_SetString(PyExc_MemoryError, "Failed to create Python objects for SuperBlockInfo fields");
+            goto cleanup;
+        }
+
+        int set_item_failed = 0;
+        if (PyDict_SetItemString(sb_dict, "sb_org_x", val_sb_org_x) < 0) set_item_failed = 1;
+        if (PyDict_SetItemString(sb_dict, "sb_org_y", val_sb_org_y) < 0) set_item_failed = 1;
+        if (PyDict_SetItemString(sb_dict, "sb_width", val_sb_width) < 0) set_item_failed = 1;
+        if (PyDict_SetItemString(sb_dict, "sb_height", val_sb_height) < 0) set_item_failed = 1;
+        if (PyDict_SetItemString(sb_dict, "sb_qindex", val_sb_qindex) < 0) set_item_failed = 1;
+        if (PyDict_SetItemString(sb_dict, "beta", val_beta) < 0) set_item_failed = 1;
+
+        Py_DECREF(val_sb_org_x); Py_DECREF(val_sb_org_y); Py_DECREF(val_sb_width);
+        Py_DECREF(val_sb_height); Py_DECREF(val_sb_qindex); Py_DECREF(val_beta);
+
+        if (set_item_failed) {
+            Py_DECREF(sb_dict);
+            PyErr_SetString(PyExc_RuntimeError, "Failed to set SuperBlockInfo fields in dict");
+            goto cleanup;
+        }
+        PyList_SetItem(py_sb_list, i, sb_dict); // Steals reference to sb_dict
+    }
+
+    Callback *cb = &g_callbacks[CB_GET_DELTAQ_OFFSET];
     if (cb->py_callable) {
         py_trampoline(cb->py_callable,
-                      cb->cb_fmt, // Format string
+                      cb->cb_fmt, // Format string will be (OOuii)i from cb_registration.c
                       &deltaq,
-                      sb_index, // I: unsigned
-                      sb_org_x, // I: unsigned
-                      sb_org_y, // I: unsigned
-                      sb_qindex, // B: unsigned
-                      sb_final_blk_cnt, // H: unsigned
-                      mi_row_start, // i: int32_t
-                      mi_row_end, // i: int32_t
-                      mi_col_start, // i: int32_t
-                      mi_col_end, // i: int32_t
-                      tg_horz_boundary, // i: int32_t
-                      tile_row, // i: int32_t
-                      tile_col, // i: int32_t
-                      tile_rs_index, // i: int32_t
+                      py_sb_list,     // O: PyObject* for SuperBlockInfo list
+                      py_offset_list, // O: PyObject* for offset list
+                      sb_count,       // u: uint32_t
                       picture_number, // i: int32_t
-                      buffer_y,
-                      sb_width,
-                      sb_height, // M: uint8_t*, int, int
-                      buffer_cb,
-                      sb_width / 2,
-                      sb_height / 2, // M: uint8_t*, int, int
-                      buffer_cr,
-                      sb_width / 2,
-                      sb_height / 2, // M: uint8_t*, int, int
-                      sb_width, // I: uint16_t
-                      sb_height, // I: uint16_t
-                      encoder_bit_depth, // I: uint8_t
-                      qindex, // i: int32_t
-                      beta, // d: double
-                      type == 1 // b: int (converted to bool)
+                      frame_type      // i: int32_t
         );
     }
+
+cleanup:
+    Py_XDECREF(py_sb_list);
+    Py_XDECREF(py_offset_list);
+    PyGILState_Release(gstate);
     return deltaq;
 }
 
@@ -128,3 +168,4 @@ cleanup:
     PyGILState_Release(gstate);
     // Release the GIL
 }
+

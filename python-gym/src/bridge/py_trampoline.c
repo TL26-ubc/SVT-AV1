@@ -1,4 +1,5 @@
 #include "py_trampoline.h"
+#include "../../../Source/API/EbSvtAv1Enc.h"
 #include <regex.h>
 #include <stdbool.h>
 
