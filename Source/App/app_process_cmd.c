@@ -906,6 +906,7 @@ void process_output_stream_buffer(EncChannel *channel, EncApp *enc_app, int32_t 
                         write_ivf_stream_header(
                             app_cfg, app_cfg->frames_to_be_encoded == -1 ? 0 : (int32_t)app_cfg->frames_to_be_encoded);
                     }
+                    // TL26 bitrate header and encoded frame data
                     write_ivf_frame_header(app_cfg, header_ptr->n_filled_len);
                     fwrite(header_ptr->p_buffer, 1, header_ptr->n_filled_len, stream_file);
                 }
