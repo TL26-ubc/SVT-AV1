@@ -3,9 +3,10 @@ import os
 
 import pyencoder
 
-global frame_counter, value_keeper
+global frame_counter, value_keeper, bytes_keeper
 frame_counter = {}
 value_keeper = {}
+bytes_keeper = {}
 
 def get_deltaq_offset(
     sb_index: int,
@@ -79,6 +80,7 @@ def get_deltaq_offset(
 
 def frame_feedback(
     picture_number: int,
+    bytes_used: int,
     width: int,
     height: int,
     buffer_y: list,
@@ -95,6 +97,17 @@ def frame_feedback(
     
     global value_keeper
     value_keeper[picture_number] = (buffer_y, buffer_cb, buffer_cr)
+    
+    
+
+def picture_feedback(
+    bitstream: bytes,
+    size: int,
+    picture_number: int
+):
+    length = len(bitstream)
+    global bytes_keeper
+    bytes_keeper[picture_number] = bitstream
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -105,12 +118,14 @@ if __name__ == "__main__":
     pyencoder.register_callbacks(
         get_deltaq_offset=get_deltaq_offset,
         frame_feedback=frame_feedback,
+        picture_feedback=picture_feedback
     )
     pyencoder.run(input=args.file, rc=True, enable_stat_report=True)
-    
-    for frame, count in sorted(frame_counter.items()):
-        if count != 2:
-            print(f"Frame {frame} - count: {count}")
+
+            
+    # sum up the bytes used for all frames
+    total_bytes = sum(len(bytes_keeper.values()))
+    print(f"Total bytes used: {total_bytes}")
             
     # assemble the video with the buffers
     import cv2

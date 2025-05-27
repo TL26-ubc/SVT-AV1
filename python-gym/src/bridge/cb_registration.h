@@ -6,6 +6,7 @@
 typedef enum CallbackEnum { 
     CB_GET_DELTAQ_OFFSET,
     CB_RECV_FRAME_FEEDBACK, 
+    CB_RECV_PICTURE_FEEDBACK,
     CB_ENUM_COUNT
 } CallbackEnum;
 

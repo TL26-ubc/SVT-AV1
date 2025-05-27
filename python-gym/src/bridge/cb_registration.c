@@ -5,7 +5,8 @@
 
 Callback g_callbacks[CB_ENUM_COUNT] = {
     /* CB_GET_DELTAQ_OFFSET */   { NULL, NULL, "(IIIIIiiiiiiiidMMMIIIidb)i" },
-    /* CB_RECV_FRAME_FEEDBACK */ { NULL, NULL, "(iiiOOO)v" },
+    /* CB_RECV_FRAME_FEEDBACK */ { NULL, NULL, "(iiiiOOO)v" },
+    /* CB_RECV_PICTURE_FEEDBACK */ { NULL, NULL, "(Oi)v" }
 };
 
 static int set_cb_ptr(CallbackEnum cb, bool unset) {
@@ -15,6 +16,9 @@ static int set_cb_ptr(CallbackEnum cb, bool unset) {
             return 0;
         case CB_RECV_FRAME_FEEDBACK:
             recv_frame_feedback_cb = unset ? NULL : recv_frame_feedback_trampoline;
+            return 0;
+        case CB_RECV_PICTURE_FEEDBACK:
+            recv_picture_feedback = unset ? NULL : recv_picture_feedback_trampoline;
             return 0;
         default:
             return -1;

@@ -21,8 +21,10 @@ static inline double get_psnr_rl(double sse, double max) {
 
 // Superblock-level feedback with quality metrics and pixel data
 void svt_report_encoded_frame(uint8_t *buffer_y, uint8_t *buffer_cb, uint8_t *buffer_cr, uint32_t picture_number,
-                              uint32_t origin_x, uint32_t origin_y, uint32_t stride_y, uint32_t stride_cb,
-                              uint32_t stride_cr, uint32_t width, uint32_t height);
+                              u_int32_t bytes_used, uint32_t origin_x, uint32_t origin_y, uint32_t stride_y,
+                              uint32_t stride_cb, uint32_t stride_cr, uint32_t width, uint32_t height);
+
+void svt_report_picture_feedback(uint8_t *bitStream, uint32_t bitstream_size, uint32_t picture_number);
 
 #endif // SVT_ENABLE_USER_CALLBACKS
 

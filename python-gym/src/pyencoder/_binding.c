@@ -50,8 +50,9 @@ py_register_cbs(PyObject *self, PyObject *args)
 {
     PyObject *py_get_deltaq_offset = Py_None;
     PyObject *py_frame_feedback = Py_None;
+    PyObject *py_picture_feedback = Py_None;
 
-    if (!PyArg_ParseTuple(args, "|OO", &py_get_deltaq_offset, &py_frame_feedback))
+    if (!PyArg_ParseTuple(args, "|OOO", &py_get_deltaq_offset, &py_frame_feedback, &py_picture_feedback))
         return PyErr_Format(PyExc_TypeError, "unable to parse callback arguments");
 
     if (py_get_deltaq_offset != Py_None && !PyCallable_Check(py_get_deltaq_offset))
@@ -60,13 +61,18 @@ py_register_cbs(PyObject *self, PyObject *args)
     if (py_frame_feedback != Py_None && !PyCallable_Check(py_frame_feedback))
         return PyErr_Format(PyExc_TypeError, "frame_feedback must be callable or None");
 
+    if (py_frame_feedback != Py_None && !PyCallable_Check(py_picture_feedback))
+        return PyErr_Format(PyExc_TypeError, "frame_feedback must be callable or None");
+
     pybridge_set_cb(CB_GET_DELTAQ_OFFSET, py_get_deltaq_offset);
     pybridge_set_cb(CB_RECV_FRAME_FEEDBACK, py_frame_feedback);
+    pybridge_set_cb(CB_RECV_PICTURE_FEEDBACK, py_picture_feedback);
     // Set the callbacks in the SVT-AV1 encoder
 
     static PluginCallbacks cbs;
     cbs.user_get_deltaq_offset = get_deltaq_offset_cb;
     cbs.user_frame_feedback = recv_frame_feedback_cb;
+    cbs.user_picture_feedback = recv_picture_feedback;
 
     if (svt_av1_enc_set_callbacks(&cbs) != EB_ErrorNone)
         return PyErr_Format(PyExc_RuntimeError, "failed to set callbacks");

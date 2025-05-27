@@ -36,6 +36,8 @@ static PyObject *create_buffer_list(uint8_t *buffer, int width, int height, int 
     return list;
 }
 
+void (*recv_picture_feedback)(uint8_t *bitStream, uint32_t bitstream_size, uint32_t picture_number) = NULL;
+
 int (*get_deltaq_offset_cb)(unsigned sb_index, unsigned sb_org_x, unsigned sb_org_y, uint8_t sb_qindex,
                             uint16_t sb_final_blk_cnt, int32_t mi_row_start, int32_t mi_row_end, int32_t mi_col_start,
                             int32_t mi_col_end, int32_t tg_horz_boundary, int32_t tile_row, int32_t tile_col,
@@ -44,8 +46,9 @@ int (*get_deltaq_offset_cb)(unsigned sb_index, unsigned sb_org_x, unsigned sb_or
                             int32_t qindex, double beta, int32_t type, void *user);
 
 void (*recv_frame_feedback_cb)(uint8_t *buffer_y, uint8_t *buffer_cb, uint8_t *buffer_cr, uint32_t picture_number,
-                               uint32_t origin_x, uint32_t origin_y, uint32_t stride_y, uint32_t stride_cb,
-                               uint32_t stride_cr, uint32_t width, uint32_t height, void *user) = NULL;
+                               uint32_t bytes_used, uint32_t origin_x, uint32_t origin_y, uint32_t stride_y,
+                               uint32_t stride_cb, uint32_t stride_cr, uint32_t width, uint32_t height,
+                               void *user) = NULL;
 
 int get_deltaq_offset_trampoline(unsigned sb_index, unsigned sb_org_x, unsigned sb_org_y, uint8_t sb_qindex,
                                  uint16_t sb_final_blk_cnt, int32_t mi_row_start, int32_t mi_row_end,
@@ -94,8 +97,9 @@ int get_deltaq_offset_trampoline(unsigned sb_index, unsigned sb_org_x, unsigned 
 }
 
 void recv_frame_feedback_trampoline(uint8_t *buffer_y, uint8_t *buffer_cb, uint8_t *buffer_cr, uint32_t picture_number,
-                                    uint32_t origin_x, uint32_t origin_y, uint32_t stride_y, uint32_t stride_cb,
-                                    uint32_t stride_cr, uint32_t width, uint32_t height, void *user) {
+                                    u_int32_t bytes_used, uint32_t origin_x, uint32_t origin_y, uint32_t stride_y,
+                                    uint32_t stride_cb, uint32_t stride_cr, uint32_t width, uint32_t height,
+                                    void *user) {
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     // make python 1D arrays from the buffers
@@ -113,6 +117,7 @@ void recv_frame_feedback_trampoline(uint8_t *buffer_y, uint8_t *buffer_cb, uint8
                       cb->cb_fmt, // Format string
                       NULL,
                       picture_number, // I: uint32_t
+                      bytes_used, // I: uint32_t
                       width, // I: uint32_t
                       height, // I: uint32_t
                       list_y, // O: PyObject*
@@ -120,11 +125,41 @@ void recv_frame_feedback_trampoline(uint8_t *buffer_y, uint8_t *buffer_cb, uint8
                       list_cr // O: PyObject*
         );
     }
-
+    
 cleanup:
     Py_XDECREF(list_y);
     Py_XDECREF(list_cb);
     Py_XDECREF(list_cr);
     PyGILState_Release(gstate);
     // Release the GIL
+}
+
+void recv_picture_feedback_trampoline(uint8_t *bitStream, uint32_t bitstream_size, uint32_t picture_number) {
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    // create a python bytes object from the bitstream
+    PyObject *bitStreamObj = PyBytes_FromStringAndSize((const char *)bitStream, bitstream_size);
+    if (!bitStreamObj) {
+        PyErr_SetString(PyExc_ValueError, "Failed to create Python bytes object from bitstream");
+        PyGILState_Release(gstate);
+        return;
+    }
+    Callback *cb = &g_callbacks[CB_RECV_PICTURE_FEEDBACK];
+    // Call the user callback with the bitstream data
+    if (!cb->py_callable) {
+        Py_DECREF(bitStreamObj);
+        PyGILState_Release(gstate);
+        return;
+    }
+
+    if (cb->py_callable) {
+        py_trampoline(cb->py_callable,
+                      cb->cb_fmt, // Format string
+                      NULL,
+                      bitStreamObj, // O: PyObject*
+                      picture_number // I: uint32_t
+        );
+    }
+
+    PyGILState_Release(gstate);
 }
