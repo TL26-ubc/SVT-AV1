@@ -36,6 +36,8 @@ static PyObject *create_buffer_list(uint8_t *buffer, int width, int height, int 
     return list;
 }
 
+void (*recv_picture_feedback)(uint8_t *bitStream, uint32_t bitstream_size, uint32_t picture_number) = NULL;
+
 int (*get_deltaq_offset_cb)(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count,
                             int32_t picture_number, int32_t frame_type, void *user);
 
