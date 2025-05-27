@@ -102,7 +102,7 @@ def frame_feedback(
 
 def picture_feedback(
     bitstream: bytes,
-    size: int,
+    # size: int,
     picture_number: int
 ):
     length = len(bitstream)
@@ -123,9 +123,14 @@ if __name__ == "__main__":
     pyencoder.run(input=args.file, rc=True, enable_stat_report=True)
 
             
-    # sum up the bytes used for all frames
-    total_bytes = sum(len(bytes_keeper.values()))
-    print(f"Total bytes used: {total_bytes}")
+    # sum up the bytestream length to get total bytes used
+    total_bytes = 0
+    if bytes_keeper:
+        for frame_num, bitstream in bytes_keeper.items():
+            total_bytes += len(bitstream)
+    else:
+        print("No bytes used in the bitstream.")
+    print(f"Total bytes used: {total_bytes} of {len(value_keeper)} frames")
             
     # assemble the video with the buffers
     import cv2
