@@ -824,6 +824,8 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
         assert(output_stream_ptr->p_buffer != NULL && "bit-stream memory allocation failure");
 
         copy_data_from_bitstream(enc_ctx, pcs->bitstream_ptr, output_stream_ptr);
+                         // send the byte stream and size
+            svt_report_picture_feedback(output_stream_ptr->p_buffer, output_stream_ptr->n_alloc_len, pcs->picture_number);
 
         if (pcs->ppcs->has_show_existing) {
             uint64_t                   next_picture_number = pcs->picture_number + 1;

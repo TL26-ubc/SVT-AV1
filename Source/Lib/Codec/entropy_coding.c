@@ -3846,8 +3846,6 @@ EbErrorType svt_aom_write_frame_header_av1(Bitstream *bitstream_ptr, SequenceCon
     }
     curr_data_size += (int32_t)length_field_size;
 
-    // send the byte stream and size
-    svt_report_picture_feedback(data, curr_data_size, pcs->picture_number);
 
     data += curr_data_size;
 
