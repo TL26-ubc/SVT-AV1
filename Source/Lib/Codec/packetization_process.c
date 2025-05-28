@@ -824,8 +824,6 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
         assert(output_stream_ptr->p_buffer != NULL && "bit-stream memory allocation failure");
 
         copy_data_from_bitstream(enc_ctx, pcs->bitstream_ptr, output_stream_ptr);
-                         // send the byte stream and size
-            svt_report_picture_feedback(output_stream_ptr->p_buffer, output_stream_ptr->n_alloc_len, pcs->picture_number);
 
         if (pcs->ppcs->has_show_existing) {
             uint64_t                   next_picture_number = pcs->picture_number + 1;
@@ -946,13 +944,23 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
 
             if (eos && queue_entry_ptr->has_show_existing)
                 clear_eos_flag(output_stream_ptr);
-
+#ifdef SVT_ENABLE_USER_CALLBACKS
+            // send the byte stream and size
+            svt_report_picture_feedback(
+                output_stream_ptr->p_buffer, output_stream_ptr->n_alloc_len, output_stream_ptr->dts);
+#endif
             svt_post_full_object(output_stream_wrapper_ptr);
             if (queue_entry_ptr->has_show_existing) {
                 EbObjectWrapper *existed = pop_undisplayed_frame(enc_ctx);
                 if (existed) {
                     EbBufferHeaderType *existed_output_stream_ptr = (EbBufferHeaderType *)existed->object_ptr;
                     encode_show_existing(enc_ctx, queue_entry_ptr, existed_output_stream_ptr);
+#ifdef SVT_ENABLE_USER_CALLBACKS
+                    // send the byte stream and size
+                    svt_report_picture_feedback(existed_output_stream_ptr->p_buffer,
+                                                existed_output_stream_ptr->n_alloc_len,
+                                                existed_output_stream_ptr->dts);
+#endif
                     if (eos)
                         set_eos_flag(existed_output_stream_ptr);
                     svt_post_full_object(existed);
@@ -1009,14 +1017,14 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
         }
         svt_release_mutex(enc_ctx->total_number_of_shown_frames_mutex);
 #ifdef SVT_ENABLE_USER_CALLBACKS
-            Bool                 is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
-            EbPictureBufferDesc *recon_ptr;
-            svt_aom_get_recon_pic(pcs, &recon_ptr, is_16bit);
-            uint8_t *buffer_y = NULL, *buffer_cb = NULL, *buffer_cr = NULL;
-            if (recon_ptr) {
-                buffer_y  = recon_ptr->buffer_y;
-                buffer_cb = recon_ptr->buffer_cb;
-                buffer_cr = recon_ptr->buffer_cr;
+        Bool                 is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
+        EbPictureBufferDesc *recon_ptr;
+        svt_aom_get_recon_pic(pcs, &recon_ptr, is_16bit);
+        uint8_t *buffer_y = NULL, *buffer_cb = NULL, *buffer_cr = NULL;
+        if (recon_ptr) {
+            buffer_y  = recon_ptr->buffer_y;
+            buffer_cb = recon_ptr->buffer_cb;
+            buffer_cr = recon_ptr->buffer_cr;
 
             // get frame number
             uint32_t picture_number = pcs->ppcs->picture_number;
@@ -1028,7 +1036,7 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
                                      buffer_cr,
                                      picture_number,
                                      0,
-                                    //  recon_header->n_filled_len,
+                                     //  recon_header->n_filled_len,
                                      recon_ptr->org_x,
                                      recon_ptr->org_y,
                                      recon_ptr->stride_y,
