@@ -1016,36 +1016,6 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
 #endif
         }
         svt_release_mutex(enc_ctx->total_number_of_shown_frames_mutex);
-#ifdef SVT_ENABLE_USER_CALLBACKS
-        Bool                 is_16bit = (scs->static_config.encoder_bit_depth > EB_EIGHT_BIT);
-        EbPictureBufferDesc *recon_ptr;
-        svt_aom_get_recon_pic(pcs, &recon_ptr, is_16bit);
-        uint8_t *buffer_y = NULL, *buffer_cb = NULL, *buffer_cr = NULL;
-        if (recon_ptr) {
-            buffer_y  = recon_ptr->buffer_y;
-            buffer_cb = recon_ptr->buffer_cb;
-            buffer_cr = recon_ptr->buffer_cr;
-
-            // get frame number
-            uint32_t picture_number = pcs->ppcs->picture_number;
-
-            // EbBufferHeaderType *recon_header = (EbBufferHeaderType *)enc_dec_results_wrapper->object_ptr;
-
-            svt_report_encoded_frame(buffer_y,
-                                     buffer_cb,
-                                     buffer_cr,
-                                     picture_number,
-                                     0,
-                                     //  recon_header->n_filled_len,
-                                     recon_ptr->org_x,
-                                     recon_ptr->org_y,
-                                     recon_ptr->stride_y,
-                                     recon_ptr->stride_cb,
-                                     recon_ptr->stride_cr,
-                                     recon_ptr->width,
-                                     recon_ptr->height);
-        }
-#endif
 #endif
     }
     return NULL;

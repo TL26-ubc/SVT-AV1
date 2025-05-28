@@ -3845,8 +3845,6 @@ EbErrorType svt_aom_write_frame_header_av1(Bitstream *bitstream_ptr, SequenceCon
         assert(0);
     }
     curr_data_size += (int32_t)length_field_size;
-
-
     data += curr_data_size;
 
     output_bitstream_ptr->buffer_av1 = data;

@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Copyright(c) 2019 Intel Corporation
 *
 * This source code is subject to the terms of the BSD 3-Clause Clear License and
@@ -11,7 +11,6 @@
 
 #ifndef EbSvtAv1Enc_h
 #define EbSvtAv1Enc_h
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -1220,8 +1219,6 @@ EB_API EbErrorType svt_av1_enc_deinit(EbComponentType *svt_enc_component);
      * @ *svt_enc_component  Encoder handler. */
 EB_API EbErrorType svt_av1_enc_deinit_handle(EbComponentType *svt_enc_component);
 
-#ifdef SVT_ENABLE_USER_CALLBACKS
-
 typedef struct SuperBlockInfo {
     unsigned sb_org_x;
     unsigned sb_org_y;
@@ -1231,19 +1228,11 @@ typedef struct SuperBlockInfo {
     double   beta;
 } SuperBlockInfo;
 
+#ifdef SVT_ENABLE_USER_CALLBACKS
+
 typedef struct PluginCallbacks {
-    void (*user_get_deltaq_offset)(
-        SuperBlockInfo *sb_info_array, 
-        int *offset_array,             
-        uint32_t sb_count,    
-        int32_t picture_number,           
-        int32_t frame_type,               
-        void *user                        
-    );
-    
-    void (*user_frame_feedback)(uint8_t *buffer_y, uint8_t *buffer_cb, uint8_t *buffer_cr, uint32_t picture_number,
-                                u_int32_t bytes_used, uint32_t origin_x, uint32_t origin_y, uint32_t stride_y,
-                                uint32_t stride_cb, uint32_t stride_cr, uint32_t width, uint32_t height, void *user);
+    int (*user_get_deltaq_offset)(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count,
+                                  int32_t picture_number, int32_t frame_type, void *user);
 
     void (*user_picture_feedback)(uint8_t *bitstream, uint32_t bitstream_size, uint32_t picture_number, void *user);
 
