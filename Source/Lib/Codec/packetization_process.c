@@ -947,7 +947,7 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
 #ifdef SVT_ENABLE_USER_CALLBACKS
             // send the byte stream and size
             svt_report_picture_feedback(
-                output_stream_ptr->p_buffer, output_stream_ptr->n_alloc_len, output_stream_ptr->dts);
+                output_stream_ptr->p_buffer, output_stream_ptr->n_filled_len, output_stream_ptr->dts);
 #endif
             svt_post_full_object(output_stream_wrapper_ptr);
             if (queue_entry_ptr->has_show_existing) {
@@ -958,7 +958,7 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
 #ifdef SVT_ENABLE_USER_CALLBACKS
                     // send the byte stream and size
                     svt_report_picture_feedback(existed_output_stream_ptr->p_buffer,
-                                                existed_output_stream_ptr->n_alloc_len,
+                                                existed_output_stream_ptr->n_filled_len,
                                                 existed_output_stream_ptr->dts);
 #endif
                     if (eos)
