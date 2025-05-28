@@ -404,6 +404,7 @@ static int arfgf_high_motion_minq_10[QINDEX_RANGE] = {
     152, 152, 153, 155, 156, 156, 157, 159, 160, 161, 163, 163, 164, 166, 167, 169, 170, 170, 172, 173, 175, 176,
     178, 179, 181, 181, 183, 184, 186, 188, 189, 191, 192, 194, 196, 197, 199, 201, 202, 204, 206, 209, 210, 212,
     214, 217, 218, 220, 223, 225, 228, 230, 232, 234, 237, 240, 242, 245};
+
 static int inter_minq_10[QINDEX_RANGE] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   11,  11,  12,  13,  14,  15,  16,  17,  18,  19,  20,
     20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  29,  30,  31,  32,  33,  34,  35,  36,  37,  37,  39,  39,
@@ -1549,57 +1550,25 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
     // super res pictures scaled with different sb count, should use sb_total_count for each picture
     uint16_t sb_cnt = scs->sb_total_count;
     if (ppcs_ptr->frame_superres_enabled || ppcs_ptr->frame_resize_enabled)
-
 #if FIX_SUPERRES
         sb_cnt = pcs->sb_total_count;
 #else
         sb_cnt = ppcs_ptr->b64_total_count;
 #endif
-
     if ((ppcs_ptr->r0_based_qps_qpm) && (pcs->ppcs->tpl_is_valid == 1)) {
 #if DEBUG_VAR_BOOST_STATS
         printf("TPL qindex boost, frame %llu, temp. level %i\n", pcs->picture_number, pcs->temporal_layer_index);
 #endif
-
 #ifdef SVT_ENABLE_USER_CALLBACKS
+    SuperBlockInfo *sb_info_array = NULL;
+    int *offset_array = NULL;
+    if (plugin_cbs.user_get_deltaq_offset) {
+        sb_info_array = (SuperBlockInfo *)malloc((size_t)sb_cnt * sizeof(SuperBlockInfo));
 
-        typedef struct {
-            unsigned sb_org_x;     
-            unsigned sb_org_y;     
-            uint16_t sb_width;      
-            uint16_t sb_height;     
-            uint8_t  sb_qindex;     
-            double   beta;          
-        } SuperBlockInfo;
-
-        uint8_t             *base_buffer_y = NULL, *base_buffer_cb = NULL, *base_buffer_cr = NULL;
-        EbPictureBufferDesc *input_pic = (EbPictureBufferDesc *)pcs->ppcs->enhanced_unscaled_pic;
-
-        if (plugin_cbs.user_get_deltaq_offset && input_pic) {
-            // Handle temporal filtering case
-            if (pcs->ppcs->do_tf == TRUE) {
-                assert(pcs->ppcs->save_source_picture_width == input_pic->width &&
-                       pcs->ppcs->save_source_picture_height == input_pic->height);
-                base_buffer_y  = pcs->ppcs->save_source_picture_ptr[0];
-                base_buffer_cb = pcs->ppcs->save_source_picture_ptr[1];
-                base_buffer_cr = pcs->ppcs->save_source_picture_ptr[2];
-            } else {
-                base_buffer_y  = input_pic->buffer_y;
-                base_buffer_cb = input_pic->buffer_cb;
-                base_buffer_cr = input_pic->buffer_cr;
-            }
-        }
-#endif
-
-        SuperBlockInfo *sb_info_array;
-        int *offset_array;
-        EB_MALLOC_ARRAY(sb_info_array, sb_cnt);
-        EB_MALLOC_ARRAY(offset_array, sb_cnt);
-        
-        for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {
+        for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {     
             SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
             double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
-            
+                 
             const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
             const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
             
@@ -1611,45 +1580,33 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
             sb_info_array[sb_addr].beta = beta;
         }
 
-#ifdef SVT_ENABLE_USER_CALLBACKS
-        
-        if (plugin_cbs.user_get_deltaq_offset) {
-            plugin_cbs.user_get_deltaq_offset(
-                sb_info_array,                              
-                offset_array,                              
-                sb_cnt,                                     
-                (int32_t)pcs->picture_number,             
-                (int32_t)(pcs->ppcs->slice_type == I_SLICE ? 1 : 0), 
-                plugin_cbs.user                           
-            );
-        } else {
-            
-            for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {
-                SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
-                offset_array[sb_addr] = svt_av1_get_deltaq_offset(
-                    scs->static_config.encoder_bit_depth, 
-                    sb_ptr->qindex, 
-                    sb_info_array[sb_addr].beta, 
-                    pcs->ppcs->slice_type == I_SLICE
-                );
-            }
-        }
-#else
-        for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {
-            SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
-            offset_array[sb_addr] = svt_av1_get_deltaq_offset(
-                scs->static_config.encoder_bit_depth, 
-                sb_ptr->qindex, 
-                sb_info_array[sb_addr].beta, 
-                pcs->ppcs->slice_type == I_SLICE
-            );
-        }
+        offset_array = plugin_cbs.user_get_deltaq_offset(
+            sb_info_array,                          
+            sb_cnt,                                     
+            (int32_t)pcs->picture_number,             
+            (int32_t)(pcs->ppcs->slice_type == I_SLICE ? 1 : 0), 
+            plugin_cbs.user                           
+        );
+    }
 #endif
-
         for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {
             SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
-            int offset = offset_array[sb_addr];
+            double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
 
+#ifdef SVT_ENABLE_USER_CALLBACKS
+            int         offset;
+            if (plugin_cbs.user_get_deltaq_offset) {
+                offset = offset_array[sb_addr];
+            }
+            else {
+                offset = svt_av1_get_deltaq_offset(
+                    scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
+            }
+#else
+            int         offset = svt_av1_get_deltaq_offset(
+                scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
+#endif
+            
             offset = AOMMIN(offset, pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 - 1);
             offset = AOMMAX(offset, -pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 + 1);
 
@@ -1659,12 +1616,17 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
                 printf("\n");
             }
 #endif
-            sb_ptr->qindex = CLIP3(1, MAXQ, (int16_t)sb_ptr->qindex + (int16_t)offset);
+            // read back SB qindex value, and add TPL boost on top
+            sb_ptr->qindex = CLIP3(1, // q_index 0 is lossless, and is currently not supported in SVT-AV1
+                                   MAXQ,
+                                   (int16_t)sb_ptr->qindex + (int16_t)offset);
+
             sb_setup_lambda(pcs, sb_ptr);
         }
-        
-        EB_FREE_ARRAY(sb_info_array);
-        EB_FREE_ARRAY(offset_array);
+#ifdef SVT_ENABLE_USER_CALLBACKS
+        free(sb_info_array);
+        free(offset_array);
+#endif
     }
 }
 

@@ -1220,7 +1220,7 @@ EB_API EbErrorType svt_av1_enc_deinit(EbComponentType *svt_enc_component);
      * @ *svt_enc_component  Encoder handler. */
 EB_API EbErrorType svt_av1_enc_deinit_handle(EbComponentType *svt_enc_component);
 
-
+#ifdef SVT_ENABLE_USER_CALLBACKS
 
 typedef struct SuperBlockInfo {
     unsigned sb_org_x;
@@ -1231,14 +1231,10 @@ typedef struct SuperBlockInfo {
     double   beta;
 } SuperBlockInfo;
 
-#ifdef SVT_ENABLE_USER_CALLBACKS
-
-
 typedef struct PluginCallbacks {
-    int (*user_get_deltaq_offset)(
-        SuperBlockInfo *sb_info_array,    
-        int *offset_array,                
-        uint32_t sb_count,                
+    int *(*user_get_deltaq_offset)(
+        SuperBlockInfo *sb_info_array,                 
+        uint32_t sb_count,    
         int32_t picture_number,           
         int32_t frame_type,               
         void *user                        
@@ -1255,6 +1251,7 @@ typedef struct PluginCallbacks {
 
 // runtime setter
 EB_API EbErrorType svt_av1_enc_set_callbacks(const PluginCallbacks *cbs);
+
 #endif // SVT_ENABLE_USER_CALLBACKS
 
 #ifdef __cplusplus

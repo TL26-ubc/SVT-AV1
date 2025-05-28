@@ -3,37 +3,53 @@
 
 #include <Python.h>
 
-/* --------------------------------------------------------------------
- *  py_trampoline() – call a Python callable with typed C arguments
+/*  py_trampoline
+ *  -------------
+ *  Call a Python callable from C with typed arguments.
  *
- *  cb         : PyCallable to invoke
- *  fmt        : format string of the form "(args...)r"
- *               - args... : one char per positional argument
- *               - r       : return value type
+ *  Usage
+ *  -----
+ *      rc = py_trampoline(cb, "(fmt)r", &ret, …args…);
  *
- *               Supported argument codes:
- *                    i  → signed int/long           → PyLong_FromLong
- *                    u  → unsigned int/long         → PyLong_FromUnsignedLong
- *                    d  → double                    → PyFloat_FromDouble
- *                    b  → int/bool                  → PyBool_FromLong
- *                    s  → const char*               → PyUnicode_FromString
- *                    O  → PyObject* (borrowed ref)  → INCREF + pass-through
- *                    M  → uint8_t*,int,int          → matrix → list of lists
- *                    L  → uint8_t*,int              → list of ints
+ *      • “(fmt)”  – one or more **argument codes**
+ *      • “r”      – **one return‑code**
+ *      • &ret     – pointer to C storage for the result
+ *      • …args…   – C values that match the codes in order
  *
- *               Supported return codes:
- *                    i  → int                       ← PyLong_AsLong
- *                    u  → unsigned int              ← PyLong_AsUnsignedLong
- *                    d  → double                    ← PyFloat_AsDouble
- *                    b  → bool                      ← PyBool_Check / Py_True
- *                    O  → PyObject*                 ← returned with INCREF
- *                    v  → void                      ← return ignored
+ *  Argument codes
+ *  --------------
+ *      Integers (uppercase unsigned)
+ *          c/C 8‑bit   
+ *          h/H 16‑bit   
+ *          i/u 32‑bit   
+ *          q/Q 64‑bit
+ *      Other scalar 
+ *          d double    
+ *          b bool/int   
+ *          s const char*   
+ *          O PyObject*
+ *      Pointer+fn   
+ *          T void*, PyObject *(*transform)(void*)
  *
- *  ret        : pointer to return value (output, may be NULL if return is 'v')
- *  …          : positional arguments matching the format string
+ *      Containers   
+ *          Lx  ist (buffer, len [ ,transform ])
+ *          Mx matrix (buffer, w ,h [ ,transform ])
+ *          *x is any element code above (including T).
  *
- *  Returns 0 on success, -1 on error (with Python exception set).
- * ------------------------------------------------------------------ */
+ *  Return codes
+ *  ------------
+ *      i 32‑bit int   
+ *      u 32‑bit unsigned   
+ *      d double   
+ *      b bool
+ *      O PyObject*             
+ *      v void / ignored
+ *      L list of 32-bit int
+ *
+ *  Result
+ *  ------
+ *      Returns 0 on success, ‑1 on error (Python exception is set).
+ */
 int py_trampoline(PyObject *cb, const char *fmt, void* ret, ...);
 
 #endif /* PY_TRAMPOLINE_H */
