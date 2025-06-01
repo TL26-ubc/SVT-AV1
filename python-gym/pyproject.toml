@@ -25,5 +25,6 @@ args = [
     "-DCMAKE_BUILD_TYPE=Debug",
     "-DCMAKE_C_FLAGS=-g",
     "-DCMAKE_CXX_FLAGS=-g",
-    "-DCMAKE_INSTALL_DO_STRIP=OFF"
+    "-DCMAKE_INSTALL_DO_STRIP=OFF",
+    "-DFROM_PIP_INSTALL=1",
 ]
