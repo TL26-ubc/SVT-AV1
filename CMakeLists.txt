@@ -730,6 +730,6 @@ endif()
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/Source/API/ DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}/svt-av1" FILES_MATCHING PATTERN "*.h")
 
-if(${SVT_ENABLE_USER_CALLBACKS})
+if(${BUILD_PYTHON_APP})
     add_subdirectory(python-gym)
 endif()

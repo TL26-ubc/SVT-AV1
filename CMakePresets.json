@@ -19,11 +19,12 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "SVT_ENABLE_USER_CALLBACKS": "ON",
+        "BUILD_PYTHON_APP": "1",
         "Python3_ROOT_DIR": "${sourceDir}/.venv/",
-        "Python3_EXECUTABLE": "${sourceDir}/.venv/Scripts/python"
+        "Python3_EXECUTABLE": "${sourceDir}/.venv/bin/python"
       },
       "environment": {
-        "PYTHONPATH": "${sourceDir}/python-gym/.venv/Scripts"
+        "PYTHONPATH": "${sourceDir}/python-gym/.venv/bin"
       }
     },
     {

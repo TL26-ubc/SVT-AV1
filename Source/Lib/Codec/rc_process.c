@@ -1560,8 +1560,10 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
         printf("TPL qindex boost, frame %llu, temp. level %i\n", pcs->picture_number, pcs->temporal_layer_index);
 #endif
 #ifdef SVT_ENABLE_USER_CALLBACKS
-        SuperBlockInfo sb_info_array[sb_cnt] = {};
-        int offset_array[sb_cnt] = {};
+        SuperBlockInfo sb_info_array[sb_cnt];
+        int            offset_array[sb_cnt];
+        memset(sb_info_array, 0, sizeof(sb_info_array));
+        memset(offset_array, 0, sizeof(offset_array));
         if (plugin_cbs.user_get_deltaq_offset) {
 
             for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {     

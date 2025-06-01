@@ -1,6 +1,7 @@
          # Header‑only but still adds a target
 
 if(${FROM_PIP_INSTALL}) 
+        message(STATUS "Building for pip install")
     cmake_minimum_required(VERSION 3.20)
     project(av1_gym_bridge LANGUAGES C CXX ASM)
 
