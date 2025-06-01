@@ -1,6 +1,5 @@
 import argparse
 import os
-from typing import List
 import pandas as pd # Import pandas
 import json # For potentially serializing complex data
 
@@ -9,13 +8,31 @@ import pyencoder
 import numpy as np
 import cv2
 
+global frame_counter, value_keeper, bytes_keeper, excel_data_rows # Add excel_data_rows
+frame_counter = {}
+value_keeper = {}
+bytes_keeper = {}
+excel_data_rows = [] # Initialize a list to store data for Excel
+
+
+# Helper function to get or create a data dictionary for a frame
+def _get_frame_data_dict(picture_number):
+    global excel_data_rows
+    # Check if data for this frame already exists
+    for row in excel_data_rows:
+        if row.get("Frame Number") == picture_number:
+            return row
+    # If not, create a new one and add it
+    new_row = {"Frame Number": picture_number}
+    excel_data_rows.append(new_row)
+    return new_row
+
 def get_deltaq_offset(
     sb_info_list: list,       # List of dictionaries, each with SB info
-    offset_list_to_fill: list,# List to be populated with qp_offsets by this function
     sb_total_count: int,      # Total number of SBs, should len(sb_info_list)
     picture_number: int,      # Current picture number
     frame_type: int           # 0 for INTER, 1 for I_SLICE (example, actual meaning depends on C)
-) -> int:                     # Returns an int (deltaq in C, 0 for success typically)
+) -> list[int]:                     # Returns an int (deltaq in C, 0 for success typically)
     """
     Calculates QP offsets for all superblocks in a frame.
 
@@ -33,17 +50,17 @@ def get_deltaq_offset(
         An integer status code (typically 0 for success).
     """
     frame_data = _get_frame_data_dict(picture_number)
-    frame_data["Frame Type (DeltaQ)"] = "INTRA" if frame_type == 1 else "INTER"
+    frame_data["Frame Type (DeltaQ)"] = "INTRA" if frame_type == 1 else "INTER" # type: ignore
     
     # Store a summary of sb_info_list. For example, count or first SB's info.
     # Avoid storing the whole list if it's very large.
     if sb_info_list:
-        frame_data["Superblock Info Summary (DeltaQ)"] = f"{len(sb_info_list)} SBs received. First SB qindex: {sb_info_list[0].get('sb_qindex', 'N/A')}, beta: {sb_info_list[0].get('beta', 'N/A'):.2f}"
+        frame_data["Superblock Info Summary (DeltaQ)"] = f"{len(sb_info_list)} SBs received. First SB qindex: {sb_info_list[0].get('sb_qindex', 'N/A')}, beta: {sb_info_list[0].get('beta', 'N/A'):.2f}" # type: ignore
     else:
-        frame_data["Superblock Info Summary (DeltaQ)"] = "No SB info received"
+        frame_data["Superblock Info Summary (DeltaQ)"] = "No SB info received" # type: ignore
 
     print(f"Python: get_deltaq_offset called for Frame {picture_number}, Type: {frame_type}, Total SBs: {sb_total_count}")
-    if len(sb_info_list) != sb_total_count or len(offset_list_to_fill) != sb_total_count:
+    if len(sb_info_list) != sb_total_count:
         print("Python Error: List lengths do not match sb_total_count!")
         # Optionally raise an error or handle appropriately
         return -1 # Indicate an error
@@ -51,6 +68,7 @@ def get_deltaq_offset(
     is_intra_frame = (frame_type == 1) # Assuming 1 means I_SLICE
 
     calculated_offsets_summary = []
+    offset_list_to_fill = [0]*sb_total_count
 
     for i in range(sb_total_count):
         current_sb_info = sb_info_list[i]
@@ -108,13 +126,13 @@ def get_deltaq_offset(
         if i < 5: # Store first 5 calculated offsets as an example
             calculated_offsets_summary.append(qp_offset)
 
-    frame_data["Calculated QP Offsets (First 5)"] = str(calculated_offsets_summary)
+    frame_data["Calculated QP Offsets (First 5)"] = str(calculated_offsets_summary) # type: ignore
     print(f"Python: get_deltaq_offset completed for Frame {picture_number}.\n")
-    return 0 # Indicate success    
+    return offset_list_to_fill # Indicate success    
 
 def picture_feedback(
     bitstream: bytes,
-    # size: int,
+    size: int,
     picture_number: int
 ):
     frame_data = _get_frame_data_dict(picture_number)
