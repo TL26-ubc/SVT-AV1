@@ -1560,34 +1560,34 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
         printf("TPL qindex boost, frame %llu, temp. level %i\n", pcs->picture_number, pcs->temporal_layer_index);
 #endif
 #ifdef SVT_ENABLE_USER_CALLBACKS
-    SuperBlockInfo *sb_info_array = NULL;
-    int *offset_array = NULL;
-    if (plugin_cbs.user_get_deltaq_offset) {
-        sb_info_array = (SuperBlockInfo *)malloc((size_t)sb_cnt * sizeof(SuperBlockInfo));
+        SuperBlockInfo sb_info_array[sb_cnt] = {};
+        int offset_array[sb_cnt] = {};
+        if (plugin_cbs.user_get_deltaq_offset) {
 
-        for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {     
-            SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
-            double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
-                 
-            const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
-            const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
-            
-            sb_info_array[sb_addr].sb_org_x = sb_ptr->org_x;
-            sb_info_array[sb_addr].sb_org_y = sb_ptr->org_y;
-            sb_info_array[sb_addr].sb_width = sb_width;
-            sb_info_array[sb_addr].sb_height = sb_height;
-            sb_info_array[sb_addr].sb_qindex = (uint8_t)sb_ptr->qindex;
-            sb_info_array[sb_addr].beta = beta;
+            for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {     
+                SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
+                double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
+                    
+                const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
+                const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
+                
+                sb_info_array[sb_addr].sb_org_x = sb_ptr->org_x;
+                sb_info_array[sb_addr].sb_org_y = sb_ptr->org_y;
+                sb_info_array[sb_addr].sb_width = sb_width;
+                sb_info_array[sb_addr].sb_height = sb_height;
+                sb_info_array[sb_addr].sb_qindex = (uint8_t)sb_ptr->qindex;
+                sb_info_array[sb_addr].beta = beta;
+            }
+
+            plugin_cbs.user_get_deltaq_offset(
+                sb_info_array,
+                offset_array,                         
+                sb_cnt,                                     
+                (int32_t)pcs->picture_number,             
+                (int32_t)(pcs->ppcs->slice_type == I_SLICE ? 1 : 0), 
+                plugin_cbs.user                           
+            );
         }
-
-        offset_array = plugin_cbs.user_get_deltaq_offset(
-            sb_info_array,                          
-            sb_cnt,                                     
-            (int32_t)pcs->picture_number,             
-            (int32_t)(pcs->ppcs->slice_type == I_SLICE ? 1 : 0), 
-            plugin_cbs.user                           
-        );
-    }
 #endif
         for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {
             SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
@@ -1623,10 +1623,6 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
 
             sb_setup_lambda(pcs, sb_ptr);
         }
-#ifdef SVT_ENABLE_USER_CALLBACKS
-        free(sb_info_array);
-        free(offset_array);
-#endif
     }
 }
 

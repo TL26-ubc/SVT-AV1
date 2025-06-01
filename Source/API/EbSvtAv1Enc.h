@@ -1232,8 +1232,9 @@ typedef struct SuperBlockInfo {
 } SuperBlockInfo;
 
 typedef struct PluginCallbacks {
-    int *(*user_get_deltaq_offset)(
-        SuperBlockInfo *sb_info_array,                 
+    void (*user_get_deltaq_offset)(
+        SuperBlockInfo *sb_info_array, 
+        int *offset_array,             
         uint32_t sb_count,    
         int32_t picture_number,           
         int32_t frame_type,               
@@ -1244,7 +1245,7 @@ typedef struct PluginCallbacks {
                                 u_int32_t bytes_used, uint32_t origin_x, uint32_t origin_y, uint32_t stride_y,
                                 uint32_t stride_cb, uint32_t stride_cr, uint32_t width, uint32_t height, void *user);
 
-    void (*user_picture_feedback)(uint8_t *bitStream, uint32_t bitstream_size, uint32_t picture_number, void *user);
+    void (*user_picture_feedback)(uint8_t *bitstream, uint32_t bitstream_size, uint32_t picture_number, void *user);
 
     void *user;
 } PluginCallbacks;
