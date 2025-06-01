@@ -1,8 +1,8 @@
 from importlib import import_module as _imp
 
-_svtapp = _imp("._svtapp", package="pyencoder")
-_run = _svtapp.run
-_register = _svtapp.register_callbacks
+av1_wrapper = _imp(".av1_wrapper", package=__name__)
+_run = av1_wrapper.run
+_register = av1_wrapper.register_callbacks
 
 
 def run(**kwargs):

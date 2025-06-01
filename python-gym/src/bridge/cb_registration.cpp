@@ -8,7 +8,7 @@ namespace pybridge {
 
 Callback g_callbacks[static_cast<int>(CallbackEnum::Count)] = {
     /* GetDeltaQOffset     */ { py::none(), nullptr, 4 },
-    /* RecvPictureFeedback */ { py::none(), nullptr, 2 }
+    /* RecvPictureFeedback */ { py::none(), nullptr, 3 }
 };
 
 static int set_cb_ptr(CallbackEnum which, bool unset)

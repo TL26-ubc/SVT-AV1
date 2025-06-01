@@ -78,7 +78,7 @@ static py::object register_callbacks(py::object py_get_deltaq_offset = py::none(
     return py::none();
 }
 
-PYBIND11_MODULE(_svtapp, m)
+PYBIND11_MODULE(av1_wrapper, m)
 {
     m.doc() = "In‑process bindings for the SVT‑AV1 encoder CLI";
 

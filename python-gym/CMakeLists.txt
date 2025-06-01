@@ -54,7 +54,7 @@ target_include_directories(svtav1_app PUBLIC
 
 target_link_libraries(svtav1_app PUBLIC Threads::Threads safeclib)
 
-# Build the Python extension  _svtapp.{so,dylib,pyd}
+# Build the Python extension  av1_wrapper.{so,dylib,pyd}
 set(BRIDGE_SRC
     src/bridge/pybridge.cpp
     src/bridge/cb_registration.cpp
@@ -64,22 +64,22 @@ set(PYENCODER_SRC
     src/pyencoder/_binding.cpp
     "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/rl_feedback.c")
 
-add_library(_svtapp MODULE
+add_library(av1_wrapper MODULE
     ${BRIDGE_SRC}
     ${PYENCODER_SRC})
 
 # On Windows a Python extension must be named *.pyd without the "lib" prefix.
 if (WIN32)
-    set_target_properties(_svtapp PROPERTIES
-        OUTPUT_NAME "_svtapp"
+    set_target_properties(av1_wrapper PROPERTIES
+        OUTPUT_NAME "av1_wrapper"
         PREFIX      ""
         SUFFIX      ".pyd")
 else()
-    set_target_properties(_svtapp PROPERTIES PREFIX "")
+    set_target_properties(av1_wrapper PROPERTIES PREFIX "")
 endif()
 
 # Include paths
-target_include_directories(_svtapp PRIVATE
+target_include_directories(av1_wrapper PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/.."
     src/bridge
     "${CMAKE_CURRENT_LIST_DIR}/../Source"
@@ -89,7 +89,7 @@ target_include_directories(_svtapp PRIVATE
     ${Python3_INCLUDE_DIRS})
 
 # Link targets
-target_link_libraries(_svtapp
+target_link_libraries(av1_wrapper
     PRIVATE
         pybind11::module
         svtav1_plugin
@@ -101,4 +101,4 @@ target_link_libraries(_svtapp
         m)                   # libm on *nix
 
 # Installation path for scikit‑build‑core
-install(TARGETS _svtapp LIBRARY DESTINATION . RUNTIME DESTINATION .)
+install(TARGETS av1_wrapper LIBRARY DESTINATION . RUNTIME DESTINATION .)
