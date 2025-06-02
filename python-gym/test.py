@@ -61,9 +61,7 @@ def get_deltaq_offset(
 
     print(f"Python: get_deltaq_offset called for Frame {picture_number}, Type: {frame_type}, Total SBs: {sb_total_count}")
     if len(sb_info_list) != sb_total_count:
-        print("Python Error: List lengths do not match sb_total_count!")
-        # Optionally raise an error or handle appropriately
-        return -1 # Indicate an error
+        raise RuntimeError("Python Error: List lengths do not match sb_total_count!")
 
     is_intra_frame = (frame_type == 1) # Assuming 1 means I_SLICE
 
@@ -79,14 +77,15 @@ def get_deltaq_offset(
         sb_width = current_sb_info.get("sb_width", 0)
         sb_height = current_sb_info.get("sb_height", 0)
         sb_qindex = current_sb_info.get("sb_qindex", 50) # SB's current QP
+        print(current_sb_info)
         beta = current_sb_info.get("beta", 0.5)
 
         # --- Print received SuperBlockInfo for verification ---
-        if i == 0: # Print only for the first SB to reduce log spam
-            print(f"  SB Index {i}:")
-            print(f"    Raw SB Info: {current_sb_info}")
-            print(f"    Parsed - Position: ({sb_org_x},{sb_org_y}), Size: {sb_width}x{sb_height}")
-            print(f"    Parsed - SB_QP: {sb_qindex}, Beta: {beta:.4f}")
+        # if i == 0: # Print only for the first SB to reduce log spam
+            # print(f"  SB Index {i}:")
+            # print(f"    Raw SB Info: {current_sb_info}")
+            # print(f"    Parsed - Position: ({sb_org_x},{sb_org_y}), Size: {sb_width}x{sb_height}")
+            # print(f"    Parsed - SB_QP: {sb_qindex}, Beta: {beta:.4f}")
         # The old version had frame-level qindex and encoder_bit_depth. These are not
         # directly passed in the new (OOuii)i signature via sb_info_list.
         # If needed, the C bridge or SuperBlockInfo struct would need to be extended.
@@ -120,14 +119,14 @@ def get_deltaq_offset(
 
         qp_offset = max(-5, min(5, qp_offset)) # Clamp offset to a reasonable range
 
-        print(f"    Decision: QP offset = {qp_offset}")
+        # print(f"    Decision: QP offset = {qp_offset}")
         
         offset_list_to_fill[i] = qp_offset
         if i < 5: # Store first 5 calculated offsets as an example
             calculated_offsets_summary.append(qp_offset)
 
     frame_data["Calculated QP Offsets (First 5)"] = str(calculated_offsets_summary) # type: ignore
-    print(f"Python: get_deltaq_offset completed for Frame {picture_number}.\n")
+    # print(f"Python: get_deltaq_offset completed for Frame {picture_number}.\n")
     return offset_list_to_fill # Indicate success    
 
 def picture_feedback(

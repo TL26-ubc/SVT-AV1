@@ -1225,6 +1225,8 @@ typedef struct SuperBlockInfo {
     uint16_t sb_width;
     uint16_t sb_height;
     uint8_t  sb_qindex;
+    signed short sb_x_mv;
+    signed short sb_y_mv;
     double   beta;
 } SuperBlockInfo;
 

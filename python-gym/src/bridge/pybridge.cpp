@@ -29,7 +29,9 @@ extern "C" void get_deltaq_offset_trampoline(SuperBlockInfo *sb_info_array, int 
             py::arg("sb_height") = sb.sb_height,
             py::arg("sb_width") = sb.sb_width,
             py::arg("sb_qindex") = sb.sb_qindex,
-            py::arg("beta") = sb.beta
+            py::arg("beta") = sb.beta,
+            py::arg("sb_x_mv") = sb.sb_x_mv,
+            py::arg("sb_y_mv") = sb.sb_y_mv
         );
     });
 

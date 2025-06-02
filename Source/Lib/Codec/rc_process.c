@@ -1579,6 +1579,11 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
                 sb_info_array[sb_addr].sb_height = sb_height;
                 sb_info_array[sb_addr].sb_qindex = (uint8_t)sb_ptr->qindex;
                 sb_info_array[sb_addr].beta = beta;
+
+                MeSbResults *me_res = ppcs_ptr->pa_me_data->me_results[sb_addr];
+                MvCandidate mv = me_res->me_mv_array[0]; // 0 idx is for overall estimate
+                sb_info_array[sb_addr].sb_x_mv = mv.x_mv;
+                sb_info_array[sb_addr].sb_y_mv = mv.y_mv;
             }
 
             plugin_cbs.user_get_deltaq_offset(
