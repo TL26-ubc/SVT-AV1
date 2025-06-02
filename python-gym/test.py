@@ -3,6 +3,7 @@ import pandas as pd # Import pandas
 import pyencoder
 import numpy as np
 import cv2, av, io
+from threading import Lock
 
 global frame_counter, bytes_keeper
 frame_counter = {}
@@ -12,9 +13,10 @@ global video_width, video_height
 video_width = 0
 video_height = 0
 
-global all_bitstreams, joined_bitstream_num
-# Store all_bitstreams as a bytes object
-all_bitstreams = b''
+global all_bitstreams, joined_bitstream_num, all_bytes_lock
+# Store all_bitstreams as a bytes IO
+all_bitstreams = io.BytesIO() # This will hold the joined bitstream data
+all_bytes_lock = Lock() # Lock to ensure thread safety when accessing all_bitstreams
 joined_bitstream_num = 0 # This will count how many bitstreams were joined
 
 global y_buffers, cb_buffers, cr_buffers
@@ -28,8 +30,12 @@ def update_ycbcr_buffers():
     current_frame = len(y_buffers)
     if joined_bitstream_num > current_frame:
         # new bitstream data is available, extract YCbCr data
-        temp_bytes_file = io.BytesIO(all_bitstreams)
-        container = av.open(temp_bytes_file)
+        
+        # get current file position in all_bitstreams
+        position = all_bitstreams.tell()
+        # Reset the BytesIO stream to the beginning
+        all_bitstreams.seek(0)
+        container = av.open(all_bitstreams)
         
         # Extract YCbCr data for missing frames
         for idx, frame in enumerate(container.decode(video=0)):
@@ -49,19 +55,23 @@ def update_ycbcr_buffers():
                 if joined_bitstream_num <= current_frame:
                     # If we have reached the current joined_bitstream_num, stop
                     break
+        # Restore the position of the BytesIO stream
+        all_bitstreams.seek(position)
 
 def join_bitstreams():
-    global all_bitstreams, joined_bitstream_num, bytes_keeper
+    global all_bitstreams, joined_bitstream_num, bytes_keeper, all_bytes_lock
     if not bytes_keeper:
         print("No bitstream data to join.")
         return
     
     # check the current joined_bitstream_num, see if in bytes_keeper
+    all_bytes_lock.acquire()
     while joined_bitstream_num in bytes_keeper.keys():
-        all_bitstreams += bytes_keeper[joined_bitstream_num]
+        all_bitstreams.write(bytes_keeper[joined_bitstream_num])
         joined_bitstream_num += 1
             
     update_ycbcr_buffers()
+    all_bytes_lock.release()
 
 def get_video_config(video_path):
     global video_width, video_height
