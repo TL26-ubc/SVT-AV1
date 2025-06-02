@@ -167,7 +167,7 @@ if __name__ == "__main__":
     import imageio
 
     # from the y_buffers, cb_buffers, cr_buffers, we can create a video
-    output_path = "/home/tom/tl26/SVT-AV1/output_video.avi"
+    output_path = "output_video.avi"
     print(f"Creating video at {output_path} with {len(y_buffers)} frames...")
 
     if not y_buffers or not cb_buffers or not cr_buffers:
