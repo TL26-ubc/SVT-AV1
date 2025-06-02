@@ -1,27 +1,31 @@
-cmake_minimum_required(VERSION 3.20)
-project(av1_gym_bridge LANGUAGES C CXX ASM)
+         # Header‑only but still adds a target
 
-# Global compile options
-set(CMAKE_C_STANDARD   11)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(${FROM_PIP_INSTALL}) 
+        message(STATUS "Building for pip install")
+    cmake_minimum_required(VERSION 3.20)
+    project(av1_gym_bridge LANGUAGES C CXX ASM)
 
-add_compile_definitions(SVT_ENABLE_USER_CALLBACKS)
+    # Global compile options
+    set(CMAKE_C_STANDARD   11)
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Dependencies
+    add_compile_definitions(SVT_ENABLE_USER_CALLBACKS)
+
+    # Compile in the upstream SVT‑AV1 LIB
+    set(BUILD_SHARED_LIBS OFF  CACHE BOOL "" FORCE)
+    set(BUILD_APPS        OFF  CACHE BOOL "" FORCE)
+
+    add_subdirectory(
+        ${CMAKE_CURRENT_LIST_DIR}/..
+        ${CMAKE_CURRENT_BINARY_DIR}/svtcore
+        EXCLUDE_FROM_ALL)
+endif()
+
 find_package(Threads  REQUIRED)
 find_package(Python3  REQUIRED COMPONENTS Interpreter Development)
-find_package(pybind11 CONFIG REQUIRED)          # Header‑only but still adds a target
-
-# Compile in the upstream SVT‑AV1 LIB
-set(BUILD_SHARED_LIBS OFF  CACHE BOOL "" FORCE)
-set(BUILD_APPS        OFF  CACHE BOOL "" FORCE)
-
-add_subdirectory(
-    ${CMAKE_CURRENT_LIST_DIR}/..
-    ${CMAKE_CURRENT_BINARY_DIR}/svtcore
-    EXCLUDE_FROM_ALL)
+find_package(pybind11 CONFIG REQUIRED) 
 
 # Add Safe‑string library
 file(GLOB SAFE_SRC "${CMAKE_CURRENT_LIST_DIR}/../third_party/safestringlib/*.c")
@@ -101,4 +105,12 @@ target_link_libraries(av1_wrapper
         m)                   # libm on *nix
 
 # Installation path for scikit‑build‑core
-install(TARGETS av1_wrapper LIBRARY DESTINATION . RUNTIME DESTINATION .)
+if(${FROM_PIP_INSTALL})
+    install(TARGETS av1_wrapper
+        LIBRARY DESTINATION .
+        RUNTIME DESTINATION .)
+else()
+    install(TARGETS av1_wrapper
+        LIBRARY DESTINATION ${Python3_SITEARCH}/pyencoder
+        RUNTIME DESTINATION ${Python3_SITEARCH}/pyencoder)
+endif()

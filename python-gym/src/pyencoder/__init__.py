@@ -1,8 +1,10 @@
 from importlib import import_module as _imp
 
-av1_wrapper = _imp(".av1_wrapper", package=__name__)
-_run = av1_wrapper.run
-_register = av1_wrapper.register_callbacks
+from pyencoder.av1_wrapper import register_callbacks, run
+
+# av1_wrapper = _imp(".av1_wrapper", package=__name__)
+_run = run
+_register = register_callbacks
 
 
 def run(**kwargs):

@@ -11,6 +11,15 @@
 
 cmake_minimum_required(VERSION 3.16)
 
+if(${SVT_ENABLE_USER_CALLBACKS})
+    message(STATUS "Building Python Gym bindings")
+    add_compile_definitions(SVT_ENABLE_USER_CALLBACKS)
+endif()
+if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
+    message(WARNING "Building in-source is highly not recommended\n"
+                    "Please use the Build folder or create your own.")
+endif()
+
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
     message(WARNING "Building in-source is highly not recommended\n"
                     "Please use the Build folder or create your own.")
@@ -720,3 +729,7 @@ if(NOT USE_EXTERNAL_CPUINFO AND NOT COMPILE_C_ONLY AND HAVE_X86_PLATFORM)
 endif()
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/Source/API/ DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}/svt-av1" FILES_MATCHING PATTERN "*.h")
+
+if(${BUILD_PYTHON_APP})
+    add_subdirectory(python-gym)
+endif()

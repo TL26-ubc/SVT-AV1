@@ -23,7 +23,7 @@ class Av1Env(gym.Env):
         video_path: str | Path,
         *,
         lambda_rd: float = 0.1,
-        av1_runner: function = None,
+        av1_runner: callable = None,
     ):
         super().__init__()
         self.video_path = Path(video_path)
@@ -82,6 +82,7 @@ class Av1Env(gym.Env):
         self._encoder_thread.start()
 
         # Return first observation
+        # wait for first delta Q callback
         obs = {
             "bits": np.array([0.0], dtype=np.float32),
             "psnr": np.array([0.0], dtype=np.float32),
@@ -99,7 +100,11 @@ class Av1Env(gym.Env):
             raise ValueError(
                 f"Action grid shape {action.shape} != ({self.h_sb},{self.w_sb})"
             )
-
+        # wait for a action to complete 
+        # wake up the encoder thread for a frame to complete QP mapping 
+        
+        # wait for a feedback 
+        
         # send action to encoder
         # self._action_q.put(action.astype(np.int32, copy=False))
         obs, reward, self._terminated, _, info = self.get_frame_feedback(
