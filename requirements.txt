@@ -1,0 +1,32 @@
+# Core ML Libraries
+torch>=2.0.0
+stable-baselines3>=2.0.0
+gymnasium>=0.29.0
+scikit-learn>=1.0.0
+scipy>=1.7.0
+
+# Data Processing and Analysis
+numpy>=1.20.0
+pandas>=1.5.0
+opencv-python>=4.5.0
+
+# Visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+pillow>=9.0.0
+
+# Data Export/Import
+openpyxl>=3.0.0
+xlsxwriter>=3.0.0
+
+# Development Tools
+pybind11>=2.10.0
+pybind11-stubgen>=2.0.0
+scikit_build_core>=0.1.0
+
+# Utilities
+cloudpickle>=2.0.0
+filelock>=3.0.0
+typing_extensions>=4.0.0
+python-dateutil>=2.8.0
+setuptools-scm>=7.0.0 
