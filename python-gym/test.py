@@ -4,6 +4,7 @@ import pyencoder
 import numpy as np
 import cv2, av, io
 from threading import Lock
+from pyencoder.utils.sb_processing import SuperBlockInfo
 
 global frame_counter, bytes_keeper
 frame_counter = {}
@@ -47,7 +48,7 @@ def get_video_config(video_path):
 
 
 def get_deltaq_offset(
-    sb_info_list: list,  # List of dictionaries, each with SB info
+    sb_info_list: list[SuperBlockInfo],  # List of dictionaries, each with SB info
     sb_total_count: int,  # Total number of SBs, should len(sb_info_list)
     picture_number: int,  # Current picture number
     frame_type: int,  # 0 for INTER, 1 for I_SLICE (example, actual meaning depends on C)
@@ -123,5 +124,5 @@ if __name__ == "__main__":
     )
     pyencoder.run(
         input=args.file, pred_struct=1, rc=2, tbr=100, enable_stat_report=True, 
-        b="Output/output.ivf",  # Example output file for bitstream
+        b="Output/output.ivf"
     )
