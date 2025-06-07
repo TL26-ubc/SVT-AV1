@@ -489,7 +489,6 @@ EbErrorType enc_app_ctor(EncApp* enc_app) {
 
 void enc_app_dctor(EncApp* enc_app) { free(enc_app->rc_twopasses_stats.buf); }
 
-volatile bool debugger_attached = false;
 
 /***************************************
  * Encoder App Main
