@@ -49,3 +49,7 @@ venv/
 
 # lldb
 .lldbinit-project
+temp/*
+
+# cmake
+CMakeUserPresets.json
