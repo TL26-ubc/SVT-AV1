@@ -53,3 +53,4 @@ temp/*
 
 # cmake
 CMakeUserPresets.json
+*.ipynb
