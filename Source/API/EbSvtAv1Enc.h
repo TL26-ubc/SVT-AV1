@@ -1219,32 +1219,31 @@ EB_API EbErrorType svt_av1_enc_deinit(EbComponentType *svt_enc_component);
      * @ *svt_enc_component  Encoder handler. */
 EB_API EbErrorType svt_av1_enc_deinit_handle(EbComponentType *svt_enc_component);
 
+typedef struct SuperBlockInfo {
+    unsigned sb_org_x;
+    unsigned sb_org_y;
+    uint16_t sb_width;
+    uint16_t sb_height;
+    uint8_t  sb_qindex;
+    signed short sb_x_mv;
+    signed short sb_y_mv;
+    double   beta;
+} SuperBlockInfo;
+
 #ifdef SVT_ENABLE_USER_CALLBACKS
+
 typedef struct PluginCallbacks {
-    int (*user_get_deltaq_offset)(
-        unsigned sb_index,
-        unsigned sb_org_x,
-        unsigned sb_org_y,
-        uint8_t sb_qindex,
-        uint16_t sb_final_blk_cnt,
-        int32_t mi_row_start,
-        int32_t mi_row_end,
-        int32_t mi_col_start,
-        int32_t mi_col_end,
-        int32_t tg_horz_boundary,
-        int32_t tile_row,
-        int32_t tile_col,
-        int32_t tile_rs_index,
-        uint8_t encoder_bit_depth,
-        double beta,
-        bool is_intra,
-        void *user);
+    void (*user_get_deltaq_offset)(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count,
+                                  int32_t picture_number, int32_t frame_type, void *user);
+
+    void (*user_picture_feedback)(uint8_t *bitstream, uint32_t bitstream_size, uint32_t picture_number, void *user);
 
     void *user;
 } PluginCallbacks;
 
 // runtime setter
 EB_API EbErrorType svt_av1_enc_set_callbacks(const PluginCallbacks *cbs);
+
 #endif // SVT_ENABLE_USER_CALLBACKS
 
 #ifdef __cplusplus

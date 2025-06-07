@@ -1,30 +1,29 @@
-#ifndef PYBRIDGE_H
-#define PYBRIDGE_H
+#ifndef PYBRIDGE_H_
+#define PYBRIDGE_H_
 
-#include <Python.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
-#include <stdbool.h>
+#include "../../../Source/API/EbSvtAv1Enc.h"
 
-extern int (*get_deltaq_offset_cb)(
-    unsigned sb_index,
-    unsigned sb_org_x,
-    unsigned sb_org_y,
-    uint8_t sb_qindex,
-    uint16_t sb_final_blk_cnt,
-    int32_t mi_row_start,
-    int32_t mi_row_end,
-    int32_t mi_col_start,
-    int32_t mi_col_end,
-    int32_t tg_horz_boundary,
-    int32_t tile_row,
-    int32_t tile_col,
-    int32_t tile_rs_index,
-    uint8_t encoder_bit_depth,
-    double beta,
-    bool is_intra, 
-    void* user);
+typedef void (*get_deltaq_offset_cb_t)(SuperBlockInfo *, int *, uint32_t,
+                                       int32_t, int32_t, void *);
 
-void pybridge_set_cb(PyObject *callable);
-void pybridge_clear(void);
+typedef void (*recv_picture_feedback_cb_t)(uint8_t *, uint32_t,
+                                           uint32_t, void *);
 
-#endif /* PYBRIDGE_H */
+extern get_deltaq_offset_cb_t get_deltaq_offset_cb;
+extern recv_picture_feedback_cb_t recv_picture_feedback_cb;
+
+void get_deltaq_offset_trampoline (SuperBlockInfo *, int *, uint32_t,
+                                    int32_t, int32_t, void *);
+
+void  recv_picture_feedback_trampoline(uint8_t *, uint32_t,
+                                       uint32_t, void *);
+
+#ifdef __cplusplus
+}   /* extern "C" */
+#endif
+#endif /* PYBRIDGE_H_ */

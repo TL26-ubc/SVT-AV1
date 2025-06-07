@@ -41,6 +41,10 @@
 #include "src_ops_process.h"
 #include "enc_mode_config.h"
 
+#ifdef SVT_ENABLE_USER_CALLBACKS
+#include "enc_callbacks.h"
+#endif
+
 // Specifies the weights of the ref frame in calculating qindex of non base layer frames
 static const int non_base_qindex_weight_ref[EB_MAX_TEMPORAL_LAYERS] = {100, 100, 100, 100, 100, 100};
 // Specifies the weights of the worst quality in calculating qindex of non base layer frames
@@ -1555,29 +1559,61 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
 #if DEBUG_VAR_BOOST_STATS
         printf("TPL qindex boost, frame %llu, temp. level %i\n", pcs->picture_number, pcs->temporal_layer_index);
 #endif
+#ifdef SVT_ENABLE_USER_CALLBACKS
+        SuperBlockInfo sb_info_array[sb_cnt];
+        int            offset_array[sb_cnt];
+        memset(sb_info_array, 0, sizeof(sb_info_array));
+        memset(offset_array, 0, sizeof(offset_array));
+        if (plugin_cbs.user_get_deltaq_offset) {
+
+            for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {     
+                SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
+                double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
+                    
+                const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
+                const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
+                
+                sb_info_array[sb_addr].sb_org_x = sb_ptr->org_x;
+                sb_info_array[sb_addr].sb_org_y = sb_ptr->org_y;
+                sb_info_array[sb_addr].sb_width = sb_width;
+                sb_info_array[sb_addr].sb_height = sb_height;
+                sb_info_array[sb_addr].sb_qindex = (uint8_t)sb_ptr->qindex;
+                sb_info_array[sb_addr].beta = beta;
+
+                MeSbResults *me_res = ppcs_ptr->pa_me_data->me_results[sb_addr];
+                MvCandidate mv = me_res->me_mv_array[0]; // 0 idx is for overall estimate
+                sb_info_array[sb_addr].sb_x_mv = mv.x_mv;
+                sb_info_array[sb_addr].sb_y_mv = mv.y_mv;
+            }
+
+            plugin_cbs.user_get_deltaq_offset(
+                sb_info_array,
+                offset_array,                         
+                sb_cnt,                                     
+                (int32_t)pcs->picture_number,             
+                (int32_t)(pcs->ppcs->slice_type == I_SLICE ? 1 : 0), 
+                plugin_cbs.user                           
+            );
+        }
+#endif
         for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {
             SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
             double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
-        
+
 #ifdef SVT_ENABLE_USER_CALLBACKS
-            TileInfo *tile_info = &sb_ptr->tile_info;
-            int offset = (plugin_cbs.user_get_deltaq_offset != NULL)
-                ? plugin_cbs.user_get_deltaq_offset(
-                    sb_ptr->index, sb_ptr->org_x, sb_ptr->org_y, sb_ptr->qindex, sb_ptr->final_blk_cnt,
-                    tile_info->mi_row_start, tile_info->mi_row_end, tile_info->mi_col_start, tile_info->mi_col_end,
-                    tile_info->tg_horz_boundary, tile_info->tile_row, tile_info->tile_col, tile_info->tile_rs_index,
-                    scs->static_config.encoder_bit_depth, beta, pcs->ppcs->slice_type == I_SLICE,
-                    plugin_cbs.user)
-                : svt_av1_get_deltaq_offset(scs->static_config.encoder_bit_depth,
-                                            sb_ptr->qindex,
-                                            beta,
-                                            pcs->ppcs->slice_type == I_SLICE);
+            int         offset;
+            if (plugin_cbs.user_get_deltaq_offset) {
+                offset = offset_array[sb_addr];
+            }
+            else {
+                offset = svt_av1_get_deltaq_offset(
+                    scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
+            }
 #else
-            int offset = svt_av1_get_deltaq_offset(scs->static_config.encoder_bit_depth,
-                                                   sb_ptr->qindex,
-                                                   beta,
-                                                   pcs->ppcs->slice_type == I_SLICE);
+            int         offset = svt_av1_get_deltaq_offset(
+                scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
 #endif
+            
             offset = AOMMIN(offset, pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 - 1);
             offset = AOMMAX(offset, -pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 + 1);
 

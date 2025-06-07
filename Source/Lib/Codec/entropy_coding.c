@@ -29,6 +29,12 @@
 #include "mode_decision.h"
 #include "restoration.h"
 
+#ifdef SVT_ENABLE_USER_CALLBACKS
+#include "rl_feedback.h"
+#include "enc_callbacks.h"
+void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, Bool is_highbd);
+#endif
+
 static void mem_put_varsize(uint8_t *const dst, const int sz, const int val) {
     switch (sz) {
     case 1: dst[0] = (uint8_t)(val & 0xff); break;

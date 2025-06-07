@@ -39,4 +39,18 @@ __pycache__/
 *.pyc
 *.egg-info/
 .venv
+venv/
 *.tar.gz
+
+# test
+*.avi
+*.mkv
+*.xlsx
+
+# lldb
+.lldbinit-project
+temp/*
+
+# cmake
+CMakeUserPresets.json
+*.ipynb

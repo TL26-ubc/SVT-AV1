@@ -489,6 +489,7 @@ EbErrorType enc_app_ctor(EncApp* enc_app) {
 
 void enc_app_dctor(EncApp* enc_app) { free(enc_app->rc_twopasses_stats.buf); }
 
+
 /***************************************
  * Encoder App Main
  ***************************************/

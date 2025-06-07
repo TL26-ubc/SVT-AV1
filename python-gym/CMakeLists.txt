@@ -1,30 +1,41 @@
-cmake_minimum_required(VERSION 3.20)
-project(av1_gym_bridge LANGUAGES C CXX ASM)
+         # Header‑only but still adds a target
 
-add_compile_definitions(SVT_ENABLE_USER_CALLBACKS)
+if(${FROM_PIP_INSTALL}) 
+    message(STATUS "Building for pip install")
+    cmake_minimum_required(VERSION 3.20)
+    project(av1_gym_bridge LANGUAGES C CXX ASM)
 
-# 1.  Bring in the upstream SVT‑AV1 build (core only, static)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(BUILD_APPS        OFF CACHE BOOL "" FORCE)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    # Global compile options
+    set(CMAKE_C_STANDARD   11)
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(CMAKE_C_FLAGS "-O0 ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O0 ${CMAKE_CXX_FLAGS}")
 
-add_subdirectory(
-    ${CMAKE_CURRENT_LIST_DIR}/..
-    ${CMAKE_CURRENT_BINARY_DIR}/svtcore
-    EXCLUDE_FROM_ALL)
+    add_compile_definitions(SVT_ENABLE_USER_CALLBACKS)
 
-find_package(Threads REQUIRED)
-find_package(Python3 COMPONENTS Development REQUIRED)
+    # Compile in the upstream SVT‑AV1 LIB
+    set(BUILD_SHARED_LIBS OFF  CACHE BOOL "" FORCE)
+    set(BUILD_APPS        OFF  CACHE BOOL "" FORCE)
 
-# 2.  Safe‑string library  (strcpy_s, strncpy_s, …)
-file(GLOB SAFE_SRC
-     "${CMAKE_CURRENT_LIST_DIR}/../third_party/safestringlib/*.c")
+    add_subdirectory(
+        ${CMAKE_CURRENT_LIST_DIR}/..
+        ${CMAKE_CURRENT_BINARY_DIR}/svtcore
+        EXCLUDE_FROM_ALL)
+endif()
 
+find_package(Threads  REQUIRED)
+find_package(Python3  REQUIRED COMPONENTS Interpreter Development)
+find_package(pybind11 CONFIG REQUIRED) 
+
+# Add Safe‑string library
+file(GLOB SAFE_SRC "${CMAKE_CURRENT_LIST_DIR}/../third_party/safestringlib/*.c")
 add_library(safeclib STATIC ${SAFE_SRC})
 target_include_directories(safeclib PUBLIC
     "${CMAKE_CURRENT_LIST_DIR}/../third_party/safestringlib")
 
-# 3.  Plugin callbacks (defines svt_av1_enc_set_callbacks / plugin_cbs)
+# Compole plugin callbacks
 add_library(svtav1_plugin STATIC
     "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/enc_callbacks.c")
 
@@ -36,7 +47,7 @@ target_include_directories(svtav1_plugin PRIVATE
 
 target_link_libraries(svtav1_plugin PRIVATE Threads::Threads)
 
-# 4.  Re‑build Source/App/ as a static lib, renaming main()
+# Re‑build Source/App/ as a static library, renaming main()
 file(GLOB APP_SRC "${CMAKE_CURRENT_LIST_DIR}/../Source/App/*.c")
 add_library(svtav1_app STATIC ${APP_SRC})
 
@@ -49,30 +60,59 @@ target_include_directories(svtav1_app PUBLIC
 
 target_link_libraries(svtav1_app PUBLIC Threads::Threads safeclib)
 
-# 5.  Build the Python extension  _svtapp.{so,dylib,pyd}
-add_library(_svtapp MODULE
-    src/bridge/pybridge.c
-    src/pyencoder/_binding.c)
+# Build the Python extension  av1_wrapper.{so,dylib,pyd}
+set(BRIDGE_SRC
+    src/bridge/pybridge.cpp
+    src/bridge/cb_registration.cpp
+    src/bridge/utils.cpp)
 
-set_target_properties(_svtapp PROPERTIES PREFIX "")
+set(PYENCODER_SRC
+    src/pyencoder/_binding.cpp
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/rl_feedback.c")
 
-target_include_directories(_svtapp PRIVATE
+add_library(av1_wrapper MODULE
+    ${BRIDGE_SRC}
+    ${PYENCODER_SRC})
+
+# On Windows a Python extension must be named *.pyd without the "lib" prefix.
+if (WIN32)
+    set_target_properties(av1_wrapper PROPERTIES
+        OUTPUT_NAME "av1_wrapper"
+        PREFIX      ""
+        SUFFIX      ".pyd")
+else()
+    set_target_properties(av1_wrapper PROPERTIES PREFIX "")
+endif()
+
+# Include paths
+target_include_directories(av1_wrapper PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/.."
     src/bridge
     "${CMAKE_CURRENT_LIST_DIR}/../Source"
     "${CMAKE_CURRENT_LIST_DIR}/../Source/App"
     "${CMAKE_CURRENT_LIST_DIR}/../Source/API"
+    "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals"
     ${Python3_INCLUDE_DIRS})
 
-target_link_libraries(_svtapp
+# Link targets
+target_link_libraries(av1_wrapper
     PRIVATE
+        pybind11::module
         svtav1_plugin
         svtav1_app
         SvtAv1Enc
         safeclib
         Python3::Python
         Threads::Threads
-        m)
+        m)                   # libm on *nix
 
-# Install path for scikit‑build‑core editable wheels
-install(TARGETS _svtapp LIBRARY DESTINATION . RUNTIME DESTINATION .)
+# Installation path for scikit‑build‑core
+if(${FROM_PIP_INSTALL})
+    install(TARGETS av1_wrapper
+        LIBRARY DESTINATION .
+        RUNTIME DESTINATION .)
+else()
+    install(TARGETS av1_wrapper
+        LIBRARY DESTINATION ${Python3_SITEARCH}/pyencoder
+        RUNTIME DESTINATION ${Python3_SITEARCH}/pyencoder)
+endif()

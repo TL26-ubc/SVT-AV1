@@ -2,12 +2,19 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "ninja-debug",
-      "description": "Debug build using Ninja",
+      "name": "python-gym-debug",
+      "description": "Debug build using Ninja and custom Python",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/Bin/Debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SVT_ENABLE_USER_CALLBACKS": "ON",
+        "BUILD_PYTHON_APP": "1",
+        "Python3_ROOT_DIR": "${sourceDir}/.venv/",
+        "Python3_EXECUTABLE": "${sourceDir}/.venv/bin/python"
+      },
+      "environment": {
+        "PYTHONPATH": "${sourceDir}/python-gym/.venv/bin"
       }
     },
     {

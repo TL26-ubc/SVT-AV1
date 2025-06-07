@@ -27,6 +27,12 @@
 #include "rc_process.h"
 #include "enc_mode_config.h"
 
+#ifdef SVT_ENABLE_USER_CALLBACKS
+#include "rl_feedback.h"
+#include "enc_callbacks.h"
+void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, Bool is_highbd);
+#endif
+
 #define RDCOST_DBL_WITH_NATIVE_BD_DIST(RM, R, D, BD) RDCOST_DBL((RM), (R), (double)((D) >> (2 * (BD - 8))))
 
 /**************************************
@@ -938,13 +944,23 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
 
             if (eos && queue_entry_ptr->has_show_existing)
                 clear_eos_flag(output_stream_ptr);
-
+#ifdef SVT_ENABLE_USER_CALLBACKS
+            // send the byte stream and size
+            svt_report_picture_feedback(
+                output_stream_ptr->p_buffer, output_stream_ptr->n_filled_len, output_stream_ptr->dts);
+#endif
             svt_post_full_object(output_stream_wrapper_ptr);
             if (queue_entry_ptr->has_show_existing) {
                 EbObjectWrapper *existed = pop_undisplayed_frame(enc_ctx);
                 if (existed) {
                     EbBufferHeaderType *existed_output_stream_ptr = (EbBufferHeaderType *)existed->object_ptr;
                     encode_show_existing(enc_ctx, queue_entry_ptr, existed_output_stream_ptr);
+#ifdef SVT_ENABLE_USER_CALLBACKS
+                    // send the byte stream and size
+                    svt_report_picture_feedback(existed_output_stream_ptr->p_buffer,
+                                                existed_output_stream_ptr->n_filled_len,
+                                                existed_output_stream_ptr->dts);
+#endif
                     if (eos)
                         set_eos_flag(existed_output_stream_ptr);
                     svt_post_full_object(existed);

@@ -1,14 +1,24 @@
 from importlib import import_module as _imp
 
-_svtapp = _imp("._svtapp", package=__name__)
-_run = _svtapp.run
-_register = _svtapp.register_callbacks
+from pyencoder.av1_wrapper import register_callbacks, run
+
+# av1_wrapper = _imp(".av1_wrapper", package=__name__)
+_run = run
+_register = register_callbacks
+
 
 def run(**kwargs):
     argv = ["svtav1"]
     for key, val in kwargs.items():
-        flag = f"--{key.replace('_', '-')}"   # ex: rc_mode -> --rc-mode
-        if isinstance(val, bool):             # True/False -> 1/0
+        # If key starts with '-', use it directly as a flag
+        if key.startswith("-"):
+            flag = key
+        else:
+            # Determine short or long flag
+            flag = f"-{key}" if len(key) == 1 else f"--{key.replace('_', '-')}"
+
+        # Convert value to string appropriately
+        if isinstance(val, bool):
             argv.extend([flag, "1" if val else "0"])
         else:
             argv.extend([flag, str(val)])
@@ -16,5 +26,6 @@ def run(**kwargs):
     print(argv)
     _run(argv)
 
-def register_callbacks(*, get_deltaq_offset=None):
-    _register(get_deltaq_offset)
+
+def register_callbacks(*, get_deltaq_offset=None, picture_feedback=None):
+    _register(get_deltaq_offset, picture_feedback)
