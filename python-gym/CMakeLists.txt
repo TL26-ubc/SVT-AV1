@@ -1,7 +1,7 @@
          # Header‑only but still adds a target
 
 if(${FROM_PIP_INSTALL}) 
-        message(STATUS "Building for pip install")
+    message(STATUS "Building for pip install")
     cmake_minimum_required(VERSION 3.20)
     project(av1_gym_bridge LANGUAGES C CXX ASM)
 
@@ -10,6 +10,8 @@ if(${FROM_PIP_INSTALL})
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(CMAKE_C_FLAGS "-O0 ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O0 ${CMAKE_CXX_FLAGS}")
 
     add_compile_definitions(SVT_ENABLE_USER_CALLBACKS)
 

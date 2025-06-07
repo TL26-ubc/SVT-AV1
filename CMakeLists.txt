@@ -14,6 +14,10 @@ cmake_minimum_required(VERSION 3.16)
 if(${SVT_ENABLE_USER_CALLBACKS})
     message(STATUS "Building Python Gym bindings")
     add_compile_definitions(SVT_ENABLE_USER_CALLBACKS)
+
+    # Compile in the upstream SVT‑AV1 LIB
+    set(BUILD_SHARED_LIBS OFF  CACHE BOOL "" FORCE)
+    set(BUILD_APPS        OFF  CACHE BOOL "" FORCE)
 endif()
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
     message(WARNING "Building in-source is highly not recommended\n"

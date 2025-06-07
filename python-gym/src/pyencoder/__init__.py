@@ -10,8 +10,12 @@ _register = register_callbacks
 def run(**kwargs):
     argv = ["svtav1"]
     for key, val in kwargs.items():
-        # Determine short or long flag
-        flag = f"-{key}" if len(key) == 1 else f"--{key.replace('_', '-')}"
+        # If key starts with '-', use it directly as a flag
+        if key.startswith("-"):
+            flag = key
+        else:
+            # Determine short or long flag
+            flag = f"-{key}" if len(key) == 1 else f"--{key.replace('_', '-')}"
 
         # Convert value to string appropriately
         if isinstance(val, bool):
