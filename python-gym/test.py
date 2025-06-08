@@ -73,7 +73,7 @@ def get_deltaq_offset(
     if len(sb_info_list) != sb_total_count:
         raise RuntimeError("Python Error: List lengths do not match sb_total_count!")
 
-    offset_list_to_fill = [0]*sb_total_count
+    offset_list_to_fill = [114514]*sb_total_count
 
     return offset_list_to_fill # Indicate success    
 
