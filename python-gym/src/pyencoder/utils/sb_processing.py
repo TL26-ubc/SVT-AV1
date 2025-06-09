@@ -206,6 +206,8 @@ def get_num_superblock(
         frame_or_video.set(cv2.CAP_PROP_POS_FRAMES, pos)
     else:
         raise TypeError("Input must be a numpy.ndarray or cv2.VideoCapture.")
-    return (h // block_size) * (w // block_size)
+    num_blocks_h = (h + block_size - 1) // block_size
+    num_blocks_w = (w + block_size - 1) // block_size
+    return num_blocks_h * num_blocks_w
             
             
