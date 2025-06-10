@@ -243,7 +243,7 @@ class Av1GymEnv(gym.Env):
         # get rgb com
         encoded_frame_data = feedback["encoded_frame_data"]
 
-        y_psnr, cb_psnr, cr_psnr = self.video_reader.ycbcr_psnr(
+        y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(
             self.current_frame, encoded_frame_data
         )
 

@@ -194,7 +194,6 @@ class Av1RunningEnv:
         assert last_frame != None
         img_array = last_frame.to_ndarray(format="rgb24")
         ycrcb_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2YCrCb)
-        ycbcr_array = ycrcb_array[..., [0, 2, 1]]
 
         # if the last frame is a keyframe, we can write the bitstream to the file
         if last_frame.key_frame:
@@ -202,7 +201,7 @@ class Av1RunningEnv:
             self.all_bitstreams = io.BytesIO()  # get a new bytefile
             self.all_bitstreams.write(bitstream)  # write the keyframe to bytefile
 
-        return ycbcr_array
+        return ycrcb_array
 
     def get_deltaq_offset(
         self,

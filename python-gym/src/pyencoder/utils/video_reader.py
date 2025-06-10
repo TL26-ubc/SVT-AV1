@@ -39,14 +39,14 @@ class VideoReader:
     def get_resolution(self) -> Tuple[int, int]:
         return self.width, self.height
 
-    def read_ycbcr_components(
+    def read_ycrcb_components(
         self, frame_number: int
     ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         frame = self.read_frame(frame_number=frame_number)
         if frame is None:
             return None
-        ycbcr = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
-        return ycbcr  # Return in standard order
+        ycrcb = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+        return ycrcb  # Return in standard order
 
     def get_frame_count(self) -> int:
         return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -110,7 +110,7 @@ class VideoReader:
 
         return [y_comp_list, h_mv_list, v_mv_list, beta_list]
 
-    def ycbcr_psnr(
+    def ycrcb_psnr(
         self, frame_number: int, other_frame: tuple[np.ndarray, np.ndarray, np.ndarray]
     ):
         """
@@ -118,7 +118,7 @@ class VideoReader:
         other frame: (y,cb,cr)
         should be same size
         """
-        target_components = self.read_ycbcr_components(frame_number)
+        target_components = self.read_ycrcb_components(frame_number)
         if target_components is None:
             raise ValueError(f"Unable to read frame {frame_number} from the video.")
 
@@ -127,10 +127,16 @@ class VideoReader:
                 "Dimension mismatch between video frame and reference frame components."
             )
 
+        # VideoReader.render_single_component(other_frame[0], VideoComponent.Y)
         y_psnr = VideoReader.compute_psnr(target_components[0], other_frame[0])
         cb_psnr = VideoReader.compute_psnr(target_components[1], other_frame[1])
         cr_psnr = VideoReader.compute_psnr(target_components[2], other_frame[2])
 
+        # render the image for debug 
+        # target_bgr = cv2.cvtColor(target_components, cv2.COLOR_YCrCb2BGR)
+        # other_bgr = cv2.cvtColor(other_frame, cv2.COLOR_YCrCb2BGR)
+        # cv2.imwrite(f"target_{frame_number}.png", target_bgr)
+        # cv2.imwrite(f"other_frame_{frame_number}.png", other_bgr)
         return y_psnr, cb_psnr, cr_psnr
 
     @staticmethod
@@ -144,9 +150,9 @@ class VideoReader:
     @staticmethod
     def render_components(y: np.ndarray, cb: np.ndarray, cr: np.ndarray):
         # OpenCV uses Y, Cr, Cb order
-        ycbcr_image = cv2.merge((y, cr, cb))
+        ycrcb_image = cv2.merge((y, cr, cb))
 
-        bgr_image = cv2.cvtColor(ycbcr_image, cv2.COLOR_YCrCb2BGR)
+        bgr_image = cv2.cvtColor(ycrcb_image, cv2.COLOR_YCrCb2BGR)
         cv2.imshow("BGR", bgr_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
@@ -165,10 +171,10 @@ if __name__ == "__main__":
 
     reader.get_resolution()
     reader.get_frame_count()
-    y, cb, cr = reader.read_ycbcr_components(1)
+    y, cb, cr = reader.read_ycrcb_components(1)
 
     # Flatten arrays and write to CSV
-    with open("frame1_ycbcr.csv", "w", newline="") as csvfile:
+    with open("frame1_ycrcb.csv", "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["Component", "Row", "Col", "Value"])
         for comp_name, comp_array in zip(["Y", "Cb", "Cr"], [y, cb, cr]):
