@@ -7,6 +7,7 @@ import cv2
 import gymnasium as gym
 import numpy as np
 from pyencoder.environment.av1_running_env import Av1RunningEnv
+from pyencoder.utils import video_reader
 from pyencoder.utils.video_reader import VideoReader
 
 # Constants
@@ -37,7 +38,7 @@ class Av1GymEnv(gym.Env):
         self._episode_done = threading.Event()
 
         self.num_superblocks = self.video_reader.get_num_superblock()
-
+        self.num_frames = self.video_reader.get_frame_count()
         # Action space = QP offset grid
         self.action_space = gym.spaces.MultiDiscrete(
             # num \in [QP_MAX, QP_MIN], there are num_superblocks of them
@@ -124,7 +125,9 @@ class Av1GymEnv(gym.Env):
 
         # Wait for encoder to request action for this frame
         print(f"Waiting for action request from encoder...")
-        action_request = self.av1_running_env.wait_for_action_request(timeout=5.0)
+        action_request = self.av1_running_env.wait_for_action_request(
+            timeout=self.queue_timeout
+        )
 
         if action_request is None:
             print("No action request received - episode terminated")
@@ -141,7 +144,7 @@ class Av1GymEnv(gym.Env):
 
         # Wait for encoding feedback
         print(f"Waiting for feedback from encoder...")
-        feedback = self.av1_running_env.wait_for_feedback(timeout=5.0)
+        feedback = self.av1_running_env.wait_for_feedback(timeout=self.queue_timeout)
 
         if feedback is None:
             print("No feedback received - episode terminated")
@@ -179,7 +182,7 @@ class Av1GymEnv(gym.Env):
 
         info = {
             "frame_number": frame_number,
-            "reward_components": self._get_reward_components(feedback, qp_offsets),
+            "reward": reward,
             "bitstream_size": feedback.get("bitstream_size", 0),
             "episode_frames": self.current_frame,
         }
@@ -242,29 +245,14 @@ class Av1GymEnv(gym.Env):
     ) -> float:
         """Calculate reward based on encoding feedback"""
 
-        try:
-            bitstream_size = feedback.get("bitstream_size", 0)
+        # get rgb com
+        encoded_frame_data = feedback["encoded_frame_data"]
 
-            # Estimate quality (placeholder - in real implementation, use PSNR/SSIM)
-            estimated_quality = self._estimate_quality(feedback, action_request)
+        y_psnr, cb_psnr, cr_psnr = self.video_reader.ycbcr_psnr(
+            self.current_frame, encoded_frame_data
+        )
 
-            # Rate-distortion reward
-            # Negative bitrate (minimize bits) + positive quality (maximize quality)
-            bitrate_penalty = bitstream_size / 10000.0  # Normalize bitrate
-            quality_reward = estimated_quality
-
-            reward = -bitrate_penalty + self.lambda_rd * quality_reward
-
-            # Temporal consistency reward
-            # temporal_reward = self._calculate_temporal_consistency_reward(qp_offsets)
-
-            total_reward = reward + 0.1 * temporal_reward
-
-            return float(total_reward)
-
-        except Exception as e:
-            print(f"Error calculating reward: {e}")
-            return 0.0
+        return y_psnr
 
     def _start_encoder_thread(self):
         """Start encoder in separate thread"""
@@ -287,3 +275,10 @@ class Av1GymEnv(gym.Env):
             print(f"Encoder thread error: {e}")
         finally:
             self.encoder_running = False
+
+    def _check_termination_conditions(self):
+        """Check if episode should terminate"""
+        # Maximum frames reached
+        if self.current_frame >= self.num_frames:
+            self.terminated = True
+            return

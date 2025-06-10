@@ -46,8 +46,7 @@ class VideoReader:
         if frame is None:
             return None
         ycbcr = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
-        y, cr, cb = cv2.split(ycbcr)
-        return y, cb, cr  # Return in standard order
+        return ycbcr  # Return in standard order
 
     def get_frame_count(self) -> int:
         return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -111,6 +110,29 @@ class VideoReader:
 
         return [y_comp_list, h_mv_list, v_mv_list, beta_list]
 
+    def ycbcr_psnr(
+        self, frame_number: int, other_frame: tuple[np.ndarray, np.ndarray, np.ndarray]
+    ):
+        """
+        frame number
+        other frame: (y,cb,cr)
+        should be same size
+        """
+        target_components = self.read_ycbcr_components(frame_number)
+        if target_components is None:
+            raise ValueError(f"Unable to read frame {frame_number} from the video.")
+
+        if target_components.shape != other_frame.shape:
+            raise ValueError(
+                "Dimension mismatch between video frame and reference frame components."
+            )
+
+        y_psnr = VideoReader.compute_psnr(target_components[0], other_frame[0])
+        cb_psnr = VideoReader.compute_psnr(target_components[1], other_frame[1])
+        cr_psnr = VideoReader.compute_psnr(target_components[2], other_frame[2])
+
+        return y_psnr, cb_psnr, cr_psnr
+
     @staticmethod
     def render_single_component(
         component_array: np.ndarray, component_type: VideoComponent
@@ -128,6 +150,13 @@ class VideoReader:
         cv2.imshow("BGR", bgr_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+
+    @staticmethod
+    def compute_psnr(target, reference):
+        mse = np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2)
+        if mse == 0:
+            return float("inf")
+        return 10 * np.log10((255.0**2) / mse)
 
 
 # simple test

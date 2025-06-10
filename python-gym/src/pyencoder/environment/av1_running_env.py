@@ -1,9 +1,11 @@
+import io
 import queue
 import threading
 import time
 from ast import Assert
 from typing import Any, Dict, List, Optional
 
+import av
 import cv2
 import numpy as np
 import pyencoder
@@ -63,7 +65,7 @@ class Av1RunningEnv:
 
         self.video_path = video_path
         self.bytes_keeper = {}
-        self.all_bitstreams = bytearray()  # Store all bitstreams as a bytearray
+        self.all_bitstreams = io.BytesIO()  # Holds joined bitstream data
         self.joined_bitstream_num = 0  # Counter for joined bitstreams
 
         self.frame_stats = {}
@@ -124,7 +126,8 @@ class Av1RunningEnv:
         This is typically called at the start of a new encoding session.
         """
         self.bytes_keeper.clear()
-        self.all_bitstreams = bytearray()
+        self.all_bitstreams.close()
+        self.all_bitstreams = io.BytesIO()
         self.joined_bitstream_num = 0  # Reset the counter for joined bitstreams
         self.frame_stats.clear()
         self.frame_counter = 0
@@ -161,14 +164,14 @@ class Av1RunningEnv:
         """
 
         self.bytes_keeper[picture_number] = bitstream
-        frame_data = self.current_frame_data.get(picture_number, {})
+
+        encoded_frame_data = self.get_last_frame(bitstream=bitstream)
 
         # Prepare feedback for RL environment
         feedback_data = {
             "picture_number": picture_number,
             "bitstream_size": size,
-            "frame_data": frame_data,
-            "timestamp": time.time(),
+            "encoded_frame_data": encoded_frame_data,
         }
 
         # Send feedback to RL environment (non-blocking)
@@ -178,6 +181,28 @@ class Av1RunningEnv:
             print(f"Warning: Feedback queue full for frame {picture_number}")
 
         print(f"Picture feedback sent for frame {picture_number}, size: {size}")
+
+    def get_last_frame(self, bitstream):
+        byte_file = self.all_bitstreams
+        byte_file.write(bitstream)
+        byte_file.seek(0)
+        container = av.open(byte_file)
+        last_frame = None
+        for frame in container.decode(video=0):
+            last_frame = frame
+
+        assert last_frame != None
+        img_array = last_frame.to_ndarray(format="rgb24")
+        ycrcb_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2YCrCb)
+        ycbcr_array = ycrcb_array[..., [0, 2, 1]]
+
+        # if the last frame is a keyframe, we can write the bitstream to the file
+        if last_frame.key_frame:
+            byte_file.close()
+            self.all_bitstreams = io.BytesIO()  # get a new bytefile
+            self.all_bitstreams.write(bitstream)  # write the keyframe to bytefile
+
+        return ycbcr_array
 
     def get_deltaq_offset(
         self,
