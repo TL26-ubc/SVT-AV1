@@ -66,26 +66,11 @@ class Av1RunningEnv:
         self.video_path = video_path
         self.bytes_keeper = {}
         self.all_bitstreams = io.BytesIO()  # Holds joined bitstream data
-        self.joined_bitstream_num = 0  # Counter for joined bitstreams
-
-        self.frame_stats = {}
-
-        # Frame tracking
-        self.frame_counter = 0
-        self.episode_frames = []
 
         # Synchronization
         self.action_request_queue = queue.Queue(maxsize=1)  # Encoder requests action
         self.action_response_queue = queue.Queue(maxsize=1)  # RL provides action
         self.feedback_queue = queue.Queue(maxsize=10)  # Encoder provides feedback to RL
-
-        # Threading synchronization
-        self.action_lock = threading.RLock()
-        self.current_frame_data = {}
-
-        # Baseline mode flag
-        self.baseline_mode = True
-        self.baseline_complete = False
 
     def run_SVT_AV1_encoder(self, output_path: str = None, first_round: bool = False):
         self.reset_parameter()
@@ -128,10 +113,6 @@ class Av1RunningEnv:
         self.bytes_keeper.clear()
         self.all_bitstreams.close()
         self.all_bitstreams = io.BytesIO()
-        self.joined_bitstream_num = 0  # Reset the counter for joined bitstreams
-        self.frame_stats.clear()
-        self.frame_counter = 0
-        self.episode_frames.clear()
 
         # Clear queues
         while not self.action_request_queue.empty():
@@ -216,14 +197,6 @@ class Av1RunningEnv:
         """
         Assert(len(sb_info_list) != sb_total_count)
 
-        if self.baseline_mode:
-            # Return special value to use encoder's default method
-            return [114514] * sb_total_count
-
-        if not self.rl_env:
-            # Fallback to default if no RL environment
-            return [0] * sb_total_count
-
         # Request action from RL environment
         action_request = {
             "picture_number": picture_number,
@@ -287,83 +260,3 @@ class Av1RunningEnv:
             return self.feedback_queue.get(timeout=timeout)
         except queue.Empty:
             return None
-
-    def set_rl_environment(self, rl_env):
-        """Set the RL environment after initialization"""
-        self.rl_env = rl_env
-        self.baseline_mode = False
-
-    def run_baseline_encoder(self, output_path: str = None):
-        """Run encoder in baseline mode to get reference performance"""
-        print("Running baseline encoder...")
-        self.reset_parameter()
-        self.baseline_mode = True
-        self.register_callback()
-
-        if output_path:
-            pyencoder.run(
-                input=self.video_path,
-                pred_struct=1,
-                rc=2,
-                tbr=100,
-                enable_stat_report=True,
-                b=output_path,
-            )
-        else:
-            pyencoder.run(
-                input=self.video_path,
-                pred_struct=1,
-                rc=2,
-                tbr=100,
-                enable_stat_report=True,
-            )
-
-        self.baseline_complete = True
-        print("Baseline encoding completed")
-
-    def run_rl_encoder(self, output_path: str = None):
-        """Run encoder with RL control"""
-        if not self.rl_env:
-            raise RuntimeError(
-                "RL environment not set. Call set_rl_environment() first."
-            )
-
-        print("Running RL-controlled encoder...")
-        self.reset_parameter()
-        self.baseline_mode = False
-        self.register_callback()
-
-        if output_path:
-            pyencoder.run(
-                input=self.video_path,
-                pred_struct=1,
-                rc=2,
-                tbr=100,
-                enable_stat_report=True,
-                b=output_path,
-            )
-        else:
-            pyencoder.run(
-                input=self.video_path,
-                pred_struct=1,
-                rc=2,
-                tbr=100,
-                enable_stat_report=True,
-            )
-
-    def get_frame_state_from_video(self, frame_number: int) -> np.ndarray:
-        """Get frame state using sb_processing helper functions"""
-        cap = cv2.VideoCapture(str(self.video_path))
-        if not cap.isOpened():
-            raise RuntimeError(f"Cannot open video file: {self.video_path}")
-
-        # Get frame
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-        ret, frame = cap.read()
-        cap.release()
-
-        if not ret:
-            raise RuntimeError(f"Cannot read frame {frame_number}")
-
-        frame_state = get_frame_state(frame, block_size=64)
-        return np.array(frame_state, dtype=np.float32)

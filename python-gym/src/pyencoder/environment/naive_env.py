@@ -1,5 +1,6 @@
 import queue
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -9,10 +10,17 @@ import numpy as np
 from pyencoder.environment.av1_running_env import Av1RunningEnv
 from pyencoder.utils import video_reader
 from pyencoder.utils.video_reader import VideoReader
+from sympy import false
 
 # Constants
 QP_MIN, QP_MAX = -3, 3  # delta QP range which will be action
 SB_SIZE = 64  # superblock size
+
+
+# @dataclass()
+# class Av1GymInfo:
+#     actions: np.ndarray
+#     reward: float
 
 
 # Extending gymnasium's Env class
@@ -31,8 +39,6 @@ class Av1GymEnv(gym.Env):
         self.video_path = Path(video_path)
         self.av1_running_env = Av1RunningEnv(video_path=video_path)
         self.video_reader = VideoReader(path=video_path)
-
-        self.av1_running_env.set_rl_environment(self)
 
         self.lambda_rd = lambda_rd
         self._episode_done = threading.Event()
@@ -65,19 +71,13 @@ class Av1GymEnv(gym.Env):
 
         # Episode management
         self.current_frame = 0
-        self.episode_rewards = []
-        self.current_episode_reward = 0.0
         self.terminated = False
-        self.truncated = False
 
         # Frame data storage
         self.frame_history = []
-        self.previous_frame_quality = None
 
         # Synchronization
-        self.processing_lock = threading.RLock()
         self.encoder_thread = None
-        self.encoder_running = False
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
     def reset(
@@ -91,9 +91,7 @@ class Av1GymEnv(gym.Env):
         self.current_frame = 0
         self.current_episode_reward = 0.0
         self.terminated = False
-        self.truncated = False
         self.frame_history.clear()
-        self.previous_frame_quality = None
 
         # Get initial observation (frame 0 state)
         initial_obs = self._get_initial_observation()
@@ -103,15 +101,16 @@ class Av1GymEnv(gym.Env):
 
         info = {
             "frame_number": self.current_frame,
-            "num_superblocks": self.num_superblocks,
-            "episode_start": True,
+            "reward": 0,
+            "bitstream_size": 0,
+            "episode_frames": self.current_frame,
         }
 
         return initial_obs, info
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
         """Execute one step in the environment"""
-        if self.terminated or self.truncated:
+        if self.terminated:
             raise RuntimeError("Episode has ended. Call reset() before step().")
 
         # Validate action
@@ -189,7 +188,7 @@ class Av1GymEnv(gym.Env):
 
         print(f"Step completed - Frame: {frame_number}, Reward: {reward:.4f}")
 
-        return next_obs, reward, self.terminated, self.truncated, info
+        return next_obs, reward, self.terminated, False, info
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.close
     def close(self):
@@ -254,7 +253,6 @@ class Av1GymEnv(gym.Env):
         if self.encoder_thread and self.encoder_thread.is_alive():
             return
 
-        self.encoder_running = True
         self.encoder_thread = threading.Thread(
             target=self._run_encoder, daemon=True, name="EncoderThread"
         )
@@ -264,16 +262,15 @@ class Av1GymEnv(gym.Env):
         """Run encoder in separate thread"""
         try:
             print("Starting encoder thread...")
-            self.av1_running_env.run_rl_encoder()
+            self.av1_running_env.run_SVT_AV1_encoder()
             print("Encoder thread completed")
         except Exception as e:
             print(f"Encoder thread error: {e}")
         finally:
-            self.encoder_running = False
+            pass
 
     def _check_termination_conditions(self):
         """Check if episode should terminate"""
         # Maximum frames reached
         if self.current_frame >= self.num_frames:
             self.terminated = True
-            return

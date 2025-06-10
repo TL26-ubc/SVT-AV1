@@ -29,7 +29,7 @@ def prase_arg():
         "--algorithm", choices=["ppo", "dqn"], default="ppo", help="RL algorithm to use"
     )
     parser.add_argument(
-        "--total_timesteps", type=int, default=50000, help="Total training timesteps"
+        "--total_timesteps", type=int, default=50, help="Total training timesteps"
     )
     parser.add_argument(
         "--learning_rate", type=float, default=3e-4, help="Learning rate"
@@ -77,7 +77,7 @@ if __name__ == "__main__":
         video_path=args.file,
         lambda_rd=args.lambda_rd,
     )
-    env = Monitor(env, str(base_output_path))
+    env = Monitor(env, str(base_output_path / "monitor"))
 
     # eval_env = Av1GymEnv(
     #     video_path=args.file,
@@ -124,7 +124,7 @@ if __name__ == "__main__":
             verbose=1,
             # tensorboard_log=str(base_output_path / "tensorboard"),
         )
-        
+
     # training
     try:
         model.learn(
