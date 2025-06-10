@@ -1,136 +1,187 @@
-# import enum
-# from pathlib import Path
-# from typing import Optional, Tuple
+import csv
+import enum
+from pathlib import Path
+from typing import Optional, Tuple, overload
 
-# import cv2
-# import numpy as np
-# from skimage.metrics import structural_similarity as ssim
-
-
-# class VideoComponent(enum.Enum):
-#     Y = "Y"
-#     Cb = "Cb"
-#     Cr = "Cr"
+import cv2
+import numpy as np
 
 
-# class VideoReader:
-#     def __init__(self, path: str):
-#         self.path = path
-#         self.cap = cv2.VideoCapture(path)
-#         if not self.cap.isOpened():
-#             raise ValueError(f"Cannot open video file: {path}")
-#         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-#         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-#     def read(self) -> Optional[np.ndarray]:
-#         ret, frame = self.cap.read()
-#         return frame if ret else None
-
-#     def release(self):
-#         self.cap.release()
-
-#     def get_resolution(self) -> Tuple[int, int]:
-#         return self.width, self.height
-
-#     def read_ycbcr_components(
-#         self, frame_number: int
-#     ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-#         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-#         frame = self.read()
-#         if frame is None:
-#             return None
-#         ycbcr = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
-#         y, cr, cb = cv2.split(ycbcr)
-#         return y, cb, cr  # Return in standard order
-
-#     def read_ycbcr_components_chopped(
-#         self,
-#         frame_number: int,
-#         left_top: Tuple[int, int],
-#         right_bottom: Tuple[int, int],
-#     ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-#         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-#         frame = self.read()
-#         if frame is None:
-#             return None
-#         ycbcr = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
-#         y, cr, cb = cv2.split(ycbcr)
-#         y = y[left_top[1] : right_bottom[1], left_top[0] : right_bottom[0]]
-#         cb = cb[left_top[1] : right_bottom[1], left_top[0] : right_bottom[0]]
-#         cr = cr[left_top[1] : right_bottom[1], left_top[0] : right_bottom[0]]
-#         return y, cb, cr
-
-#     def get_frame_count(self) -> int:
-#         return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-#     def render_frame_number(self, frame_number: int):
-#         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-#         frame = self.read()
-#         if frame is not None:
-#             self.render_frame(frame)
-
-#     def render_frame(self, frame: np.ndarray):
-#         cv2.imshow("Frame", frame)
-#         cv2.waitKey(0)
-#         cv2.destroyAllWindows()
-
-#     @staticmethod
-#     def render_single_component(
-#         component_array: np.ndarray, component_type: VideoComponent
-#     ):
-#         cv2.imshow(str(component_type.value), component_array)
-#         cv2.waitKey(0)
-#         cv2.destroyAllWindows()
-
-#     @staticmethod
-#     def render_components(y: np.ndarray, cb: np.ndarray, cr: np.ndarray):
-#         # OpenCV uses Y, Cr, Cb order
-#         ycbcr_image = cv2.merge((y, cr, cb))
-
-#         bgr_image = cv2.cvtColor(ycbcr_image, cv2.COLOR_YCrCb2BGR)
-#         cv2.imshow("BGR", bgr_image)
-#         cv2.waitKey(0)
-#         cv2.destroyAllWindows()
-
-#     @staticmethod
-#     def calculate_psnr(original: np.ndarray, compressed: np.ndarray) -> float:
-#         if original.shape != compressed.shape:
-#             raise ValueError("Original and compressed images must have the same shape.")
-
-#         mse = np.mean(
-#             (original.astype(np.float64) - compressed.astype(np.float64)) ** 2
-#         )
-#         if mse == 0:
-#             return float("inf")
-#         PIXEL_MAX = 255.0
-#         return 20 * np.log10(PIXEL_MAX / np.sqrt(mse))
-
-#     @staticmethod
-#     def calculate_ssim(original: np.ndarray, compressed: np.ndarray) -> float:
-#         if original.shape != compressed.shape:
-#             raise ValueError("Original and compressed images must have the same shape.")
-#         return ssim(
-#             original,
-#             compressed,
-#             data_range=original.max() - original.min(),
-#             multichannel=True,
-#         )
-
-#     @staticmethod
-#     def calculate_mse(original: np.ndarray, compressed: np.ndarray) -> float:
-#         if original.shape != compressed.shape:
-#             raise ValueError("Original and compressed images must have the same shape.")
-#         return np.mean((original - compressed) ** 2)
+class VideoComponent(enum.Enum):
+    Y = "Y"
+    Cb = "Cb"
+    Cr = "Cr"
 
 
-# # simple test
-# if __name__ == "__main__":
-#     reader = VideoReader("Data\\akiyo_qcif.y4m")
+SB_SIZE = 64
 
-#     reader.get_resolution()
-#     reader.get_frame_count()
-#     y, cb, cr = reader.read_ycbcr_components(1)
 
-#     reader.render_single_component(y, VideoComponent.Y)
+class VideoReader:
+    def __init__(self, path: str):
+        self.path = path
+        self.cap = cv2.VideoCapture(path)
+        if not self.cap.isOpened():
+            raise ValueError(f"Cannot open video file: {path}")
+        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-#     VideoReader.render_components(y, cb, cr)
+    def read(self) -> Optional[np.ndarray]:
+        ret, frame = self.cap.read()
+        return frame if ret else None
+
+    def read_frame(self, frame_number):
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+        return self.read()
+
+    def release(self):
+        self.cap.release()
+
+    def get_resolution(self) -> Tuple[int, int]:
+        return self.width, self.height
+
+    def read_ycrcb_components(
+        self, frame_number: int
+    ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+        frame = self.read_frame(frame_number=frame_number)
+        if frame is None:
+            return None
+        ycrcb = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+        return ycrcb  # Return in standard order
+
+    def get_frame_count(self) -> int:
+        return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    def render_frame_number(self, frame_number: int):
+        frame = self.read_frame(frame_number=frame_number)
+        if frame is not None:
+            self.render_frame(frame)
+
+    def render_frame(self, frame: np.ndarray):
+        cv2.imshow("Frame", frame)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    # sb infor
+    def get_num_superblock(self):
+        num_blocks_h = (self.height + SB_SIZE - 1) // SB_SIZE
+        num_blocks_w = (self.width + SB_SIZE - 1) // SB_SIZE
+        return num_blocks_h * num_blocks_w
+
+    def get_x_frame_state(self, frame_number) -> list[list[float]]:
+        """
+        Extracts the state of a video frame based on superblock information.
+
+        Args:
+            frame (np.ndarray): The video frame.
+            block_size (int): Size of the blocks to be processed. Should be 64 in SVT-AV1.
+
+        Returns:
+            a list of lists containing superblock information:
+                0 Y-component variance of all superblocks in the frame
+                1 Horizontal and
+                2 vertical difference of all superblocks in the frame
+                3 Gradient magnitude of all superblocks in the frame
+        """
+        frame = self.read_frame(frame_number)
+
+        h, w = frame.shape[:2]
+        y_comp_list = []
+        h_mv_list = []
+        v_mv_list = []
+        beta_list = []
+
+        for y in range(0, h, SB_SIZE):
+            for x in range(0, w, SB_SIZE):  # follow encoder order, x changes first
+                y_end = min(y + SB_SIZE, h)
+                x_end = min(x + SB_SIZE, w)
+                sb = frame[y:y_end, x:x_end]
+                if sb.size == 0:
+                    continue
+
+                sb_y_var = np.var(sb[:, :, 0])  # Y-component variance
+                sb_x_mv = np.mean(sb[:, :, 1])  # Horizontal motion vector
+                sb_y_mv = np.mean(sb[:, :, 2])  # Vertical motion vector
+                beta = np.mean(np.abs(sb))  # Example metric
+
+                y_comp_list.append(sb_y_var)
+                h_mv_list.append(sb_x_mv)
+                v_mv_list.append(sb_y_mv)
+                beta_list.append(beta)
+
+        return [y_comp_list, h_mv_list, v_mv_list, beta_list]
+
+    def ycrcb_psnr(
+        self, frame_number: int, other_frame: tuple[np.ndarray, np.ndarray, np.ndarray]
+    ):
+        """
+        frame number
+        other frame: (y,cb,cr)
+        should be same size
+        """
+        target_components = self.read_ycrcb_components(frame_number)
+        if target_components is None:
+            raise ValueError(f"Unable to read frame {frame_number} from the video.")
+
+        if target_components.shape != other_frame.shape:
+            raise ValueError(
+                "Dimension mismatch between video frame and reference frame components."
+            )
+
+        # VideoReader.render_single_component(other_frame[0], VideoComponent.Y)
+        y_psnr = VideoReader.compute_psnr(target_components[0], other_frame[0])
+        cb_psnr = VideoReader.compute_psnr(target_components[1], other_frame[1])
+        cr_psnr = VideoReader.compute_psnr(target_components[2], other_frame[2])
+
+        # render the image for debug 
+        # target_bgr = cv2.cvtColor(target_components, cv2.COLOR_YCrCb2BGR)
+        # other_bgr = cv2.cvtColor(other_frame, cv2.COLOR_YCrCb2BGR)
+        # cv2.imwrite(f"target_{frame_number}.png", target_bgr)
+        # cv2.imwrite(f"other_frame_{frame_number}.png", other_bgr)
+        return y_psnr, cb_psnr, cr_psnr
+
+    @staticmethod
+    def render_single_component(
+        component_array: np.ndarray, component_type: VideoComponent
+    ):
+        cv2.imshow(str(component_type.value), component_array)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    @staticmethod
+    def render_components(y: np.ndarray, cb: np.ndarray, cr: np.ndarray):
+        # OpenCV uses Y, Cr, Cb order
+        ycrcb_image = cv2.merge((y, cr, cb))
+
+        bgr_image = cv2.cvtColor(ycrcb_image, cv2.COLOR_YCrCb2BGR)
+        cv2.imshow("BGR", bgr_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    @staticmethod
+    def compute_psnr(target, reference):
+        mse = np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2)
+        if mse == 0:
+            return float("inf")
+        return 10 * np.log10((255.0**2) / mse)
+
+
+# simple test
+if __name__ == "__main__":
+    reader = VideoReader("/home/tom/tmp/playground/akiyo_qcif.y4m")
+
+    reader.get_resolution()
+    reader.get_frame_count()
+    y, cb, cr = reader.read_ycrcb_components(1)
+
+    # Flatten arrays and write to CSV
+    with open("frame1_ycrcb.csv", "w", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Component", "Row", "Col", "Value"])
+        for comp_name, comp_array in zip(["Y", "Cb", "Cr"], [y, cb, cr]):
+            for row in range(comp_array.shape[0]):
+                for col in range(comp_array.shape[1]):
+                    writer.writerow([comp_name, row, col, int(comp_array[row, col])])
+
+    # reader.render_single_component(y, VideoComponent.Y)
+
+    VideoReader.render_components(y, cb, cr)

@@ -5,7 +5,6 @@ from typing import Any, Dict, Tuple
 
 import gymnasium as gym
 import numpy as np
-from pyencoder.environment.utils import _probe_resolution
 from pyencoder.utils.video_reader import VideoReader
 
 # Constants
@@ -100,11 +99,11 @@ class Av1Env(gym.Env):
             raise ValueError(
                 f"Action grid shape {action.shape} != ({self.h_sb},{self.w_sb})"
             )
-        # wait for a action to complete 
-        # wake up the encoder thread for a frame to complete QP mapping 
-        
-        # wait for a feedback 
-        
+        # wait for a action to complete
+        # wake up the encoder thread for a frame to complete QP mapping
+
+        # wait for a feedback
+
         # send action to encoder
         # self._action_q.put(action.astype(np.int32, copy=False))
         obs, reward, self._terminated, _, info = self.get_frame_feedback(
