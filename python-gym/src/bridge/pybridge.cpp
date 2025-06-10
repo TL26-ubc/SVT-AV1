@@ -14,7 +14,7 @@ recv_picture_feedback_cb_t recv_picture_feedback_cb  = nullptr;
 extern "C" void get_deltaq_offset_trampoline(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count,
                                        int32_t picture_number, int32_t frame_type, void *user)
 {
-    Callback &cb = g_callbacks[static_cast<int>(CallbackEnum::GetDeltaQOffset)];
+    Callback &cb =*g_callbacks[static_cast<int>(CallbackEnum::GetDeltaQOffset)];
     if (cb.py_func.is_none())
         return;
     
@@ -66,7 +66,7 @@ extern "C" void get_deltaq_offset_trampoline(SuperBlockInfo *sb_info_array, int 
 extern "C" void recv_picture_feedback_trampoline(uint8_t *bitstream, uint32_t bitstream_size,
                                            uint32_t picture_number, void *user)
 {
-    Callback &cb = g_callbacks[static_cast<int>(CallbackEnum::RecvPictureFeedback)];
+    Callback &cb = *g_callbacks[static_cast<int>(CallbackEnum::RecvPictureFeedback)];
     if (cb.py_func.is_none())
         return;
 

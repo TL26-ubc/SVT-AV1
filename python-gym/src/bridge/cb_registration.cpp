@@ -6,10 +6,7 @@ namespace py = pybind11;
 
 namespace pybridge {
 
-Callback g_callbacks[static_cast<int>(CallbackEnum::Count)] = {
-    /* GetDeltaQOffset     */ { py::none(), nullptr, 4 },
-    /* RecvPictureFeedback */ { py::none(), nullptr, 3 }
-};
+Callback* g_callbacks[static_cast<int>(CallbackEnum::Count)] = {nullptr};
 
 static int set_cb_ptr(CallbackEnum which, bool unset)
 {
@@ -27,13 +24,13 @@ static int set_cb_ptr(CallbackEnum which, bool unset)
 
 static int clear_slot(CallbackEnum which)
 {
-    g_callbacks[static_cast<int>(which)].py_func = py::none();  // RAII decref
+    g_callbacks[static_cast<int>(which)]->py_func = py::none();  // RAII decref
     return set_cb_ptr(which, /*unset=*/true);
 }
 
 int pybridge_set_cb(CallbackEnum which, py::object callable)
 {
-    Callback &slot = g_callbacks[static_cast<int>(which)];
+    Callback &slot = *g_callbacks[static_cast<int>(which)];
 
     if (callable.is_none()) {
         // Unset function
