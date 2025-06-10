@@ -101,7 +101,7 @@ if __name__ == "__main__":
             vf_coef=0.5,
             max_grad_norm=0.5,
             verbose=1,
-            tensorboard_log=str(base_output_path / "tensorboard"),
+            # tensorboard_log=str(base_output_path / "tensorboard"),
         )
     elif args.algorithm == "dqn":
         # Note: DQN doesn't directly support MultiDiscrete action spaces
@@ -122,7 +122,7 @@ if __name__ == "__main__":
             exploration_initial_eps=1.0,
             exploration_final_eps=0.02,
             verbose=1,
-            tensorboard_log=str(base_output_path / "tensorboard"),
+            # tensorboard_log=str(base_output_path / "tensorboard"),
         )
         
     # training
