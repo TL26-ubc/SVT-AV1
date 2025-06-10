@@ -131,10 +131,9 @@ class Av1GymEnv(gym.Env):
         if action_request is None:
             print("No action request received - episode terminated")
             self.terminated = True
-            return self._get_current_observation(), 0.0, True, False, {"timeout": True}
-
-        frame_number = action_request["picture_number"]
-        sb_info_list = action_request["sb_info_list"]
+            return self._get_current_observation(), 0.0, True, False, {'timeout': True}
+        
+        frame_number = action_request['picture_number']
 
         print(f"Processing frame {frame_number} with {len(qp_offsets)} QP offsets")
 

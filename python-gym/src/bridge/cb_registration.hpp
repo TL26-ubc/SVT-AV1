@@ -15,8 +15,9 @@ struct Callback {
     int              n_args;
 };
 
-extern Callback g_callbacks[static_cast<int>(CallbackEnum::Count)];
+extern Callback* g_callbacks[static_cast<int>(CallbackEnum::Count)];
 
 int pybridge_set_cb(CallbackEnum which, pybind11::object callable);
 
 } // namespace pybridge
+
