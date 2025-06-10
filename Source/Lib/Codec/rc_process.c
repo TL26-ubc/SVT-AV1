@@ -1237,9 +1237,7 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
     uint32_t sb_cnt = ppcs->b64_total_count;
 
 #ifdef SVT_ENABLE_USER_CALLBACKS
-    SuperBlockInfo sb_info_array[sb_cnt];
-    int            offset_array[sb_cnt];
-    memset(sb_info_array, 0, sizeof(sb_info_array));
+    int offset_array[sb_cnt];
     memset(offset_array, 0, sizeof(offset_array));
 
     if (plugin_cbs.user_get_deltaq_offset) {
@@ -1248,6 +1246,13 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
                                           sb_cnt,
                                           (int32_t)pcs->picture_number // Main parameter: frame number
         );
+
+        if (offset_array[0] == 114514) {
+            // first round, reset all value to 0
+            memset(offset_array, 0, sizeof(offset_array));
+        }
+    } else {
+        assert(!"User callback for deltaq offset is not defined, but cyclic refresh is enabled.");
     }
 #endif
 
@@ -1265,23 +1270,22 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
         for (b64_idx = 0; b64_idx < ppcs->b64_total_count; ++b64_idx) {
             int diff_dist = (int)(ppcs->me_8x8_distortion[b64_idx] - avg_me_dist);
             sb            = pcs->sb_ptr_array[b64_idx];
-            int offset    = 0;
 
 #ifdef SVT_ENABLE_USER_CALLBACKS
             // Use callback offset if available
-            if (plugin_cbs.user_get_deltaq_offset) {
-                offset = offset_array[b64_idx];
-
-                //printf("offset of frame %d: %d\n", pcs->picture_number, offset);
-            } else {
-#endif
-                // Original cyclic refresh logic
-                if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end && diff_dist <= 0) {
-                    offset = delta;
-                } else if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end) {
-                    offset = delta / 2;
-                }
-#ifdef SVT_ENABLE_USER_CALLBACKS
+            int offset = offset_array[b64_idx];
+            if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end && diff_dist <= 0) {
+                offset += delta;
+            } else if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end) {
+                offset += delta / 2;
+            }
+#elif
+            int offset = 0;
+            // Original cyclic refresh logic
+            if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end && diff_dist <= 0) {
+                offset = delta;
+            } else if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end) {
+                offset = delta / 2;
             }
 #endif
 
@@ -1294,15 +1298,13 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
             sb = pcs->sb_ptr_array[b64_idx];
 
 #ifdef SVT_ENABLE_USER_CALLBACKS
-            // Use callback offset if available (even when cyclic refresh is not applied)
-            if (plugin_cbs.user_get_deltaq_offset) {
-                int offset = offset_array[b64_idx];
-                sb->qindex = CLIP3(1, 255, quantizer_to_qindex[pcs->picture_qp] + offset);
-            } else {
-#endif
-                sb->qindex = quantizer_to_qindex[pcs->picture_qp];
-#ifdef SVT_ENABLE_USER_CALLBACKS
-            }
+
+            int offset = offset_array[b64_idx];
+            sb->qindex = CLIP3(ppcs->frm_hdr.delta_q_params.delta_q_res,
+                               255 - ppcs->frm_hdr.delta_q_params.delta_q_res,
+                               (int16_t)(quantizer_to_qindex[pcs->picture_qp] + offset));
+#elif
+            sb->qindex = quantizer_to_qindex[pcs->picture_qp];
 #endif
         }
     }

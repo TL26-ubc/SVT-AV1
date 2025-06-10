@@ -78,6 +78,9 @@ class Av1GymEnv(gym.Env):
 
         # Synchronization
         self.encoder_thread = None
+        
+        # run the first round of encoding
+        self.av1_running_env.run_SVT_AV1_encoder()
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
     def reset(
@@ -123,7 +126,6 @@ class Av1GymEnv(gym.Env):
         qp_offsets = self._action_to_qp_offsets(action)
 
         # Wait for encoder to request action for this frame
-        print(f"Waiting for action request from encoder...")
         action_request = self.av1_running_env.wait_for_action_request(
             timeout=self.queue_timeout
         )
@@ -135,13 +137,10 @@ class Av1GymEnv(gym.Env):
         
         frame_number = action_request['picture_number']
 
-        print(f"Processing frame {frame_number} with {len(qp_offsets)} QP offsets")
-
         # Send action response to encoder
         self.av1_running_env.send_action_response(qp_offsets.tolist())
 
         # Wait for encoding feedback
-        print(f"Waiting for feedback from encoder...")
         feedback = self.av1_running_env.wait_for_feedback(timeout=self.queue_timeout)
 
         if feedback is None:
@@ -206,26 +205,16 @@ class Av1GymEnv(gym.Env):
 
     def _get_initial_observation(self) -> np.ndarray:
         """Get initial observation for episode start"""
-        try:
-            # Get first frame state
-            frame_state = self.video_reader.get_x_frame_state(frame_number=0)
-            return np.array(frame_state, dtype=np.float32)
-        except Exception as e:
-            print(f"Error getting initial observation: {e}")
-            # Return zero observation as fallback
-            return np.zeros((4, self.num_superblocks), dtype=np.float32)
+        # Get first frame state
+        frame_state = self.video_reader.get_x_frame_state(frame_number=0)
+        return np.array(frame_state, dtype=np.float32)
 
     def _get_current_observation(self) -> np.ndarray:
         """Get current observation based on current frame"""
-        try:
-            frame_state = self.video_reader.get_x_frame_state(
-                frame_number=self.current_frame
-            )
-            return np.array(frame_state, dtype=np.float32)
-        except Exception as e:
-            print(f"Error getting current observation: {e}")
-            # Return previous observation or zeros
-            return np.zeros((4, self.num_superblocks), dtype=np.float32)
+        frame_state = self.video_reader.get_x_frame_state(
+            frame_number=self.current_frame
+        )
+        return np.array(frame_state, dtype=np.float32)
 
     def _action_to_qp_offsets(self, action: np.ndarray) -> np.ndarray:
         """Convert discrete action to QP offsets"""
@@ -250,23 +239,21 @@ class Av1GymEnv(gym.Env):
     def _start_encoder_thread(self):
         """Start encoder in separate thread"""
         if self.encoder_thread and self.encoder_thread.is_alive():
-            return
+            print("Waiting for previous encoder thread to terminate...")
+            self.encoder_thread.join(timeout=20.0)
 
         self.encoder_thread = threading.Thread(
             target=self._run_encoder, daemon=True, name="EncoderThread"
         )
         self.encoder_thread.start()
+        # Give the encoder thread a brief head start before returning to main thread
+        threading.Event().wait(0.05)  # Wait 50ms (adjust as needed)
 
     def _run_encoder(self):
         """Run encoder in separate thread"""
-        try:
-            print("Starting encoder thread...")
-            self.av1_running_env.run_SVT_AV1_encoder()
-            print("Encoder thread completed")
-        except Exception as e:
-            print(f"Encoder thread error: {e}")
-        finally:
-            pass
+        print("Starting encoder thread...")
+        self.av1_running_env.run_SVT_AV1_encoder()
+        print(f"Encoder thread completed (thread id: {threading.get_ident()})")
 
     def _check_termination_conditions(self):
         """Check if episode should terminate"""

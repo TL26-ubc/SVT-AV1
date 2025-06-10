@@ -83,6 +83,9 @@ class VideoReader:
                 3 Gradient magnitude of all superblocks in the frame
         """
         frame = self.read_frame(frame_number)
+        if frame is None:
+            # no further processing is needed, just return empty lists
+            return [[], [], [], []]
 
         h, w = frame.shape[:2]
         y_comp_list = []

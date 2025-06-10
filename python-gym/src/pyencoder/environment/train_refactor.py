@@ -79,12 +79,6 @@ if __name__ == "__main__":
     )
     env = Monitor(env, str(base_output_path / "monitor"))
 
-    # eval_env = Av1GymEnv(
-    #     video_path=args.file,
-    #     lambda_rd=args.lambda_rd,
-    # )
-    # eval_env = Monitor(eval_env, base_output_path / "eval_monitor")
-
     model = None
     if args.algorithm == "ppo":
         model = PPO(
