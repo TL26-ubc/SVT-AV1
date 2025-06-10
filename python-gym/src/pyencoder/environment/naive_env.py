@@ -1,16 +1,19 @@
 import queue
 import threading
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Optional
 
 import gymnasium as gym
 import numpy as np
 import cv2
 
-from pyencoder.environment.utils import _probe_resolution
-from pyencoder.utils.video_reader import VideoReader
 
-from pyencoder.utils.sb_processing import *
+from pyencoder.utils.sb_processing import (
+    get_frame_state, 
+    get_x_frame_state, 
+    get_num_superblock,
+    get_frame_psnr
+)
 
 # Constants
 QP_MIN, QP_MAX = -3, 3  # delta QP range which will be action
@@ -25,13 +28,23 @@ class Av1Env(gym.Env):
     def __init__(
         self,
         video_path: str | Path,
+        encoder_callback,
         *,
         lambda_rd: float = 0.1,
-        av1_runner: callable = None,
+        max_frames_per_episode: int = 1000,
     ):
         super().__init__()
         self.video_path = Path(video_path)
         self.cv2_video_cap = cv2.VideoCapture(str(self.video_path))
+
+        self.encoder_callback = encoder_callback
+        self.max_frames_per_episode = max_frames_per_episode;
+
+        self.encoder_callback.set_rl_environment(self)
+
+        self.lambda_rd = lambda_rd
+        self._episode_done = threading.Event()
+
 
         self.num_superblocks = get_num_superblock(
             self.cv2_video_cap, block_size=SB_SIZE
@@ -60,76 +73,173 @@ class Av1Env(gym.Env):
         # RL/encoder communication
         # self._action_q: queue.Queue[np.ndarray] = queue.Queue(maxsize=1) no need action ti
 
-        self._frame_report_q: queue.Queue[Dict[str, Any]] = queue.Queue(maxsize=1)
-        self._episode_done = threading.Event()
-        self._encoder_thread: threading.Thread | None = None
-        self._frame_action: np.ndarray | None = None
-        self._next_frame_idx = 0
-        self._terminated = False
+        # Episode management
+        self.current_frame = 0
+        self.episode_rewards = []
+        self.current_episode_reward = 0.0
+        self.terminated = False
+        self.truncated = False
 
-        self.av1_runner = av1_runner
-        if self.av1_runner is None:
-            raise ValueError("av1_runner function must be provided.")
-        self.av1_runner()
+        # Frame data storage
+        self.frame_history = []
+        self.previous_frame_quality = None
+        
+        # Synchronization
+        self.processing_lock = threading.RLock()
+        self.encoder_thread = None
+        self.encoder_running = False
+   
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
     ) -> Tuple[dict, dict]:
         super().reset(seed=seed)
-        self.close()
-        self._terminated = False
-        self._next_frame_idx = 0
-        self._episode_done.clear()
 
-        # Spawn encoder worker
-        self._encoder_thread = threading.Thread(target=self._encode_loop, daemon=True)
-        self._encoder_thread.start()
+        print("Resetting environment...")
 
-        # Return first observation which is the first frame
-        obs = {self._next_frame_idx: get_x_frame_state(
-            self._next_frame_idx, self.cv2_video_cap, block_size=SB_SIZE
-        )}
-        return obs, {}
+        # Reset episode state
+        self.current_frame = 0
+        self.current_episode_reward = 0.0
+        self.terminated = False
+        self.truncated = False
+        self.frame_history.clear()
+        self.previous_frame_quality = None
 
-    # https://gymnasium.farama.org/api/env/#gymnasium.Env.step
-    def step(self, action: np.ndarray) -> Tuple[dict, float, bool, bool, dict]:
-        if self._terminated:
-            raise RuntimeError("Call reset() before step() after episode ends.")
+        self.cv2_video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        
+        # Get initial observation (frame 0 state)
+        initial_obs = self._get_initial_observation()
+        
+        # Start encoder in separate thread
+        self._start_encoder_thread()
 
-        if action.shape != (4, self.num_superblocks):
+        info = {
+            'frame_number': self.current_frame,
+            'num_superblocks': self.num_superblocks,
+            'episode_start': True
+        }
+        
+        return initial_obs, info
+
+    # # https://gymnasium.farama.org/api/env/#gymnasium.Env.step
+    # def step(self, action: np.ndarray) -> Tuple[dict, float, bool, bool, dict]:
+    #     if self._terminated:
+    #         raise RuntimeError("Call reset() before step() after episode ends.")
+
+    #     if action.shape != (4, self.num_superblocks):
+    #         raise ValueError(
+    #             f"Action shape {action.shape} does not match expected shape "
+    #             f"(4, {self.num_superblocks})."
+    #         )
+    #     # wait for a action to complete 
+    #     # wake up the encoder thread for a frame to complete QP mapping 
+        
+    #     # TODO: wake up when next request is recieved or when terminated
+        
+    #     # wait for a feedback 
+        
+    #     # send action to encoder
+    #     # self._action_q.put(action.astype(np.int32, copy=False))
+    #     obs, reward, self._terminated, _, info = self.get_frame_feedback(
+    #         self._frame_report_q.get()
+    #     )
+    #     self.send_action(action)
+
+    #     return obs, reward, self._terminated, False, info
+
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
+        """Execute one step in the environment"""
+        if self.terminated or self.truncated:
+            raise RuntimeError("Episode has ended. Call reset() before step().")
+        
+        # Validate action
+        if action.shape != (self.num_superblocks,):
             raise ValueError(
-                f"Action shape {action.shape} does not match expected shape "
-                f"(4, {self.num_superblocks})."
+                f"Action shape {action.shape} != expected ({self.num_superblocks},)"
             )
-        # wait for a action to complete 
-        # wake up the encoder thread for a frame to complete QP mapping 
         
-        # TODO: wake up when next request is recieved or when terminated
+        # Convert action to QP offsets
+        qp_offsets = self._action_to_qp_offsets(action)
         
-        # wait for a feedback 
+        # Wait for encoder to request action for this frame
+        print(f"Waiting for action request from encoder...")
+        action_request = self.encoder_callback.wait_for_action_request(timeout=5.0)
         
-        # send action to encoder
-        # self._action_q.put(action.astype(np.int32, copy=False))
-        obs, reward, self._terminated, _, info = self.get_frame_feedback(
-            self._frame_report_q.get()
-        )
-        self.send_action(action)
+        if action_request is None:
+            print("No action request received - episode terminated")
+            self.terminated = True
+            return self._get_current_observation(), 0.0, True, False, {'timeout': True}
+        
+        frame_number = action_request['picture_number']
+        sb_info_list = action_request['sb_info_list']
 
-        return obs, reward, self._terminated, False, info
+        print(f"Processing frame {frame_number} with {len(qp_offsets)} QP offsets")
+        
+        # Send action response to encoder
+        self.encoder_callback.send_action_response(qp_offsets.tolist())
+        
+        # Wait for encoding feedback
+        print(f"Waiting for feedback from encoder...")
+        feedback = self.encoder_callback.wait_for_feedback(timeout=5.0)
+        
+        if feedback is None:
+            print("No feedback received - episode terminated")
+            self.terminated = True
+            return self._get_current_observation(), 0.0, True, False, {'no_feedback': True}
+        
+        # Calculate reward
+        reward = self._calculate_reward(feedback, action_request, qp_offsets)
+        self.current_episode_reward += reward
+        
+        # Update episode state
+        self.current_frame += 1
+        
+        # Check termination conditions
+        self._check_termination_conditions()
+        
+        # Get next observation
+        next_obs = self._get_current_observation()
+        
+        # Store frame data
+        self.frame_history.append({
+            'frame_number': frame_number,
+            'qp_offsets': qp_offsets,
+            'reward': reward,
+            'feedback': feedback
+        })
+
+        info = {
+            'frame_number': frame_number,
+            'reward_components': self._get_reward_components(feedback, qp_offsets),
+            'bitstream_size': feedback.get('bitstream_size', 0),
+            'episode_frames': self.current_frame
+        }
+        
+        print(f"Step completed - Frame: {frame_number}, Reward: {reward:.4f}")
+        
+        return next_obs, reward, self.terminated, self.truncated, info
+
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.close
     def close(self):
-        if self._encoder_thread and self._encoder_thread.is_alive():
-            self._episode_done.set()
-            self._encoder_thread.join(timeout=1.0)
 
+        print("Closing environment...")
+
+        if self.encoder_thread and self.encoder_thread.is_alive():
+            self._episode_done.set()
+            self.encoder_thread.join(timeout=2.0)
+
+        if self.cv2_video_cap.isOpened():
+            self.cv2_video_cap.release()
+        
+        print("Environment closed")
+        
         # drain queues
         # for q in (self._action_q, self._frame_report_q):
         #     while not q.empty():
         #         q.get_nowait()
 
-        self._encoder_thread = None
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.render
     def render(self):
@@ -146,104 +256,167 @@ class Av1Env(gym.Env):
     #     )
 
     # use this in c callback
-    def send_action(self, action: np.ndarray):
-        return action, action.size
+    # def send_action(self, action: np.ndarray):
+    #     return action, action.size
 
-    def get_frame_feedback(self, frame_report: Dict[str, Any]):
-        # Wait for encoder to finish the frame
-        report = self._frame_report_q.get()  # dict with stats + next obs
-        reward = self._reward_fn(report)  # scalar
-        obs = report["next_obs"]
+    # def get_frame_feedback(self, frame_report: Dict[str, Any]):
+    #     # Wait for encoder to finish the frame
+    #     report = self._frame_report_q.get()  # dict with stats + next obs
+    #     reward = self._reward_fn(report)  # scalar
+    #     obs = report["next_obs"]
 
-        self._terminated = report["is_last_frame"]
-        self._next_frame_idx += 1
+    #     self._terminated = report["is_last_frame"]
+    #     self._next_frame_idx += 1
 
-        info: dict = {}
+    #     info: dict = {}
 
-        return obs, reward, self._terminated, False, info
+    #     return obs, reward, self._terminated, False, info
 
-    # Reward function
-    def _reward_fn(self, rpt: Dict[str, Any]) -> float:
-        return -float(rpt["bits"]) + self.lambda_rd * float(rpt["psnr"])
+    # # Reward function
+    # def _reward_fn(self, rpt: Dict[str, Any]) -> float:
+    #     return -float(rpt["bits"]) + self.lambda_rd * float(rpt["psnr"])
 
-import torch
+    def _get_initial_observation(self) -> np.ndarray:
+        """Get initial observation for episode start"""
+        try:
+            # Get first frame state
+            frame_state = get_x_frame_state(
+                0, self.cv2_video_cap, block_size=SB_SIZE
+            )
+            return np.array(frame_state, dtype=np.float32)
+        except Exception as e:
+            print(f"Error getting initial observation: {e}")
+            # Return zero observation as fallback
+            return np.zeros((4, self.num_superblocks), dtype=np.float32)
 
-class DQNAgent:
-    def __init__(self, num_superblocks, action_dim, state_dim, lr=1e-3, gamma=0.99, epsilon=1.0, epsilon_min=0.05, epsilon_decay=0.995):
-        self.num_superblocks = num_superblocks
-        self.action_dim = action_dim
-        self.state_dim = state_dim
-        self.lr = lr
-        self.gamma = gamma
-        self.epsilon = epsilon
-        self.epsilon_min = epsilon_min
-        self.epsilon_decay = epsilon_decay
+    def _get_current_observation(self) -> np.ndarray:
+        """Get current observation based on current frame"""
+        try:
+            frame_state = get_x_frame_state(
+                self.current_frame, self.cv2_video_cap, block_size=SB_SIZE
+            )
+            return np.array(frame_state, dtype=np.float32)
+        except Exception as e:
+            print(f"Error getting current observation: {e}")
+            # Return previous observation or zeros
+            return np.zeros((4, self.num_superblocks), dtype=np.float32)
+        
+    def _action_to_qp_offsets(self, action: np.ndarray) -> np.ndarray:
+        """Convert discrete action to QP offsets"""
+        # Map from [0, QP_MAX-QP_MIN] to [QP_MIN, QP_MAX]
+        qp_offsets = action + QP_MIN
+        return np.clip(qp_offsets, QP_MIN, QP_MAX)
+    
+    def _calculate_reward(self, feedback: Dict, action_request: Dict, qp_offsets: np.ndarray) -> float:
+        """Calculate reward based on encoding feedback"""
+        
+        try:
+            bitstream_size = feedback.get('bitstream_size', 0)
+            
+            # Estimate quality (placeholder - in real implementation, use PSNR/SSIM)
+            estimated_quality = self._estimate_quality(feedback, action_request)
+            
+            # Rate-distortion reward
+            # Negative bitrate (minimize bits) + positive quality (maximize quality)
+            bitrate_penalty = bitstream_size / 10000.0  # Normalize bitrate
+            quality_reward = estimated_quality
+            
+            reward = -bitrate_penalty + self.lambda_rd * quality_reward
+            
+            # Temporal consistency reward
+            temporal_reward = self._calculate_temporal_consistency_reward(qp_offsets)
+            
+            total_reward = reward + 0.1 * temporal_reward
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.q_net = self._build_model().to(self.device)
-        self.target_net = self._build_model().to(self.device)
-        self.target_net.load_state_dict(self.q_net.state_dict())
-        self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=self.lr)
-        self.memory = []
-        self.batch_size = 32
-        self.max_memory = 10000
-        self.update_target_steps = 100
-        self.step_count = 0
+            return float(total_reward)
+            
+        except Exception as e:
+            print(f"Error calculating reward: {e}")
+            return 0.0
 
-    def _build_model(self):
-        # Simple MLP for demonstration
-        return torch.nn.Sequential(
-            torch.nn.Flatten(),
-            torch.nn.Linear(self.state_dim * self.num_superblocks, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, self.action_dim * self.num_superblocks)
-        )
+                
+    def _estimate_quality(self, feedback: Dict, action_request: Dict) -> float:
+        """Estimate quality based on QP and frame characteristics"""
+        # quality estimation placeholder
+        
+        sb_info_list = action_request.get('sb_info_list', [])
+        if not sb_info_list:
+            return 0.5  # Default quality
+        
+        # Estimate based on QP values
+        avg_qp = np.mean([sb.get('sb_qindex', 25) for sb in sb_info_list])
+        
+        # Convert QP to rough quality estimate (inverse relationship)
+        # Lower QP = higher quality
+        quality_estimate = np.exp(-(avg_qp - 20) / 10) * 0.8 + 0.2
+        quality_estimate = np.clip(quality_estimate, 0.0, 1.0)
+        
+        return quality_estimate
+    
+    def _calculate_temporal_consistency_reward(self, qp_offsets: np.ndarray) -> float:
+        """Calculate reward for temporal consistency"""
+        if len(self.frame_history) == 0:
+            return 0.0
+        
+        # Compare with previous frame's QP offsets
+        prev_qp_offsets = self.frame_history[-1]['qp_offsets']
+        
+        # Reward smooth transitions
+        qp_diff = np.abs(qp_offsets - prev_qp_offsets)
+        avg_diff = np.mean(qp_diff)
+        
+        # Exponential reward for consistency
+        consistency_reward = np.exp(-avg_diff / 2.0)
+        
+        return consistency_reward
 
-    def select_action(self, state):
-        if np.random.rand() < self.epsilon:
-            # Random action in the correct shape
-            return np.random.randint(QP_MIN, QP_MAX + 1, size=(self.num_superblocks,))
-        state = torch.tensor(state, dtype=torch.float32, device=self.device).flatten().unsqueeze(0)
-        with torch.no_grad():
-            q_values = self.q_net(state)
-        q_values = q_values.view(self.num_superblocks, self.action_dim)
-        actions = torch.argmax(q_values, dim=1).cpu().numpy() + QP_MIN
-        return actions
-
-    def store(self, state, action, reward, next_state, done):
-        if len(self.memory) >= self.max_memory:
-            self.memory.pop(0)
-        self.memory.append((state, action, reward, next_state, done))
-
-    def update(self):
-        if len(self.memory) < self.batch_size:
+    def _check_termination_conditions(self):
+        """Check if episode should terminate"""
+        # Maximum frames reached
+        if self.current_frame >= self.max_frames_per_episode:
+            self.terminated = True
             return
-        batch = np.random.choice(len(self.memory), self.batch_size, replace=False)
-        states, actions, rewards, next_states, dones = zip(*(self.memory[i] for i in batch))
+        
+        # Check video end
+        total_frames = int(self.cv2_video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if self.current_frame >= total_frames - 1:
+            self.terminated = True
+            return
 
-        states = torch.tensor(np.array(states), dtype=torch.float32, device=self.device)
-        actions = torch.tensor(np.array(actions), dtype=torch.int64, device=self.device)
-        rewards = torch.tensor(np.array(rewards), dtype=torch.float32, device=self.device)
-        next_states = torch.tensor(np.array(next_states), dtype=torch.float32, device=self.device)
-        dones = torch.tensor(np.array(dones), dtype=torch.float32, device=self.device)
+    def _get_reward_components(self, feedback: Dict, qp_offsets: np.ndarray) -> Dict:
+        """Get detailed reward components for logging"""
+        bitstream_size = feedback.get('bitstream_size', 0)
+        
+        return {
+            'bitrate_penalty': bitstream_size / 10000.0,
+            'quality_reward': self._estimate_quality(feedback, {}),
+            'temporal_reward': self._calculate_temporal_consistency_reward(qp_offsets),
+            'total_frames': self.current_frame
+        }
 
-        q_values = self.q_net(states).view(self.batch_size, self.num_superblocks, self.action_dim)
-        action_indices = (actions - QP_MIN).unsqueeze(-1)
-        q_selected = torch.gather(q_values, 2, action_indices).squeeze(-1).mean(dim=1)
+    def _start_encoder_thread(self):
+        """Start encoder in separate thread"""
+        if self.encoder_thread and self.encoder_thread.is_alive():
+            return
+        
+        self.encoder_running = True
+        self.encoder_thread = threading.Thread(
+            target=self._run_encoder,
+            daemon=True,
+            name="EncoderThread"
+        )
+        self.encoder_thread.start()
 
-        with torch.no_grad():
-            next_q_values = self.target_net(next_states).view(self.batch_size, self.num_superblocks, self.action_dim)
-            next_q_max = next_q_values.max(dim=2)[0].mean(dim=1)
-            target = rewards + self.gamma * next_q_max * (1 - dones)
+    def _run_encoder(self):
+        """Run encoder in separate thread"""
+        try:
+            print("Starting encoder thread...")
+            self.encoder_callback.run_rl_encoder()
+            print("Encoder thread completed")
+        except Exception as e:
+            print(f"Encoder thread error: {e}")
+        finally:
+            self.encoder_running = False
 
-        loss = torch.nn.functional.mse_loss(q_selected, target)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
 
-        self.step_count += 1
-        if self.step_count % self.update_target_steps == 0:
-            self.target_net.load_state_dict(self.q_net.state_dict())
-
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+    
