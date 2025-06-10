@@ -124,26 +124,7 @@ if __name__ == "__main__":
             verbose=1,
             tensorboard_log=str(base_output_path / "tensorboard"),
         )
-
-    # eval_callback = EvalCallback(
-    #     eval_env,
-    #     best_model_save_path=str(base_output_path / "best_model"),
-    #     log_path=str(base_output_path / "eval_results"),
-    #     eval_freq=args.eval_freq,
-    #     deterministic=True,
-    #     render=False,
-    #     n_eval_episodes=2,  # Quick evaluation
-    # )
-
-    # # Checkpoint callback
-    # checkpoint_callback = CheckpointCallback(
-    #     save_freq=args.save_freq,
-    #     save_path=str(base_output_path / "checkp   oints"),
-    #     name_prefix=f"{args.algorithm}_video_encoding",
-    # )
-
-    # callbacks = [eval_callback, checkpoint_callback]
-
+        
     # training
     try:
         model.learn(

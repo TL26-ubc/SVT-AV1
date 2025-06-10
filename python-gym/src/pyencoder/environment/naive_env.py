@@ -202,11 +202,6 @@ class Av1GymEnv(gym.Env):
 
         print("Environment closed")
 
-        # drain queues
-        # for q in (self._action_q, self._frame_report_q):
-        #     while not q.empty():
-        #         q.get_nowait()
-
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.render
     def render(self):
         pass
