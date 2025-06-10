@@ -1,10 +1,11 @@
-import cv2
-import pyencoder
-import numpy as np
-from typing import List, Dict, Any, Optional
-import threading
 import queue
+import threading
 import time
+from typing import Any, Dict, List, Optional
+
+import cv2
+import numpy as np
+import pyencoder
 from pyencoder.utils.sb_processing import get_frame_state, get_num_superblock
 
 global the_only_object
@@ -48,20 +49,20 @@ def get_deltaq_offset_trampoline(
         sb_info_list, sb_total_count, picture_number, frame_type
     )
 
-class EncoderCallback:
+class Av1RunningEnv:
     """
     A class to handle callbacks from Python to C for encoding video frames.
     This class is designed to be used with a C encoder that requires specific
     callbacks for frame processing.
     """
 
-    def __init__(self, args):
+    def __init__(self, video_path):
         global the_only_object
         if the_only_object is not None:
             raise RuntimeError("EncoderCallback instance already exists. Only one instance is allowed.")
         the_only_object = self
         
-        self.video_path = args.file
+        self.video_path = video_path
         self.bytes_keeper = {}
         self.all_bitstreams = bytearray()  # Store all bitstreams as a bytearray
         self.joined_bitstream_num = 0  # Counter for joined bitstreams

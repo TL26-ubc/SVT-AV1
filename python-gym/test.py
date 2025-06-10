@@ -1,6 +1,7 @@
 import argparse
+
 import pyencoder
-from pyencoder.callback import EncoderCallback
+from pyencoder.callback import Av1RunningEnv
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -10,7 +11,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
     
-    the_callback = EncoderCallback(args)
+    the_callback = Av1RunningEnv(args)
     the_callback.run_SVT_AV1_encoder(first_round=True)
     the_callback.run_SVT_AV1_encoder(args.output, first_round=False)
     
