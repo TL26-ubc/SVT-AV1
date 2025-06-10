@@ -54,3 +54,8 @@ temp/*
 # cmake
 CMakeUserPresets.json
 *.ipynb
+
+# rl training
+*.zip
+*.csv
+python-gym/src/pyencoder/environment/rl_training_output/
