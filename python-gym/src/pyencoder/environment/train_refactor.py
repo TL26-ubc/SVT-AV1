@@ -4,7 +4,7 @@ from ast import arg
 from pathlib import Path
 
 import numpy as np
-from pyencoder.callback import Av1RunningEnv
+from pyencoder.environment.av1_running_env import Av1RunningEnv
 from pyencoder.environment.naive_env import Av1GymEnv
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback

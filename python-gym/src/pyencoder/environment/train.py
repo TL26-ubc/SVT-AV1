@@ -9,7 +9,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from pyencoder.callback import EncoderCallback
+from pyencoder.environment.av1_running_env import EncoderCallback
 from pyencoder.environment.naive_env import Av1Env
 
 class VideoEncodingTrainer:

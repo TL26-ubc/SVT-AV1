@@ -1,7 +1,7 @@
 import argparse
 
 import pyencoder
-from pyencoder.callback import Av1RunningEnv
+from pyencoder.environment.av1_running_env import Av1RunningEnv
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

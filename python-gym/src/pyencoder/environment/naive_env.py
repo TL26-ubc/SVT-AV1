@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Tuple
 import cv2
 import gymnasium as gym
 import numpy as np
-from pyencoder.callback import Av1RunningEnv
+from pyencoder.environment.av1_running_env import Av1RunningEnv
 from pyencoder.utils.video_reader import VideoReader
 
 # Constants
@@ -24,6 +24,7 @@ class Av1GymEnv(gym.Env):
         video_path: str | Path,
         *,
         lambda_rd: float = 0.1,
+        queue_timeout=10,  # timeout
     ):
         super().__init__()
         self.video_path = Path(video_path)
@@ -59,7 +60,7 @@ class Av1GymEnv(gym.Env):
         )
 
         # RL/encoder communication
-        # self._action_q: queue.Queue[np.ndarray] = queue.Queue(maxsize=1) no need action ti
+        self.queue_timeout = queue_timeout
 
         # Episode management
         self.current_frame = 0
@@ -207,37 +208,6 @@ class Av1GymEnv(gym.Env):
     def render(self):
         pass
 
-    # Encoding
-    # def _encode_loop(self):
-    #     from mycodec import encode
-
-    #     encode(
-    #         str(self.video_path),
-    #         on_superblock=self._on_superblock,
-    #         on_frame_done=self._on_frame_done,
-    #     )
-
-    # use this in c callback
-    # def send_action(self, action: np.ndarray):
-    #     return action, action.size
-
-    # def get_frame_feedback(self, frame_report: Dict[str, Any]):
-    #     # Wait for encoder to finish the frame
-    #     report = self._frame_report_q.get()  # dict with stats + next obs
-    #     reward = self._reward_fn(report)  # scalar
-    #     obs = report["next_obs"]
-
-    #     self._terminated = report["is_last_frame"]
-    #     self._next_frame_idx += 1
-
-    #     info: dict = {}
-
-    #     return obs, reward, self._terminated, False, info
-
-    # # Reward function
-    # def _reward_fn(self, rpt: Dict[str, Any]) -> float:
-    #     return -float(rpt["bits"]) + self.lambda_rd * float(rpt["psnr"])
-
     def _get_initial_observation(self) -> np.ndarray:
         """Get initial observation for episode start"""
         try:
@@ -286,7 +256,7 @@ class Av1GymEnv(gym.Env):
             reward = -bitrate_penalty + self.lambda_rd * quality_reward
 
             # Temporal consistency reward
-            temporal_reward = self._calculate_temporal_consistency_reward(qp_offsets)
+            # temporal_reward = self._calculate_temporal_consistency_reward(qp_offsets)
 
             total_reward = reward + 0.1 * temporal_reward
 
@@ -295,65 +265,6 @@ class Av1GymEnv(gym.Env):
         except Exception as e:
             print(f"Error calculating reward: {e}")
             return 0.0
-
-    def _estimate_quality(self, feedback: Dict, action_request: Dict) -> float:
-        """Estimate quality based on QP and frame characteristics"""
-        # quality estimation placeholder
-
-        sb_info_list = action_request.get("sb_info_list", [])
-        if not sb_info_list:
-            return 0.5  # Default quality
-
-        # Estimate based on QP values
-        avg_qp = np.mean([sb.get("sb_qindex", 25) for sb in sb_info_list])
-
-        # Convert QP to rough quality estimate (inverse relationship)
-        # Lower QP = higher quality
-        quality_estimate = np.exp(-(avg_qp - 20) / 10) * 0.8 + 0.2
-        quality_estimate = np.clip(quality_estimate, 0.0, 1.0)
-
-        return quality_estimate
-
-    def _calculate_temporal_consistency_reward(self, qp_offsets: np.ndarray) -> float:
-        """Calculate reward for temporal consistency"""
-        if len(self.frame_history) == 0:
-            return 0.0
-
-        # Compare with previous frame's QP offsets
-        prev_qp_offsets = self.frame_history[-1]["qp_offsets"]
-
-        # Reward smooth transitions
-        qp_diff = np.abs(qp_offsets - prev_qp_offsets)
-        avg_diff = np.mean(qp_diff)
-
-        # Exponential reward for consistency
-        consistency_reward = np.exp(-avg_diff / 2.0)
-
-        return consistency_reward
-
-    def _check_termination_conditions(self):
-        """Check if episode should terminate"""
-        # Maximum frames reached
-        if self.current_frame >= self.video_reader.get_frame_count():
-            self.terminated = True
-            return
-
-        # Check video end
-        total_frames = self.video_reader.get_frame_count()
-        if self.current_frame >= total_frames - 1:
-            self.terminated = True
-            return
-
-    def _get_reward_components(self, feedback: Dict, qp_offsets: np.ndarray) -> Dict:
-        """Get detailed reward components for logging"""
-        bitstream_size = feedback.get("bitstream_size", 0)
-
-        return {
-            "bitrate_penalty": bitstream_size / 10000.0,
-            "quality_reward": self._estimate_quality(feedback, {}),
-            "temporal_reward": self._calculate_temporal_consistency_reward(qp_offsets),
-            "total_frames": self.current_frame,
-        }
 
     def _start_encoder_thread(self):
         """Start encoder in separate thread"""
