@@ -182,7 +182,7 @@ def get_x_frame_state(
             
             
 def get_num_superblock(
-    frame_or_video: np.ndarray | cv2.VideoCapture,
+    frame_or_video: np.ndarray | cv2.VideoCapture | str,
     block_size: int = 64
 ) -> int:
     """
@@ -204,6 +204,17 @@ def get_num_superblock(
             raise ValueError("Could not read frame from video.")
         h, w = frame.shape[:2]
         frame_or_video.set(cv2.CAP_PROP_POS_FRAMES, pos)
+    elif isinstance(frame_or_video, str):
+        video_cv2 = cv2.VideoCapture(frame_or_video)
+        if not video_cv2.isOpened():
+            raise ValueError(f"Could not open video file: {frame_or_video}")
+        pos = video_cv2.get(cv2.CAP_PROP_POS_FRAMES)
+        ret, frame = video_cv2.read()
+        if not ret:
+            raise ValueError("Could not read frame from video.")
+        h, w = frame.shape[:2]
+        video_cv2.set(cv2.CAP_PROP_POS_FRAMES, pos)
+        video_cv2.release()
     else:
         raise TypeError("Input must be a numpy.ndarray or cv2.VideoCapture.")
     num_blocks_h = (h + block_size - 1) // block_size

@@ -1220,25 +1220,22 @@ EB_API EbErrorType svt_av1_enc_deinit(EbComponentType *svt_enc_component);
 EB_API EbErrorType svt_av1_enc_deinit_handle(EbComponentType *svt_enc_component);
 
 typedef struct SuperBlockInfo {
-    unsigned sb_org_x;
-    unsigned sb_org_y;
-    uint16_t sb_width;
-    uint16_t sb_height;
-    uint8_t  sb_qindex;
+    unsigned     sb_org_x;
+    unsigned     sb_org_y;
+    uint16_t     sb_width;
+    uint16_t     sb_height;
+    uint8_t      sb_qindex;
     signed short sb_x_mv;
     signed short sb_y_mv;
-    double   beta;
+    double       beta;
 } SuperBlockInfo;
 
 #ifdef SVT_ENABLE_USER_CALLBACKS
 
 typedef struct PluginCallbacks {
-    void (*user_get_deltaq_offset)(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count,
-                                  int32_t picture_number, int32_t frame_type, void *user);
+    void (*user_get_deltaq_offset)(int *offset_array, uint32_t sb_count, int32_t picture_number);
 
-    void (*user_picture_feedback)(uint8_t *bitstream, uint32_t bitstream_size, uint32_t picture_number, void *user);
-
-    void *user;
+    void (*user_picture_feedback)(uint8_t *bitstream, uint32_t bitstream_size, uint32_t picture_number);
 } PluginCallbacks;
 
 // runtime setter

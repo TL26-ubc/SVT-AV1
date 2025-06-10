@@ -26,27 +26,18 @@ def picture_feedback_trampoline(
     the_only_object.picture_feedback(bitstream, size, picture_number)
 
 def get_deltaq_offset_trampoline(
-    sb_info_list: list[dict],
-    sb_total_count: int,
-    picture_number: int,
-    frame_type: int
+    picture_number: int
 ) -> list[int]:
     """
     Callback to get QP offsets for superblocks in a frame.
     
     Args:
-        sb_info_list (list[dict]): List of dictionaries containing superblock info.
-        offset_list_to_fill (list[int]): List to fill with QP offsets.
-        sb_total_count (int): Total number of superblocks.
         picture_number (int): Current picture/frame number.
-        frame_type (int): Frame type (e.g., I_SLICE).
     
     Returns:
         list[int]: The filled offset list.
     """
-    return the_only_object.get_deltaq_offset(
-        sb_info_list, sb_total_count, picture_number, frame_type
-    )
+    return the_only_object.get_deltaq_offset(picture_number)
 
 class EncoderCallback:
     """
@@ -62,6 +53,8 @@ class EncoderCallback:
         the_only_object = self
         
         self.video_path = args.file
+        self.superblock_count = get_num_superblock(self.video_path)
+        
         self.bytes_keeper = {}
         self.all_bitstreams = bytearray()  # Store all bitstreams as a bytearray
         self.joined_bitstream_num = 0  # Counter for joined bitstreams
@@ -188,62 +181,25 @@ class EncoderCallback:
         }
 
         # Send feedback to RL environment (non-blocking)
-        try:
-            self.feedback_queue.put_nowait(feedback_data)
-        except queue.Full:
-            print(f"Warning: Feedback queue full for frame {picture_number}")
+        if not self.baseline_mode:
+            try:
+                self.feedback_queue.put_nowait(feedback_data)
+            except queue.Full:
+                print(f"Warning: Feedback queue full for frame {picture_number}")
         
-        print(f"Picture feedback sent for frame {picture_number}, size: {size}")
+        # print(f"Picture feedback sent for frame {picture_number}, size: {size}")
 
-
-    # def get_deltaq_offset(
-    #     self,
-    #     sb_info_list: list[dict],
-    #     sb_total_count: int,
-    #     picture_number: int,
-    #     frame_type: int
-    # ) -> list[int]:
-    #     """
-    #     Callback to get QP offsets for superblocks in a frame.
-        
-    #     Args:
-    #         sb_info_list (list[dict]): List of dictionaries containing superblock info.
-    #         offset_list_to_fill (list[int]): List to fill with QP offsets.
-    #         sb_total_count (int): Total number of superblocks.
-    #         picture_number (int): Current picture/frame number.
-    #         frame_type (int): Frame type (e.g., I_SLICE).
-        
-    #     Returns:
-    #         list[int]: The filled offset list.
-    #     """
-    #     if len(sb_info_list) != sb_total_count:
-    #         raise RuntimeError("List lengths do not match sb_total_count!")
-    #     # TODO: add support to notify C whether use original method or or model prediction
-
-    #     # Fill the offset list with dummy values for now
-    #     offset_list_to_fill = [114514] * sb_total_count
-    #     return offset_list_to_fill
-
-    def get_deltaq_offset(
-        self,
-        sb_info_list: list[dict],
-        sb_total_count: int,
-        picture_number: int,
-        frame_type: int
-    ) -> list[int]:
+    def get_deltaq_offset(self, picture_number: int) -> list[int]:
         """
         Callback to get QP offsets for superblocks in a frame.
         This method MUST return immediately as the encoder waits synchronously.
         """
-        if len(sb_info_list) != sb_total_count:
-            raise RuntimeError("List lengths do not match sb_total_count!")
         
         self.current_frame_data[picture_number] = {
-            'sb_info_list': sb_info_list,
-            'sb_total_count': sb_total_count,
-            'frame_type': frame_type,
             'timestamp': time.time()
         }
+        
+        sb_total_count = self.superblock_count
         
         if self.baseline_mode:
             # Return special value to use encoder's default method
@@ -256,9 +212,6 @@ class EncoderCallback:
         # Request action from RL environment
         action_request = {
             'picture_number': picture_number,
-            'sb_info_list': sb_info_list,
-            'sb_total_count': sb_total_count,
-            'frame_type': frame_type,
             'timestamp': time.time()
         }
         

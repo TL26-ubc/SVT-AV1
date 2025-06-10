@@ -1241,35 +1241,12 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
     int            offset_array[sb_cnt];
     memset(sb_info_array, 0, sizeof(sb_info_array));
     memset(offset_array, 0, sizeof(offset_array));
-    
-    if (plugin_cbs.user_get_deltaq_offset) {
-        for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {     
-            SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
-            
-            // Fill minimal required info for compatibility
-            const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
-            const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
-            
-            sb_info_array[sb_addr].sb_org_x = sb_ptr->org_x;
-            sb_info_array[sb_addr].sb_org_y = sb_ptr->org_y;
-            sb_info_array[sb_addr].sb_width = sb_width;
-            sb_info_array[sb_addr].sb_height = sb_height;
-            sb_info_array[sb_addr].sb_qindex = (uint8_t)sb_ptr->qindex;
-            
-            // Placeholder values for compatibility with old function
-            sb_info_array[sb_addr].beta = 1.0;
-            sb_info_array[sb_addr].sb_x_mv = 0;
-            sb_info_array[sb_addr].sb_y_mv = 0;
-        }
 
+    if (plugin_cbs.user_get_deltaq_offset) {
         // Call callback with frame number as main parameter
-        plugin_cbs.user_get_deltaq_offset(
-            sb_info_array,
-            offset_array,                         
-            sb_cnt,                                     
-            (int32_t)pcs->picture_number,             // Main parameter: frame number
-            (int32_t)(pcs->ppcs->slice_type == I_SLICE ? 1 : 0), 
-            plugin_cbs.user                           
+        plugin_cbs.user_get_deltaq_offset(offset_array,
+                                          sb_cnt,
+                                          (int32_t)pcs->picture_number // Main parameter: frame number
         );
     }
 #endif
@@ -1284,17 +1261,17 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
         RATE_CONTROL *rc        = &scs->enc_ctx->rc;
         const int     bit_depth = scs->static_config.encoder_bit_depth;
         int           delta     = compute_deltaq(ppcs, rc, ppcs->frm_hdr.quantization_params.base_q_idx, bit_depth);
-        
+
         for (b64_idx = 0; b64_idx < ppcs->b64_total_count; ++b64_idx) {
             int diff_dist = (int)(ppcs->me_8x8_distortion[b64_idx] - avg_me_dist);
             sb            = pcs->sb_ptr_array[b64_idx];
             int offset    = 0;
-            
+
 #ifdef SVT_ENABLE_USER_CALLBACKS
             // Use callback offset if available
             if (plugin_cbs.user_get_deltaq_offset) {
                 offset = offset_array[b64_idx];
-                
+
                 //printf("offset of frame %d: %d\n", pcs->picture_number, offset);
             } else {
 #endif
@@ -1307,15 +1284,15 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
 #ifdef SVT_ENABLE_USER_CALLBACKS
             }
 #endif
-            
+
             sb->qindex = CLIP3(ppcs->frm_hdr.delta_q_params.delta_q_res,
                                255 - ppcs->frm_hdr.delta_q_params.delta_q_res,
                                ((int16_t)ppcs->frm_hdr.quantization_params.base_q_idx + (int16_t)offset));
         }
     } else {
         for (b64_idx = 0; b64_idx < ppcs->b64_total_count; ++b64_idx) {
-            sb         = pcs->sb_ptr_array[b64_idx];
-            
+            sb = pcs->sb_ptr_array[b64_idx];
+
 #ifdef SVT_ENABLE_USER_CALLBACKS
             // Use callback offset if available (even when cyclic refresh is not applied)
             if (plugin_cbs.user_get_deltaq_offset) {
@@ -1395,7 +1372,7 @@ static void generate_b64_me_qindex_map(PictureControlSet *pcs) {
                 offset = (min_dist != avg_me_dist)
                     ? (int)((min_offset[pcs->ppcs->temporal_layer_index] * diff_dist) / (int)(min_dist - avg_me_dist))
                     : 0;
-    } else {
+            } else {
                 offset = (max_dist != avg_me_dist)
                     ? (int)((max_offset[pcs->ppcs->temporal_layer_index] * diff_dist) / (int)(max_dist - avg_me_dist))
                     : 0;
@@ -1625,61 +1602,13 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
 #if DEBUG_VAR_BOOST_STATS
         printf("TPL qindex boost, frame %llu, temp. level %i\n", pcs->picture_number, pcs->temporal_layer_index);
 #endif
-#ifdef SVT_ENABLE_USER_CALLBACKS
-        SuperBlockInfo sb_info_array[sb_cnt];
-        int            offset_array[sb_cnt];
-        memset(sb_info_array, 0, sizeof(sb_info_array));
-        memset(offset_array, 0, sizeof(offset_array));
-        if (plugin_cbs.user_get_deltaq_offset) {
-
-            for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {     
-                SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
-                double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
-                    
-                const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
-                const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
-                
-                sb_info_array[sb_addr].sb_org_x = sb_ptr->org_x;
-                sb_info_array[sb_addr].sb_org_y = sb_ptr->org_y;
-                sb_info_array[sb_addr].sb_width = sb_width;
-                sb_info_array[sb_addr].sb_height = sb_height;
-                sb_info_array[sb_addr].sb_qindex = (uint8_t)sb_ptr->qindex;
-                sb_info_array[sb_addr].beta = beta;
-
-                MeSbResults *me_res = ppcs_ptr->pa_me_data->me_results[sb_addr];
-                MvCandidate mv = me_res->me_mv_array[0]; // 0 idx is for overall estimate
-                sb_info_array[sb_addr].sb_x_mv = mv.x_mv;
-                sb_info_array[sb_addr].sb_y_mv = mv.y_mv;
-            }
-
-            plugin_cbs.user_get_deltaq_offset(
-                sb_info_array,
-                offset_array,                         
-                sb_cnt,                                     
-                (int32_t)pcs->picture_number,             
-                (int32_t)(pcs->ppcs->slice_type == I_SLICE ? 1 : 0), 
-                plugin_cbs.user                           
-            );
-        }
-#endif
         for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {
             SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
             double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
 
-#ifdef SVT_ENABLE_USER_CALLBACKS
-            int         offset;
-            if (plugin_cbs.user_get_deltaq_offset) {
-                offset = offset_array[sb_addr];
-            }
-            else {
-                offset = svt_av1_get_deltaq_offset(
-                    scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
-            }
-#else
-            int         offset = svt_av1_get_deltaq_offset(
+            int offset = svt_av1_get_deltaq_offset(
                 scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
-#endif
-            
+
             offset = AOMMIN(offset, pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 - 1);
             offset = AOMMAX(offset, -pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 + 1);
 
@@ -1969,7 +1898,7 @@ static int find_closest_qindex_by_rate(int desired_bits_per_mb, PictureParentCon
     int       prev_bit_diff;
     if (curr_bit_diff == INT_MAX || curr_q == best_qindex) {
         prev_bit_diff = INT_MAX;
-        } else {
+    } else {
         const int prev_bits_per_mb = get_bits_per_mb(ppcs, use_cyclic_refresh, correction_factor, prev_q);
         assert(prev_bits_per_mb > desired_bits_per_mb);
         prev_bit_diff = prev_bits_per_mb - desired_bits_per_mb;

@@ -7,6 +7,8 @@ import gymnasium as gym
 import numpy as np
 import cv2
 
+import random
+
 
 from pyencoder.utils.sb_processing import (
     get_frame_state, 
@@ -172,7 +174,6 @@ class Av1Env(gym.Env):
             return self._get_current_observation(), 0.0, True, False, {'timeout': True}
         
         frame_number = action_request['picture_number']
-        sb_info_list = action_request['sb_info_list']
 
         print(f"Processing frame {frame_number} with {len(qp_offsets)} QP offsets")
         
@@ -338,20 +339,10 @@ class Av1Env(gym.Env):
     def _estimate_quality(self, feedback: Dict, action_request: Dict) -> float:
         """Estimate quality based on QP and frame characteristics"""
         # quality estimation placeholder
+        # TODO: implement actual quality estimation logic
         
-        sb_info_list = action_request.get('sb_info_list', [])
-        if not sb_info_list:
-            return 0.5  # Default quality
+        return random.uniform(0.0, 1.0)  # Random quality for placeholder
         
-        # Estimate based on QP values
-        avg_qp = np.mean([sb.get('sb_qindex', 25) for sb in sb_info_list])
-        
-        # Convert QP to rough quality estimate (inverse relationship)
-        # Lower QP = higher quality
-        quality_estimate = np.exp(-(avg_qp - 20) / 10) * 0.8 + 0.2
-        quality_estimate = np.clip(quality_estimate, 0.0, 1.0)
-        
-        return quality_estimate
     
     def _calculate_temporal_consistency_reward(self, qp_offsets: np.ndarray) -> float:
         """Calculate reward for temporal consistency"""
