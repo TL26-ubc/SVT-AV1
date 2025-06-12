@@ -22,11 +22,11 @@ static int set_cb_ptr(CallbackEnum which, bool unset)
     }
 }
 
-static int clear_slot(CallbackEnum which)
-{
-    g_callbacks[static_cast<int>(which)]->py_func = py::none();  // RAII decref
-    return set_cb_ptr(which, /*unset=*/true);
-}
+// static int clear_slot(CallbackEnum which)
+// {
+//     g_callbacks[static_cast<int>(which)]->py_func = py::none();  // RAII decref
+//     return set_cb_ptr(which, /*unset=*/true);
+// }
 
 int pybridge_set_cb(CallbackEnum which, py::object callable)
 {

@@ -1279,7 +1279,7 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
             } else if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end) {
                 offset += delta / 2;
             }
-#elif
+#else
             int offset = 0;
             // Original cyclic refresh logic
             if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end && diff_dist <= 0) {
@@ -1303,7 +1303,7 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
             sb->qindex = CLIP3(ppcs->frm_hdr.delta_q_params.delta_q_res,
                                255 - ppcs->frm_hdr.delta_q_params.delta_q_res,
                                (int16_t)(quantizer_to_qindex[pcs->picture_qp] + offset));
-#elif
+#else
             sb->qindex = quantizer_to_qindex[pcs->picture_qp];
 #endif
         }
