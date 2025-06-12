@@ -232,7 +232,7 @@ class Av1GymEnv(gym.Env):
             "episode_frames": self.current_frame,
         }
 
-        print(f"Step completed - Frame: {frame_number}, Reward: {reward:.4f}")
+        # (f"Step completed - Frame: {frame_number}, Reward: {reward:.4f}")
 
         return next_obs, reward, self.terminated, False, info
 
@@ -302,7 +302,7 @@ class Av1GymEnv(gym.Env):
     def _start_encoder_thread(self):
         """Start encoder in separate thread"""
         if self.encoder_thread and self.encoder_thread.is_alive():
-            print("Waiting for previous encoder thread to terminate...")
+            # print("Waiting for previous encoder thread to terminate...")
             self.encoder_thread.join(timeout=20.0)
 
         self.encoder_thread = threading.Thread(
