@@ -77,6 +77,7 @@ class Av1Env(gym.Env):
         self._episode_done.clear()
 
         # Spawn encoder worker
+        self._encoder_thread.join()
         self._encoder_thread = threading.Thread(target=self._encode_loop, daemon=True)
         self._encoder_thread.start()
 

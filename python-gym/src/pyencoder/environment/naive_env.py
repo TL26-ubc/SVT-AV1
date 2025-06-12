@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-import cv2, av
+import av
+import cv2
 import gymnasium as gym
 import numpy as np
 from pyencoder.environment.av1_running_env import Av1RunningEnv
@@ -80,17 +81,19 @@ class Av1GymEnv(gym.Env):
 
         # Synchronization
         self.encoder_thread = None
-        
+
         # run the first round of encoding, save the baseline video at specified output path
-        self.av1_running_env.run_SVT_AV1_encoder(output_path=f"{str(output_dir)}/baseline_output.ivf")
+        self.av1_running_env.run_SVT_AV1_encoder(
+            output_path=f"{str(output_dir)}/baseline_output.ivf"
+        )
         self.y_psnr_list = []
         self.cb_psnr_list = []
         self.cr_psnr_list = []
-        
+
         self.save_baseline_frame_psnr(
             baseline_video_path=f"{str(output_dir)}/baseline_output.ivf"
         )
-        
+
     def save_baseline_frame_psnr(self, baseline_video_path: str | Path):
         """Calculate and save PSNR for baseline frames"""
         baseline_video_path = str(baseline_video_path)
@@ -98,13 +101,19 @@ class Av1GymEnv(gym.Env):
         stream = container.streams.video[0]
 
         total_frames = int(stream.frames)
-        assert total_frames == self.num_frames, (
-            f"Baseline video frame count {total_frames} does not match expected {self.num_frames}"
-        )
+        assert (
+            total_frames == self.num_frames
+        ), f"Baseline video frame count {total_frames} does not match expected {self.num_frames}"
 
-        assert self.y_psnr_list == [], "PSNR lists should be empty before saving baseline PSNRs"
-        assert self.cb_psnr_list == [], "PSNR lists should be empty before saving baseline PSNRs"
-        assert self.cr_psnr_list == [], "PSNR lists should be empty before saving baseline PSNRs"
+        assert (
+            self.y_psnr_list == []
+        ), "PSNR lists should be empty before saving baseline PSNRs"
+        assert (
+            self.cb_psnr_list == []
+        ), "PSNR lists should be empty before saving baseline PSNRs"
+        assert (
+            self.cr_psnr_list == []
+        ), "PSNR lists should be empty before saving baseline PSNRs"
 
         for frame_number, frame in enumerate(container.decode(stream)):
             # Convert frame to YCbCr and get numpy arrays for Y, Cb, Cr
@@ -118,18 +127,19 @@ class Av1GymEnv(gym.Env):
             self.y_psnr_list.append(y_psnr)
             self.cb_psnr_list.append(cb_psnr)
             self.cr_psnr_list.append(cr_psnr)
-        
-        assert len(self.y_psnr_list) == self.num_frames, (
-            f"Expected {self.num_frames} Y PSNR values, got {len(self.y_psnr_list)}"
-        )
-        assert len(self.cb_psnr_list) == self.num_frames, (
-            f"Expected {self.num_frames} Cb PSNR values, got {len(self.cb_psnr_list)}"
-        )
-        assert len(self.cr_psnr_list) == self.num_frames, (
-            f"Expected {self.num_frames} Cr PSNR values, got {len(self.cr_psnr_list)}"
-        )
+
+        assert (
+            len(self.y_psnr_list) == self.num_frames
+        ), f"Expected {self.num_frames} Y PSNR values, got {len(self.y_psnr_list)}"
+        assert (
+            len(self.cb_psnr_list) == self.num_frames
+        ), f"Expected {self.num_frames} Cb PSNR values, got {len(self.cb_psnr_list)}"
+        assert (
+            len(self.cr_psnr_list) == self.num_frames
+        ), f"Expected {self.num_frames} Cr PSNR values, got {len(self.cr_psnr_list)}"
         print("Baseline frame PSNRs saved:")
-        
+        container.close()
+
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
@@ -181,9 +191,9 @@ class Av1GymEnv(gym.Env):
         if action_request is None:
             print("No action request received - episode terminated")
             self.terminated = True
-            return self._get_current_observation(), 0.0, True, False, {'timeout': True}
-        
-        frame_number = action_request['picture_number']
+            return self._get_current_observation(), 0.0, True, False, {"timeout": True}
+
+        frame_number = action_request["picture_number"]
 
         # Send action response to encoder
         self.av1_running_env.send_action_response(qp_offsets.tolist())
@@ -281,7 +291,7 @@ class Av1GymEnv(gym.Env):
         y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(
             self.current_frame, encoded_frame_data
         )
-        
+
         # TODO: a reward function that balances quality and bitrate
         a = 1
         b = c = 0.5
@@ -289,15 +299,17 @@ class Av1GymEnv(gym.Env):
         byte_saved, current_usage = self.av1_running_env.get_byte_usage_diff(
             action_request["picture_number"]
         )
-        
+
         y_psnr_improvement = y_psnr - self.y_psnr_list[self.current_frame]
         cb_psnr_improvement = cb_psnr - self.cb_psnr_list[self.current_frame]
         cr_psnr_improvement = cr_psnr - self.cr_psnr_list[self.current_frame]
 
-        return y_psnr_improvement * a + \
-                cb_psnr_improvement * b + \
-                cr_psnr_improvement * c + \
-                byte_saved / current_usage * d
+        return (
+            y_psnr_improvement * a
+            + cb_psnr_improvement * b
+            + cr_psnr_improvement * c
+            + byte_saved / current_usage * d
+        )
 
     def _start_encoder_thread(self):
         """Start encoder in separate thread"""

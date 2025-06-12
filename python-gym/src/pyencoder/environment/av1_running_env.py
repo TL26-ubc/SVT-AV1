@@ -27,9 +27,7 @@ def picture_feedback_trampoline(bitstream: bytes, size: int, picture_number: int
     the_only_object.picture_feedback(bitstream, size, picture_number)
 
 
-def get_deltaq_offset_trampoline(
-    picture_number: int
-) -> list[int]:
+def get_deltaq_offset_trampoline(picture_number: int) -> list[int]:
     """
     Callback to get QP offsets for superblocks in a frame.
 
@@ -38,9 +36,7 @@ def get_deltaq_offset_trampoline(
     Returns:
         list[int]: The filled offset list.
     """
-    return the_only_object.get_deltaq_offset(
-       picture_number
-    )
+    return the_only_object.get_deltaq_offset(picture_number)
 
 
 class Av1RunningEnv:
@@ -96,7 +92,7 @@ class Av1RunningEnv:
             print(
                 "First round completed, should be the result of the original SVT-AV1 encoder."
             )
-            
+
             # Store the byte usage for the first round
             for picture_number, bitstream in self.bytes_keeper.items():
                 self.first_round_byte_usage[picture_number] = len(bitstream)
@@ -120,10 +116,8 @@ class Av1RunningEnv:
         while not self.action_request_queue.empty():
             self.action_request_queue.get_nowait()
 
-
         while not self.action_response_queue.empty():
             self.action_response_queue.get_nowait()
-
 
         while not self.feedback_queue.empty():
             self.feedback_queue.get_nowait()
@@ -176,26 +170,20 @@ class Av1RunningEnv:
             byte_file.close()
             self.all_bitstreams = io.BytesIO()  # get a new bytefile
             self.all_bitstreams.write(bitstream)  # write the keyframe to bytefile
-
+        container.close()
         return ycrcb_array
 
-    def get_deltaq_offset(
-        self,
-        picture_number: int
-    ) -> list[int]:
+    def get_deltaq_offset(self, picture_number: int) -> list[int]:
         """
         Callback to get QP offsets for superblocks in a frame.
         This method MUST return immediately as the encoder waits synchronously.
         """
-        
+
         if self.first_round:
             return [114514] * self.sb_total_count  # Dummy offsets for first round
-        
+
         # Request action from RL environment
-        action_request = {
-            "picture_number": picture_number,
-            "timestamp": time.time()
-        }
+        action_request = {"picture_number": picture_number, "timestamp": time.time()}
 
         # Send action request to RL environment (blocking call)
         self.action_request_queue.put_nowait(action_request)
@@ -205,7 +193,7 @@ class Av1RunningEnv:
 
         if len(action_response) != self.sb_total_count:
             raise ValueError(
-            f"Action response length mismatch. Expected {self.sb_total_count}, got {len(action_response)}"
+                f"Action response length mismatch. Expected {self.sb_total_count}, got {len(action_response)}"
             )
 
         return action_response
@@ -230,7 +218,7 @@ class Av1RunningEnv:
         Called by RL environment to get encoding results.
         """
         return self.feedback_queue.get(timeout=timeout)
-    
+
     def get_byte_usage_diff(self, picture_number: int) -> tuple[int, int]:
         """
         Get the byte usage difference for a specific frame compared to the first round.
@@ -242,9 +230,11 @@ class Av1RunningEnv:
             positive difference means the frame is larger than in the first round,
             negative difference means the frame is smaller.
         """
-        if picture_number in self.first_round_byte_usage and picture_number in self.bytes_keeper:
+        if (
+            picture_number in self.first_round_byte_usage
+            and picture_number in self.bytes_keeper
+        ):
             first_round_size = self.first_round_byte_usage[picture_number]
             current_size = len(self.bytes_keeper.get(picture_number, b""))
             return (first_round_size - current_size, current_size)
         assert False, f"Frame {picture_number} not found in first round byte usage"
-        
