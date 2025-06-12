@@ -75,6 +75,7 @@ if __name__ == "__main__":
     base_output_path = Path(args.output_dir)
     env = Av1GymEnv(
         video_path=args.file,
+        output_dir=base_output_path,
         lambda_rd=args.lambda_rd,
     )
     env = Monitor(env, str(base_output_path / "monitor"))

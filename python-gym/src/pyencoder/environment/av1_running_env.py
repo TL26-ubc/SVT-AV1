@@ -230,3 +230,21 @@ class Av1RunningEnv:
         Called by RL environment to get encoding results.
         """
         return self.feedback_queue.get(timeout=timeout)
+    
+    def get_byte_usage_diff(self, picture_number: int) -> tuple[int, int]:
+        """
+        Get the byte usage difference for a specific frame compared to the first round.
+        Returns the difference in bytes used for encoding the frame.
+        Args:
+            picture_number (int): The frame number to check.
+        Returns:
+            (int, int): A tuple containing the difference in bytes and the current size of the frame.
+            positive difference means the frame is larger than in the first round,
+            negative difference means the frame is smaller.
+        """
+        if picture_number in self.first_round_byte_usage and picture_number in self.bytes_keeper:
+            first_round_size = self.first_round_byte_usage[picture_number]
+            current_size = len(self.bytes_keeper.get(picture_number, b""))
+            return (first_round_size - current_size, current_size)
+        assert False, f"Frame {picture_number} not found in first round byte usage"
+        
