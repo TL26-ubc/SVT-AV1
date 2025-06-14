@@ -32,7 +32,7 @@
 #ifdef SVT_ENABLE_USER_CALLBACKS
 #include "rl_feedback.h"
 #include "enc_callbacks.h"
-void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, Bool is_highbd);
+void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, bool is_highbd);
 #endif
 
 static void mem_put_varsize(uint8_t *const dst, const int sz, const int val) {
