@@ -173,7 +173,7 @@ typedef struct EbMdcLeafData {
 typedef struct MdcSbData {
     uint32_t       leaf_count;
     EbMdcLeafData *leaf_data_array;
-    Bool          *split_flag;
+    bool          *split_flag;
     uint8_t       *refined_split_flag;
     // 0: do not encode, 1: current or parent depth(s), 2: child depth(s)
     uint8_t *consider_block;
@@ -251,7 +251,7 @@ typedef struct PictureControlSet {
     // Entropy Process Rows
     EntropyTileInfo **ec_info;
     EbHandle          entropy_coding_pic_mutex;
-    Bool              entropy_coding_pic_reset_flag;
+    bool              entropy_coding_pic_reset_flag;
     uint8_t           tile_size_bytes_minus_1;
     EbHandle          intra_mutex;
     uint32_t          intra_coded_area;
@@ -275,7 +275,7 @@ typedef struct PictureControlSet {
     uint8_t      rest_segments_column_count;
     uint8_t      rest_segments_row_count;
     // flag to indicate whether the frame is extended for restoration search
-    Bool rest_extend_flag[3];
+    bool rest_extend_flag[3];
 
     // Slice Type
     SliceType slice_type;
@@ -386,7 +386,7 @@ typedef struct PictureControlSet {
     uint8_t          pic_block_based_depth_refinement_level;
     uint8_t          pic_lpd0_lvl; // lpd0_lvl signal set at the picture level
     uint8_t          pic_lpd1_lvl; // lpd1_lvl signal set at the picture level
-    Bool             pic_bypass_encdec;
+    bool             pic_bypass_encdec;
     EncMode          enc_mode;
     InputCoeffLvl    coeff_lvl;
     bool             me_dist_mod; // Whether or not to modulate the level of prediction tools using me-distortion
@@ -441,11 +441,13 @@ typedef struct PictureControlSet {
     // different with input frame when reference scaling is enabled
     EbPictureBufferDesc *scaled_input_pic;
     bool                 rtc_tune;
-#if FTR_LOSSLESS_SUPPORT
     // lossless[s] is true if segment 's' is coded losslessly.
-    Bool lossless[MAX_SEGMENTS];
-    Bool mimic_only_tx_4x4;
-#endif
+    bool    lossless[MAX_SEGMENTS];
+    bool    mimic_only_tx_4x4;
+    int64_t zero_filt_sse;
+    int64_t best_filt_sse;
+    int32_t dlf_dist_dev;
+    int32_t cdef_dist_dev;
 } PictureControlSet;
 
 // To optimize based on the max input size
@@ -458,7 +460,7 @@ typedef struct B64Geom {
     uint8_t  width;
     uint8_t  height;
     uint8_t  is_complete_b64;
-    Bool     raster_scan_blk_validity[CU_MAX_COUNT];
+    bool     raster_scan_blk_validity[CU_MAX_COUNT];
     uint8_t  is_edge_sb;
     uint32_t tile_start_x;
     uint32_t tile_start_y;
@@ -474,7 +476,7 @@ typedef struct SbGeom {
     uint8_t  width;
     uint8_t  height;
     uint8_t  is_complete_sb;
-    Bool     block_is_allowed[BLOCK_MAX_COUNT_SB_128];
+    bool     block_is_allowed[BLOCK_MAX_COUNT_SB_128];
 } SbGeom;
 
 typedef struct TileGroupInfo {
@@ -544,16 +546,15 @@ typedef struct {
     uint8_t   tpl_ref0_count;
     uint8_t   tpl_ref1_count;
     uint64_t  tpl_decode_order;
-    Bool      ref_in_slide_window[MAX_NUM_OF_REF_PIC_LIST][REF_LIST_MAX_DEPTH];
+    bool      ref_in_slide_window[MAX_NUM_OF_REF_PIC_LIST][REF_LIST_MAX_DEPTH];
     // tpl group index of all ref pictures; -1 if the reference is not in the TPL group (aka sliding
     // window)
     int32_t ref_tpl_group_idx[MAX_NUM_OF_REF_PIC_LIST][REF_LIST_MAX_DEPTH];
     // TPL base picture
     struct PictureParentControlSet *base_pcs;
-    Bool                            is_ref;
+    bool                            is_ref;
     EbDownScaledBufDescPtrArray     tpl_ref_ds_ptr_array[MAX_NUM_OF_REF_PIC_LIST][REF_LIST_MAX_DEPTH];
 } TPLData;
-#if OPT_GM_CORESP_FROM_MV
 typedef enum CorrespondenceMethod {
     MV_64x64 = 0,
     MV_32x32 = 1,
@@ -561,24 +562,17 @@ typedef enum CorrespondenceMethod {
     MV_8x8   = 3,
     CORNERS  = 4
 } CorrespondenceMethod;
-#endif
-#if OPT_GM_RFN_EARLY_EXIT
 typedef struct GmControls {
     // 0: disable GM, 1: Enable GM
     uint8_t enabled;
     // 0: generate GM params for both list_0 and list_1, 1: do not generate GM params for list_1 if
     // list_0/ref_idx_0 is id
     uint8_t identiy_exit;
-#if OPT_GM_LVLS
     // GM supports three models: TRANSLATION, ROTZOOM, AFFINE. Set the start and end models to be searched
     // Set the starting model to be searched for GM (TRANSLATION, ROTZOOM, AFFINE)
     uint8_t search_start_model;
     // Set the end model to be searched for GM (TRANSLATION, ROTZOOM, AFFINE)
     uint8_t search_end_model;
-#else
-    // 0: use both rotzoom and affine models, 1:use rotzoom model only
-    uint8_t rotzoom_model_only;
-#endif
     // 0: Inject both unipred and bipred global candidates in MD, 1: test bipred only
     uint8_t bipred_only;
     // 0: Do not bypass GM search based on the uniformity of motion estimation MVs. 1 : Enable bypass of GM search on ME MVs
@@ -597,12 +591,6 @@ typedef struct GmControls {
     // GM_ADAPT_0: Downsampling is done adaptively (GM_FULL or GM_DOWN) based on the average ME distortion.
     // GM_ADAPT_1: Downsampling is done adaptively (GM_DOWN or GM_DOWN16) based on the average ME distortion and the picture variance.
     uint8_t downsample_level;
-#if !CLN_UNUSED_GM_SIGS
-    // do GM in the closed loop instead of the open loop and use reference information 0: off 1: on
-    bool use_ref_info;
-    // do the detection bypass for last layer pictures   0:off     1:last layer     2:last 2 layers 3: last 3 layers
-    uint8_t layer_offset;
-#endif
     //use a fraction of corner points for computing correspondences for RANSAC in detection. 1:1/4   2:2/4   3:3/4   4:all
     uint8_t corners;
     //skip global motion refinement using a chess pattern to skip blocks
@@ -615,61 +603,13 @@ typedef struct GmControls {
     bool pp_enabled;
     //limit the search to ref index = 0 only
     bool ref_idx0_only;
-#if !CLN_UNUSED_GM_SIGS
-    // if true, apply an offset to the segments of the me-dist based modulation
-    uint8_t qp_offset;
-#endif
     // 0: off, 1: enable early exit from parameter refinement
     uint8_t rfn_early_exit;
-#if OPT_GM_CORESP_FROM_MV
     // 0: Generate correspondence points using corners; 1: Generate correspondence points using ME MVs
     // When using level 1, corners and match_sz signals will not be used, and pp_enabled must be 0
     CorrespondenceMethod correspondence_method;
-#endif
 } GmControls;
-#else
-typedef struct GmControls {
-    // 0: generate GM params for both list_0 and list_1, 1: do not generate GM params for list_1 if
-    // list_0/ref_idx_0 is id
-    uint8_t enabled;
-    // 0: use both rotzoom and affine models, 1:use rotzoom model only
-    uint8_t identiy_exit;
-    // 0: test both unipred and bipred, 1: test bipred only
-    uint8_t rotzoom_model_only;
-    uint8_t bipred_only;
-    // 0: do not consider stationary_block info @ me-based bypass, 1: consider stationary_block info
-    // @ me-based bypass (only if bypass_based_on_me=1)
-    uint8_t bypass_based_on_me;
-    // 0: used default active_th,1: increase active_th baed on distance to ref (only if
-    // bypass_based_on_me=1)
-    uint8_t use_stationary_block;
-    // The number of refinement steps to use in the GM params refinement
-    uint8_t use_distance_based_active_th;
-    // GM_FULL: Exhaustive search mode; GM_DOWN: Downsampled resolution with a downsampling factor
-    // of 2 in each dimension; GM_TRAN_ONLY: Translation only using ME MV.
-    uint8_t params_refinement_steps;
-    uint8_t downsample_level;
-    // do GM in the closed loop instead of the open loop and use reference information 0: off 1: on
-    bool use_ref_info;
-    // do the detection bypass for last layer pictures   0:off     1:last layer     2:last 2 layers 3: last 3 layers
-    uint8_t layer_offset;
-    //use a fraction of corner points for computing correspondences for RANSAC in detection. 1:1/4   2:2/4   3:3/4   4:all
-    uint8_t corners;
-    //skip global motion refinement using a chess pattern to skip blocks
-    uint8_t chess_rfn;
-    //change the window size for correlation calculations. must be odd. N: NxN window size goes from 1 to 15
-    uint8_t match_sz;
-    //Inject global only if Parent SQ is global
-    bool inj_psq_glb;
-    //enable Pre-processor for GM
-    bool pp_enabled;
-    //limit the search to  ref index = 0 only
-    bool ref_idx0_only;
-    // if true, apply an offset to the segments of the me-dist based modulation
-    uint8_t qp_offset;
-} GmControls;
-#endif
-typedef struct CdefControls {
+typedef struct CdefSearchControls {
     uint8_t enabled;
     uint8_t number_of_prim_in_second_loop[2];
     // Number of primary filters considered in the first pass. (luma and chroma)
@@ -701,11 +641,19 @@ typedef struct CdefControls {
     // process at once. Only search best filter strengths of the nearest ref frames (skips the
     // search if the filters of list0/list1 are the same).
     uint8_t search_best_ref_fs;
-    // 0: OFF, higher is safer. Scaling factor to decrease the zero filter strength cost: : <x>/64
-    uint16_t zero_fs_cost_bias;
     // Shut CDEF at the picture level based on the skip area of the nearest reference frames.
     uint8_t use_skip_detector;
-} CdefControls;
+} CdefSearchControls;
+
+typedef struct CdefReconControls {
+    // 0: OFF, higher is safer. Scaling factor to decrease the zero filter strength cost: : <x>/64
+    uint16_t zero_fs_cost_bias;
+    // Threshold used to disable based on ME distortion, there are four levels of thresholds [0..3], 0 = off
+    uint8_t zero_filter_strength_lvl;
+    // Only use zero_filter_strength_lvl if the CDEF improvement of the ref frames is below prev_cdef_dist_th.
+    // prev_cdef_dist_th is a percent times 10 (e.g. a value of 50 corresponds to 5% improvement in the ref frames).
+    uint16_t prev_cdef_dist_th;
+} CdefReconControls;
 typedef struct DlfCtrls {
     uint8_t enabled; // if true, perform DLF per SB, not per picture
     // when DLF filter level is selected from QP, if the filter level is less than or equal to this
@@ -713,12 +661,18 @@ typedef struct DlfCtrls {
     uint8_t sb_based_dlf;
     // Start search from average DLF instead of 0
     bool dlf_avg;
-    // Use average DLF as a starting point for qp based filter strength selection for Chroma planes
-    bool dlf_avg_uv;
+    // If true, use average filter strength of ref frames for the current frame (no search). For luma, the filters
+    // may be set to 0 if the SSE improvement from DLF in the ref frames if very small
+    bool use_ref_avg_y;
+    bool use_ref_avg_uv;
     // Number of convergence points before exiting the filter search, 1 = exit on first convergence point, 2 = exit on second, 0 = off
     uint8_t early_exit_convergence;
-    // Threshold used when sb_based_dlf is used to use filter strength zero, there are four levels of thresholds [0..3], 0 = off
+    // Threshold used to set filter strength to zero based on ME distortion, there are four levels of thresholds [0..3], 0 = off
     uint8_t zero_filter_strength_lvl;
+    // For frame-based DLF search, only use zero_filter_strength_lvl if the DLF improvement of the ref frames is below prev_dlf_dist_th.
+    // prev_dlf_dist_th is a percent times 10 (e.g. a value of 50 corresponds to 5% improvement in the ref frames). This TH is not used
+    // for SB-based DLF because we do not currently compute the SSE for SB-based DLF.
+    uint16_t prev_dlf_dist_th;
 } DlfCtrls;
 typedef struct IntraBCCtrls {
     // Shift for full_pixel_exhaustive search threshold:   0: No Shift   1:Shift to left by 1
@@ -811,7 +765,7 @@ typedef struct PictureParentControlSet {
     EbPictureBufferDesc *enhanced_unscaled_pic;
     // if 422/444 input, down sample to 420 for MD
     EbPictureBufferDesc       *chroma_downsampled_pic;
-    Bool                       is_chroma_downsampled_picture_ptr_owner;
+    bool                       is_chroma_downsampled_picture_ptr_owner;
     PredictionStructure       *pred_struct_ptr; // need to check
     struct SequenceControlSet *scs;
     EbObjectWrapper           *scs_wrapper;
@@ -835,17 +789,15 @@ typedef struct PictureParentControlSet {
     uint8_t             tile_group_cols;
     uint8_t             tile_group_rows;
 
-    Bool      idr_flag;
-    Bool      cra_flag;
-    Bool      scene_change_flag;
+    bool      idr_flag;
+    bool      cra_flag;
+    bool      scene_change_flag;
     int8_t    transition_present; // -1: not computed
-    Bool      end_of_sequence_flag;
+    bool      end_of_sequence_flag;
     uint8_t   picture_qp;
-#if FTR_SIGNAL_AVERAGE_QP
-    uint32_t tot_qindex;
-    uint32_t valid_qindex_area;
-    uint8_t  avg_qp;
-#endif
+    uint32_t  tot_qindex;
+    uint32_t  valid_qindex_area;
+    uint8_t   avg_qp;
     uint64_t  picture_number;
     uint32_t  cur_order_hint;
     uint32_t  ref_order_hint[INTER_REFS_PER_FRAME];
@@ -864,7 +816,7 @@ typedef struct PictureParentControlSet {
     // satisfy CI unit tests for MacOS.
     uint64_t released_pics[REF_FRAMES + 1];
     uint8_t  released_pics_count;
-    Bool     is_ref;
+    bool     is_ref;
     bool     is_highest_layer;
     // status of PA reference 0: Not release; 1: Released
     uint8_t reference_released;
@@ -879,10 +831,10 @@ typedef struct PictureParentControlSet {
     // Rate Control
     uint64_t                                total_num_bits;
     uint16_t                                b64_total_count;
-    Bool                                    end_of_sequence_region;
+    bool                                    end_of_sequence_region;
     int                                     frames_in_sw; // used for Look ahead
     struct RateControlIntervalParamContext *rate_control_param_ptr;
-    Bool                                    qp_on_the_fly;
+    bool                                    qp_on_the_fly;
     uint64_t                                last_idr_picture;
     uint64_t                                start_time_seconds;
     uint64_t                                start_time_u_seconds;
@@ -892,10 +844,6 @@ typedef struct PictureParentControlSet {
     double                                  luma_ssim;
     double                                  cr_ssim;
     double                                  cb_ssim;
-#if !CLN_UNUSED_GM_SIGS
-    EbPictureBufferDesc *quarter_src_pic;
-    EbPictureBufferDesc *sixteenth_src_pic;
-#endif
     // Pointer array for down scaled pictures
     EbObjectWrapper            *downscaled_pic_wrapper;
     EbDownScaledBufDescPtrArray ds_pics;
@@ -932,7 +880,7 @@ typedef struct PictureParentControlSet {
     uint32_t *me_16x16_distortion;
     uint32_t *me_8x8_distortion;
     // Global motion estimation results
-    Bool                 is_global_motion[MAX_NUM_OF_REF_PIC_LIST][REF_LIST_MAX_DEPTH];
+    bool                 is_global_motion[MAX_NUM_OF_REF_PIC_LIST][REF_LIST_MAX_DEPTH];
     EbWarpedMotionParams svt_aom_global_motion_estimation[MAX_NUM_OF_REF_PIC_LIST][REF_LIST_MAX_DEPTH];
     int8_t               is_gm_on; //-1 invalid, 1: gm on in one of the ref frames,  0:gm off for all ref frames
     uint16_t             me_processed_b64_count;
@@ -941,23 +889,23 @@ typedef struct PictureParentControlSet {
     double               r0;
     // track pictures that are processd in two different TPL groups
     uint8_t tpl_src_data_ready;
-    Bool    blk_lambda_tuning;
+    bool    blk_lambda_tuning;
     // Dynamic GOP
     SvtAv1PredStructure pred_structure;
     uint8_t             hierarchical_levels;
-    Bool                init_pred_struct_position_flag;
+    bool                init_pred_struct_position_flag;
     int8_t              hierarchical_layers_diff;
     // HME Flags
-    Bool enable_hme_flag;
-    Bool enable_hme_level0_flag;
-    Bool enable_hme_level1_flag;
-    Bool enable_hme_level2_flag;
+    bool enable_hme_flag;
+    bool enable_hme_level0_flag;
+    bool enable_hme_level1_flag;
+    bool enable_hme_level2_flag;
 
     // HME Flags form Temporal Filtering
-    Bool tf_enable_hme_flag;
-    Bool tf_enable_hme_level0_flag;
-    Bool tf_enable_hme_level1_flag;
-    Bool tf_enable_hme_level2_flag;
+    bool tf_enable_hme_flag;
+    bool tf_enable_hme_level0_flag;
+    bool tf_enable_hme_level1_flag;
+    bool tf_enable_hme_level2_flag;
 
     // MD
     EncMode enc_mode;
@@ -968,7 +916,7 @@ typedef struct PictureParentControlSet {
     uint8_t          frame_end_cdf_update_mode; // mm-signal: 0: OFF, 1:ON
     //**********************************************************************************************************//
     Av1RpsNode av1_ref_signal;
-    Bool       has_show_existing;
+    bool       has_show_existing;
     /* maps fb_idx to reference slot */
     int32_t ref_frame_map[REF_FRAMES];
     // index of picture in the mg
@@ -1040,7 +988,7 @@ typedef struct PictureParentControlSet {
     Macroblock          *av1x;
     int32_t              film_grain_params_present; // todo (AN): Do we need this flag at picture level?
     int8_t               cdef_level;
-    Bool                 enable_restoration; // TRUE if restoration filtering is enabled for the current frame
+    bool                 enable_restoration; // true if restoration filtering is enabled for the current frame
 
     uint8_t palette_level;
 
@@ -1086,13 +1034,13 @@ typedef struct PictureParentControlSet {
     uint8_t     tf_segments_row_count;
     uint8_t     past_altref_nframes;
     uint8_t     future_altref_nframes;
-    Bool        do_tf;
+    bool        do_tf;
     uint64_t    filtered_sse_uv;
     FrameHeader frm_hdr;
     uint16_t   *altref_buffer_highbd[3];
     uint8_t     pic_obmc_level;
 
-    Bool is_pcs_sb_params;
+    bool is_pcs_sb_params;
     // Contains info for 64x64 blocks, NOT SB info.  Should not be used in MD; use sb_geom instead.
     B64Geom *b64_geom;
     // Contains SB info (adapts automatically when SB 128x128 is used). This should be used in MD.
@@ -1116,13 +1064,13 @@ typedef struct PictureParentControlSet {
     uint16_t render_width;
     uint16_t render_height;
 
-    Bool    frame_resize_enabled;
+    bool    frame_resize_enabled;
     uint8_t resize_denom;
     // reference scaling random access event
     EbRefFrameScale resize_evt;
-    Bool            rc_reset_flag;
+    bool            rc_reset_flag;
 
-    Bool    frame_superres_enabled;
+    bool    frame_superres_enabled;
     uint8_t superres_denom;
     // recode for auto superres
     // which loop is now running, range from 0 to superres_total_recode_loop - 1
@@ -1151,14 +1099,15 @@ typedef struct PictureParentControlSet {
     uint8_t used_tpl_frame_num;
 
     // Tune TPL for better chroma.Only for 240P
-    uint8_t      tune_tpl_for_chroma;
-    uint8_t      is_not_scaled;
-    TfControls   tf_ctrls;
-    GmControls   gm_ctrls;
-    GM_LEVEL     gm_downsample_level;
-    bool         gm_pp_enabled;
-    bool         gm_pp_detected; //gm detection enabled at the pre-processing level
-    CdefControls cdef_ctrls;
+    uint8_t            tune_tpl_for_chroma;
+    uint8_t            is_not_scaled;
+    TfControls         tf_ctrls;
+    GmControls         gm_ctrls;
+    GM_LEVEL           gm_downsample_level;
+    bool               gm_pp_enabled;
+    bool               gm_pp_detected; //gm detection enabled at the pre-processing level
+    CdefSearchControls cdef_search_ctrls;
+    CdefReconControls  cdef_recon_ctrls;
     // RC related variables
     int         q_low;
     int         q_high;
@@ -1232,9 +1181,7 @@ typedef struct PictureParentControlSet {
     bool     seq_param_changed;
     uint64_t norm_me_dist;
     uint8_t  tpl_params_ready;
-#if FTR_STARTUP_QP
-    bool is_startup_gop;
-#endif
+    bool     is_startup_gop;
 
 } PictureParentControlSet;
 
@@ -1266,7 +1213,7 @@ typedef struct PictureControlSetInitData {
     // both128x128 and 64x64, ultimately the fixed code supporting 64x64 should be upgraded to use
     // 128x128 and sb_size could be removed.
     uint32_t sb_size;
-    // Bool                             is_16bit;
+    // bool                             is_16bit;
     uint32_t                 ten_bit_format;
     uint16_t                 enc_dec_segment_col;
     uint16_t                 enc_dec_segment_row;
@@ -1287,7 +1234,7 @@ typedef struct PictureControlSetInitData {
     uint8_t log2_tile_cols;
     // in mi unit
     uint8_t log2_sb_size;
-    Bool    is_16bit_pipeline;
+    bool    is_16bit_pipeline;
 
     uint16_t   non_m8_pad_w;
     uint16_t   non_m8_pad_h;
@@ -1306,11 +1253,12 @@ typedef struct PictureControlSetInitData {
     uint8_t final_pass_preset;
     uint8_t input_resolution;
     uint8_t calculate_variance;
-    Bool    is_scale;
+    bool    is_scale;
     bool    rtc_tune;
-    Bool    enable_variance_boost;
+    bool    enable_variance_boost;
     uint8_t variance_boost_strength;
     uint8_t variance_octile;
+    uint8_t tf_strength;
 } PictureControlSetInitData;
 
 typedef struct Av1Comp {
@@ -1332,7 +1280,7 @@ EbErrorType ppcs_update_param(PictureParentControlSet *ppcs);
 EbErrorType pcs_update_param(PictureControlSet *pcs);
 EbErrorType me_update_param(MotionEstimationData *me_data, struct SequenceControlSet *scs);
 EbErrorType recon_coef_update_param(EncDecSet *recon_coef, struct SequenceControlSet *scs);
-extern Bool svt_aom_is_pic_skipped(PictureParentControlSet *pcs);
+extern bool svt_aom_is_pic_skipped(PictureParentControlSet *pcs);
 void svt_aom_get_gm_needed_resolutions(uint8_t ds_lvl, bool *gm_need_full, bool *gm_need_quart, bool *gm_need_sixteen);
 #ifdef __cplusplus
 }

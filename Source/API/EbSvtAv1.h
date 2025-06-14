@@ -16,6 +16,7 @@
 extern "C" {
 #endif // __cplusplus
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "EbSvtAv1Formats.h"
 #include "EbDebugMacros.h"
@@ -23,9 +24,9 @@ extern "C" {
 struct SvtMetadataArray;
 
 // API Version
-#define SVT_AV1_VERSION_MAJOR 2
-#define SVT_AV1_VERSION_MINOR 3
-#define SVT_AV1_VERSION_PATCHLEVEL 0
+#define SVT_AV1_VERSION_MAJOR 3
+#define SVT_AV1_VERSION_MINOR 0
+#define SVT_AV1_VERSION_PATCHLEVEL 2
 
 #define SVT_AV1_CHECK_VERSION(major, minor, patch)                                                               \
     (SVT_AV1_VERSION_MAJOR > (major) || (SVT_AV1_VERSION_MAJOR == (major) && SVT_AV1_VERSION_MINOR > (minor)) || \
@@ -75,14 +76,6 @@ typedef enum EbAv1PictureType {
     EB_AV1_INVALID_PICTURE       = 0xFF
 } EbAv1PictureType;
 
-/** The Bool type is intended to be used to represent a true or a false
-value when passing parameters to and from the eBrisk API.  The
-Bool is an 8 bit quantity.
-*/
-typedef uint8_t Bool;
-#define FALSE 0
-#define TRUE 1
-
 typedef struct EbBufferHeaderType {
     // EbBufferHeaderType size
     uint32_t size;
@@ -102,13 +95,9 @@ typedef struct EbBufferHeaderType {
     int64_t  pts;
 
     // pic info
-#if FTR_SIGNAL_LAYER
-    uint8_t temporal_layer_index;
-#endif
-    uint32_t qp;
-#if FTR_SIGNAL_AVERAGE_QP
-    uint32_t avg_qp;
-#endif
+    uint8_t          temporal_layer_index;
+    uint32_t         qp;
+    uint32_t         avg_qp;
     EbAv1PictureType pic_type;
     uint64_t         luma_sse;
     uint64_t         cr_sse;
@@ -163,28 +152,9 @@ typedef struct EbSvtIOFormat //former EbSvtEncInput
     uint8_t *luma;
     uint8_t *cb;
     uint8_t *cr;
-#if !FIX_EB_SVT_IO_FORMAT
-    // Hosts LSB 2 bits of 10bit input/output when the compressed 10bit format is used
-#if !SVT_AV1_CHECK_VERSION(1, 5, 0)
-    /* DEPRECATED: to be removed in 1.5.0. */
-    void *luma_ext;
-    void *cb_ext;
-    void *cr_ext;
-#endif
-#endif
     uint32_t y_stride;
     uint32_t cr_stride;
     uint32_t cb_stride;
-#if !FIX_EB_SVT_IO_FORMAT
-    uint32_t width;
-    uint32_t height;
-
-    uint32_t org_x;
-    uint32_t org_y;
-
-    EbColorFormat color_fmt;
-    EbBitDepth    bit_depth;
-#endif
 } EbSvtIOFormat;
 
 typedef struct EbOperatingParametersInfo {
@@ -229,19 +199,12 @@ typedef struct EbColorConfig {
 
     /*!< 1: Indicates that the video does not contain U and V color planes.
      *   0: Indicates that the video contains Y, U, and V color planes. */
-    Bool mono_chrome;
+    bool mono_chrome;
     /*!< Specify the chroma subsampling format */
     uint8_t subsampling_x;
 
     /*!< Specify the chroma subsampling format */
     uint8_t subsampling_y;
-#if !FIX_COLOR_DESCRIPTION_PRESENT_FLAG
-    /*!< 1: Specifies that color_primaries, transfer_characteristics, and
-            matrix_coefficients are present. color_description_present_flag
-     *   0: Specifies that color_primaries, transfer_characteristics and
-            matrix_coefficients are not present */
-    Bool color_description_present_flag;
-#endif
     /*!< An integer that is defined by the "Color primaries" section of
      * ISO/IEC 23091-4/ITU-T H.273 */
     EbColorPrimaries color_primaries;
@@ -264,12 +227,12 @@ typedef struct EbColorConfig {
     /*!< 1: Indicates that the U and V planes may have separate delta quantizer
      *   0: Indicates that the U and V planes will share the same delta
             quantizer value */
-    Bool separate_uv_delta_q;
+    bool separate_uv_delta_q;
 } EbColorConfig;
 
 typedef struct EbTimingInfo {
     /*!< Timing info present flag */
-    Bool timing_info_present;
+    bool timing_info_present;
 
     /*!< Number of time units of a clock operating at the frequency time_scale
      * Hz that corresponds to one increment of a clock tick counter*/

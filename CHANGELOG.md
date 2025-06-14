@@ -1,5 +1,49 @@
 # Changelog
 
+## [3.0.2] - 2025-3-21
+
+Encoder
+
+- More Arm simd improvements (!2401, !2402, !2403, !2405, !2409, !2410)
+- Fixed mising initalization of lossless and avif (#2255, !2404)
+
+Documentation
+- Add missing `--luminance-qp-bias` documentation (!2407)
+
+## [3.0.1] - 2025-3-10
+
+Encoder cleanup and bug fixes
+- Further Arm improvements along with fixing arm vs x86 output mismatches (!2393, !2399, !2400, #2247)
+- Fixed memory leak in compute_global_motion (!2395, #2248)
+- Fixed integer overflow in subpel search to prevent an assertion (!2396, #2250)
+- Clean up some undefined behavior (!2398)
+- API change fixes now available in FFmpeg and GStreamer (#2249, #2252)
+
+Known issue
+- Hard to reproduce SIGTRAP being raised on macOS m1 with libavif's avifsvttest (#2251)
+
+## [3.0.0] - 2025-2-18
+
+API updates
+- Refreshed API cleaning up unused fields, use stdbool type and cleanup redundant parameter in `svt_av1_enc_init_handle`
+- Repositioned the presets and removed one preset resulting in a max preset of M10 in the current version
+- Added temporal layer and averageQP fields in output picture structure, along with an option to specify a QP offset for the startup gop
+- The API changes are not backwards compatible, more details about the changes can be found in issue 2217
+
+Encoder
+- Improved mid and high quality presets quality vs speed tradeoffs for fast-decode 2 mode:
+-  ~15-25% speedup for M3-M10 at the same quality levels - (!2376 and !2343)
+-  ~1% BD-rate improvement for presets M0-M2 - (!2376 and !2343)
+- Repositioned the `fast-decode 1` mode to produce ~10% decoder cycle reduction vs `fast-decode 0` while reducing the BD-rate loss to ~1% (!2376)
+- Further Arm Neon and SVE2 optimizations that improve high bitdepth encoding by an average of 10-25% for 480p-1080p resolutions beyond the architecture-agnostic algorithmic improvements since v2.3.0
+- Ported several features from SVT-AV1-SPY fork to further improve the perceptual quality of `tune 0` mode
+- Added an `avif` mode to reduce resource utilization when encoding still images
+
+Cleanup Build and bug fixes and documentation
+- third_party: Removed vendored cpuinfo, will attempt to use one provided by the system. For those without cpuinfo, it will be pulled and compiled into the library, similar to before
+- Improved the unit test coverage for Arm Neon and SVE2 code
+- Updated documentation
+
 ## [2.3.0] - 2024-10-28
 
 API updates

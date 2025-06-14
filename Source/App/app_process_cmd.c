@@ -180,11 +180,7 @@ static long get_next_qp_from_qp_file(FILE *const qp_file, int *const qp_read_fro
         *qp_read_from_file = 1;
     return qp;
 }
-#if FIX_BOOL
 static unsigned char send_qp_on_the_fly(FILE *const qp_file, bool *use_qp_file) {
-#else
-static unsigned char send_qp_on_the_fly(FILE *const qp_file, Bool *use_qp_file) {
-#endif
     long tmp_qp            = 0;
     int  qp_read_from_file = 0;
 
@@ -193,7 +189,7 @@ static unsigned char send_qp_on_the_fly(FILE *const qp_file, Bool *use_qp_file) 
         tmp_qp = get_next_qp_from_qp_file(qp_file, &qp_read_from_file);
 
     if (tmp_qp == -1) {
-        *use_qp_file = FALSE;
+        *use_qp_file = false;
         fprintf(stderr, "\nWarning: QP File did not contain any valid QPs");
     }
     return (unsigned)CLIP3(0, 63, tmp_qp);
@@ -493,7 +489,7 @@ void process_input_buffer(EncChannel *channel) {
     if (app_cfg->injector)
         injector(app_cfg->processed_frame_count, app_cfg->injector_frame_rate);
 
-    if (frames_to_be_encoded != app_cfg->processed_frame_count && app_cfg->stop_encoder == FALSE) {
+    if (frames_to_be_encoded != app_cfg->processed_frame_count && app_cfg->stop_encoder == false) {
         header_ptr->p_app_private = NULL;
         header_ptr->pic_type      = EB_AV1_INVALID_PICTURE;
 #if FTR_RES_ON_FLY_SAMPLE
@@ -512,7 +508,7 @@ void process_input_buffer(EncChannel *channel) {
                 header_ptr->qp = send_qp_on_the_fly(app_cfg->qp_file, &app_cfg->config.use_qp_file);
 
             if (keep_running == 0 && !app_cfg->stop_encoder)
-                app_cfg->stop_encoder = TRUE;
+                app_cfg->stop_encoder = true;
             // Fill in Buffers Header control data
             header_ptr->pts      = app_cfg->processed_frame_count - 1;
             header_ptr->pic_type = is_forced_keyframe(app_cfg, header_ptr->pts) ? EB_AV1_KEY_PICTURE
@@ -572,8 +568,8 @@ static void mmap_read_input_frames(EbConfig *app_cfg, uint8_t is_16bit, EbBuffer
     const uint8_t  color_format  = app_cfg->config.encoder_color_format;
     const uint8_t  subsampling_x = (color_format == EB_YUV444 ? 0 : 1);
     const uint8_t  subsampling_y = ((color_format == EB_YUV444 || color_format == EB_YUV422) ? 0 : 1);
-    const uint64_t chroma_width  = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
-    const uint64_t chroma_height = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
+    const uint32_t chroma_width  = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
+    const uint32_t chroma_height = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
 
     input_ptr->y_stride  = input_padded_width;
     input_ptr->cr_stride = chroma_width;
@@ -631,8 +627,8 @@ static void normal_read_input_frames(EbConfig *app_cfg, uint8_t is_16bit, EbBuff
     const uint8_t  color_format  = app_cfg->config.encoder_color_format;
     const uint8_t  subsampling_x = (color_format == EB_YUV444 ? 0 : 1);
     const uint8_t  subsampling_y = ((color_format == EB_YUV444 || color_format == EB_YUV422) ? 0 : 1);
-    const uint64_t chroma_width  = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
-    const uint64_t chroma_height = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
+    const uint32_t chroma_width  = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
+    const uint32_t chroma_height = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
 
     input_ptr->y_stride  = input_padded_width;
     input_ptr->cr_stride = chroma_width;
@@ -665,7 +661,7 @@ static void normal_read_input_frames(EbConfig *app_cfg, uint8_t is_16bit, EbBuff
 
     if (read_size != header_ptr->n_filled_len && !app_cfg->input_file_is_fifo) {
         fseek(input_file, 0, SEEK_SET);
-        if (app_cfg->y4m_input == TRUE) {
+        if (app_cfg->y4m_input == true) {
             read_and_skip_y4m_header(app_cfg->input_file);
             read_y4m_frame_delimiter(app_cfg->input_file, app_cfg->error_log_file);
         }
@@ -697,8 +693,8 @@ static void buffered_read_input_frames(EbConfig *app_cfg, uint8_t is_16bit, EbBu
     const uint8_t  color_format  = app_cfg->config.encoder_color_format;
     const uint8_t  subsampling_x = (color_format == EB_YUV444 ? 0 : 1);
     const uint8_t  subsampling_y = ((color_format == EB_YUV444 || color_format == EB_YUV422) ? 0 : 1);
-    const uint64_t chroma_width  = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
-    const uint64_t chroma_height = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
+    const uint32_t chroma_width  = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
+    const uint32_t chroma_height = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
 
     input_ptr->y_stride  = input_padded_width;
     input_ptr->cr_stride = chroma_width;
@@ -731,33 +727,25 @@ void init_reader(EbConfig *app_cfg) {
 ***************************************/
 void process_output_statistics_buffer(EbBufferHeaderType *header_ptr, EbConfig *app_cfg) {
     uint32_t max_luma_value = (app_cfg->config.encoder_bit_depth == 8) ? 255 : 1023;
-#if FTR_SIGNAL_LAYER
-    uint8_t temporal_layer_index;
-#endif
-#if FTR_SIGNAL_AVERAGE_QP
+    uint8_t  temporal_layer_index;
     uint32_t avg_qp;
-#endif
     uint64_t picture_stream_size, luma_sse, cr_sse, cb_sse, picture_number, picture_qp;
     double   luma_ssim, cr_ssim, cb_ssim;
     double   temp_var, luma_psnr, cb_psnr, cr_psnr;
     uint32_t source_width  = app_cfg->config.source_width;
     uint32_t source_height = app_cfg->config.source_height;
 
-    picture_stream_size = header_ptr->n_filled_len;
-    luma_sse            = header_ptr->luma_sse;
-    cr_sse              = header_ptr->cr_sse;
-    cb_sse              = header_ptr->cb_sse;
-    picture_number      = header_ptr->pts;
-#if FTR_SIGNAL_LAYER
+    picture_stream_size  = header_ptr->n_filled_len;
+    luma_sse             = header_ptr->luma_sse;
+    cr_sse               = header_ptr->cr_sse;
+    cb_sse               = header_ptr->cb_sse;
+    picture_number       = header_ptr->pts;
     temporal_layer_index = header_ptr->temporal_layer_index;
-#endif
-    picture_qp = header_ptr->qp;
-#if FTR_SIGNAL_AVERAGE_QP
-    avg_qp = header_ptr->avg_qp;
-#endif
-    luma_ssim = header_ptr->luma_ssim;
-    cr_ssim   = header_ptr->cr_ssim;
-    cb_ssim   = header_ptr->cb_ssim;
+    picture_qp           = header_ptr->qp;
+    avg_qp               = header_ptr->avg_qp;
+    luma_ssim            = header_ptr->luma_ssim;
+    cr_ssim              = header_ptr->cr_ssim;
+    cb_ssim              = header_ptr->cb_ssim;
 
     temp_var = (double)max_luma_value * max_luma_value * (source_width * source_height);
 
@@ -785,27 +773,15 @@ void process_output_statistics_buffer(EbBufferHeaderType *header_ptr, EbConfig *
     // Write statistic Data to file
     if (app_cfg->stat_file) {
         fprintf(app_cfg->stat_file,
-#if FTR_SIGNAL_LAYER
-#if FTR_SIGNAL_AVERAGE_QP
                 "Picture Number: %4d\tTemporal Layer Index: %4d\t QP: %4d\t Average QP: %4d  [ "
-#else
-                "Picture Number: %4d\tTemporal Layer Index: %4d\t QP: %4d  [ "
-#endif
-#else
-                "Picture Number: %4d\t QP: %4d  [ "
-#endif
                 "PSNR-Y: %.2f dB,\tPSNR-U: %.2f dB,\tPSNR-V: %.2f "
                 "dB,\tMSE-Y: %.2f,\tMSE-U: %.2f,\tMSE-V: %.2f,\t"
                 "SSIM-Y: %.5f,\tSSIM-U: %.5f,\tSSIM-V: %.5f"
                 " ]\t %6d bytes\n",
                 (int)picture_number,
-#if FTR_SIGNAL_LAYER
                 (int)temporal_layer_index,
-#endif
                 (int)picture_qp,
-#if FTR_SIGNAL_AVERAGE_QP
                 (int)avg_qp,
-#endif
                 luma_psnr,
                 cb_psnr,
                 cr_psnr,

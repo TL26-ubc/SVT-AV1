@@ -630,6 +630,26 @@ static INLINE void store_s16_8x8(int16_t *s, ptrdiff_t dst_stride, const int16x8
     vst1q_s16(s, s7);
 }
 
+static INLINE void store_s16_4x8(int16_t *s, ptrdiff_t dst_stride, const int16x4_t s0, const int16x4_t s1,
+                                 const int16x4_t s2, const int16x4_t s3, const int16x4_t s4, const int16x4_t s5,
+                                 const int16x4_t s6, const int16x4_t s7) {
+    vst1_s16(s, s0);
+    s += dst_stride;
+    vst1_s16(s, s1);
+    s += dst_stride;
+    vst1_s16(s, s2);
+    s += dst_stride;
+    vst1_s16(s, s3);
+    s += dst_stride;
+    vst1_s16(s, s4);
+    s += dst_stride;
+    vst1_s16(s, s5);
+    s += dst_stride;
+    vst1_s16(s, s6);
+    s += dst_stride;
+    vst1_s16(s, s7);
+}
+
 static INLINE void store_s16_4x4(int16_t *s, ptrdiff_t dst_stride, const int16x4_t s0, const int16x4_t s1,
                                  const int16x4_t s2, const int16x4_t s3) {
     vst1_s16(s, s0);
@@ -1243,6 +1263,25 @@ static INLINE void store_u32_4x4(uint32_t *s, int32_t p, uint32x4_t s1, uint32x4
     vst1q_u32(s, s3);
     s += p;
     vst1q_u32(s, s4);
+}
+
+static INLINE void store_s32_8x4(int32_t *s, int32_t p, int32x4_t s0, int32x4_t s1, int32x4_t s2, int32x4_t s3,
+                                 int32x4_t s4, int32x4_t s5, int32x4_t s6, int32x4_t s7) {
+    vst1q_s32(s, s0);
+    s += p;
+    vst1q_s32(s, s1);
+    s += p;
+    vst1q_s32(s, s2);
+    s += p;
+    vst1q_s32(s, s3);
+    s += p;
+    vst1q_s32(s, s4);
+    s += p;
+    vst1q_s32(s, s5);
+    s += p;
+    vst1q_s32(s, s6);
+    s += p;
+    vst1q_s32(s, s7);
 }
 
 static INLINE int16x8_t load_tran_low_to_s16q(const tran_low_t *buf) {
