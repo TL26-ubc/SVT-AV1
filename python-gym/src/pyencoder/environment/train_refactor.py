@@ -57,10 +57,6 @@ def prase_arg():
     parser.add_argument(
         "--save_freq", type=int, default=10000, help="Model save frequency"
     )
-    
-    parser.add_argument(
-        "--model", type=str, default=None, help="Path to a pre-trained model"
-    )
 
     args = parser.parse_args()
 
@@ -84,16 +80,8 @@ if __name__ == "__main__":
     )
     env = Monitor(env, str(base_output_path / "monitor"))
 
-    model = args.model
-    if model is not None:
-        if not os.path.exists(model):
-            raise FileNotFoundError(f"Model file {model} does not exist.")
-        print(f"Loading pre-trained model from {model}")
-        if args.algorithm == "ppo":
-            model = PPO.load(model, env=env)
-        elif args.algorithm == "dqn":
-            model = DQN.load(model, env=env)
-    elif args.algorithm == "ppo":
+    model = None
+    if args.algorithm == "ppo":
         model = PPO(
             "MlpPolicy",
             env,
