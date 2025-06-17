@@ -61,3 +61,6 @@ CMakeUserPresets.json
 *.zip
 *.csv
 python-gym/src/pyencoder/environment/rl_training_output/
+
+# graphing
+graphing/graphs/
