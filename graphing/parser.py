@@ -93,11 +93,24 @@ def plot_psnr(data, title, filename):
     plt.plot(v_psnr, label='V-PSNR', marker='o')
     
     plt.title(title)
-    plt.xlabel('Frame Index')
+    plt.xlabel('Run Index')
     plt.ylabel('PSNR (dB)')
     plt.legend()
     plt.grid()
     plt.savefig(f'graphs/{filename}.png')
+    plt.close()
+    
+    # also plot an improvement graph based on the first run, show the difference from the first run
+    plt.figure(figsize=(10, 6))
+    plt.plot([y - y_psnr[0] for y in y_psnr], label='Y-PSNR Improvement', marker='o')
+    plt.plot([u - u_psnr[0] for u in u_psnr], label='U-PSNR Improvement', marker='o')
+    plt.plot([v - v_psnr[0] for v in v_psnr], label='V-PSNR Improvement', marker='o')
+    plt.title(f'{title} Improvement from First Run')
+    plt.xlabel('Run Index')
+    plt.ylabel('PSNR Improvement (dB)')
+    plt.legend()
+    plt.grid()
+    plt.savefig(f'graphs/{filename}_improvement.png')
     plt.close()
 plot_psnr(stats, 'Average PSNR per Run', 'average_psnr')
 
@@ -113,12 +126,25 @@ def plot_ssim(data, title, filename):
     plt.plot(v_ssim, label='V-SSIM', marker='o')
     
     plt.title(title)
-    plt.xlabel('Frame Index')
+    plt.xlabel('Run Index')
     plt.ylabel('SSIM')
     plt.legend()
     plt.grid()
     plt.savefig(f'graphs/{filename}.png')
     plt.close()
+    
+    # also plot an improvement graph based on the first run, show the difference from the first run
+    plt.figure(figsize=(10, 6))
+    plt.plot([y - y_ssim[0] for y in y_ssim], label='Y-SSIM Improvement', marker='o')
+    plt.plot([u - u_ssim[0] for u in u_ssim], label='U-SSIM Improvement', marker='o')
+    plt.plot([v - v_ssim[0] for v in v_ssim], label='V-SSIM Improvement', marker='o')
+    plt.title(f'{title} Improvement from First Run')
+    plt.xlabel('Run Index')
+    plt.ylabel('SSIM Improvement')
+    plt.legend()
+    plt.grid()
+    plt.savefig(f'graphs/{filename}_improvement.png')
+    plt.close() 
 plot_ssim(stats, 'Average SSIM per Run', 'average_ssim')
 
 # create a graph for bitrate
@@ -129,10 +155,20 @@ def plot_bitrate(data, title, filename):
     plt.plot(bitrates, label='Bitrate', marker='o')
     
     plt.title(title)
-    plt.xlabel('Frame Index')
+    plt.xlabel('Run Index')
     plt.ylabel('Bitrate (kbps)')
     plt.legend()
     plt.grid()
     plt.savefig(f'graphs/{filename}.png')
     plt.close()
+    
+    # also plot an improvement graph based on the first run, show the difference from the first run
+    plt.figure(figsize=(10, 6))
+    plt.plot([b - bitrates[0] for b in bitrates], label='Bitrate Improvement', marker='o')
+    plt.title(f'{title} Improvement from First Run')
+    plt.xlabel('Run Index')
+    plt.ylabel('Bitrate Improvement (kbps)')
+    plt.legend()
+    plt.grid()
+    plt.savefig(f'graphs/{filename}_improvement.png')       
 plot_bitrate(stats, 'Bitrate per Run', 'bitrate')
