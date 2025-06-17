@@ -29,7 +29,7 @@ def prase_arg():
         "--algorithm", choices=["ppo", "dqn"], default="ppo", help="RL algorithm to use"
     )
     parser.add_argument(
-        "--total_timesteps", type=int, default=50, help="Total training timesteps"
+        "--total_iteration", type=int, default=50, help="Total training loop iterations, number of times the environment is reset"
     )
     parser.add_argument(
         "--learning_rate", type=float, default=3e-4, help="Learning rate"
@@ -38,8 +38,8 @@ def prase_arg():
     parser.add_argument(
         "--n_steps",
         type=int,
-        default=2048,
-        help="Number of steps per update (PPO only)",
+        default=-1,
+        help="Number of steps per update (PPO only), should match number of frames in the video, -1 would search for the video length",
     )
 
     # Environment parameters
@@ -73,12 +73,17 @@ if __name__ == "__main__":
 
     # create envirnment
     base_output_path = Path(args.output_dir)
-    env = Av1GymEnv(
+    gyn_env = Av1GymEnv(
         video_path=args.file,
         output_dir=base_output_path,
         lambda_rd=args.lambda_rd,
     )
-    env = Monitor(env, str(base_output_path / "monitor"))
+    env = Monitor(gyn_env, str(base_output_path / "monitor"))
+    
+    if args.n_steps == -1:
+        # Automatically determine n_steps based on video length
+        video_length = gyn_env.num_frames
+        args.n_steps = video_length if video_length > 0 else 1000  # Fallback to 1000 if length is unknown
 
     model = None
     if args.algorithm == "ppo":
@@ -119,11 +124,13 @@ if __name__ == "__main__":
             verbose=1,
             # tensorboard_log=str(base_output_path / "tensorboard"),
         )
+        
+    total_timesteps = args.total_iteration * gyn_env.num_frames
 
     # training
     try:
         model.learn(
-            total_timesteps=args.total_timesteps,
+            total_timesteps=total_timesteps,
             # callback=callbacks,
             tb_log_name=f"{args.algorithm}_run",
         )
