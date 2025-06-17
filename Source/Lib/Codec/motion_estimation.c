@@ -99,7 +99,7 @@ void svt_ext_sad_calculation_8x8_16x16_c(uint8_t *src, uint32_t src_stride, uint
                                          uint32_t ref_stride, uint32_t *p_best_sad_8x8,
                                          uint32_t *p_best_sad_16x16, uint32_t *p_best_mv8x8,
                                          uint32_t *p_best_mv16x16, uint32_t mv,
-                                         uint32_t *p_sad16x16, uint32_t *p_sad8x8, Bool sub_sad) {
+                                         uint32_t *p_sad16x16, uint32_t *p_sad8x8, bool sub_sad) {
     uint32_t sad16x16;
 
     if (sub_sad) {
@@ -211,7 +211,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
     uint8_t *src, uint32_t src_stride, uint8_t *ref, uint32_t ref_stride, uint32_t mv,
     uint32_t start_16x16_pos, uint32_t *p_best_sad_8x8, uint32_t *p_best_sad_16x16,
     uint32_t *p_best_mv8x8, uint32_t *p_best_mv16x16, uint32_t p_eight_sad16x16[16][8],
-    uint32_t p_eight_sad8x8[64][8], Bool sub_sad) {
+    uint32_t p_eight_sad8x8[64][8], bool sub_sad) {
     const uint32_t start_8x8_pos = 4 * start_16x16_pos;
     int16_t        x_mv, y_mv;
 
@@ -232,7 +232,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_8x8[0] = (uint32_t)sad8x8_0;
                 x_mv              = _MVXT(mv) + (int16_t)search_index;
                 y_mv              = _MVYT(mv);
-                p_best_mv8x8[0]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv8x8[0]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
 
             uint32_t sad8x8_1 = (svt_aom_compute8x4_sad_kernel_c(src + 8,
@@ -244,7 +244,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_8x8[1] = (uint32_t)sad8x8_1;
                 x_mv              = _MVXT(mv) + (int16_t)search_index;
                 y_mv              = _MVYT(mv);
-                p_best_mv8x8[1]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv8x8[1]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
 
             uint32_t sad8x8_2 = (svt_aom_compute8x4_sad_kernel_c(src + (src_stride << 3),
@@ -256,7 +256,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_8x8[2] = (uint32_t)sad8x8_2;
                 x_mv              = _MVXT(mv) + (int16_t)search_index;
                 y_mv              = _MVYT(mv);
-                p_best_mv8x8[2]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv8x8[2]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
 
             uint32_t sad8x8_3 = (svt_aom_compute8x4_sad_kernel_c(src + (src_stride << 3) + 8,
@@ -268,7 +268,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_8x8[3] = (uint32_t)sad8x8_3;
                 x_mv              = _MVXT(mv) + (int16_t)search_index;
                 y_mv              = _MVYT(mv);
-                p_best_mv8x8[3]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv8x8[3]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
             uint32_t sad16x16 = p_eight_sad16x16[start_16x16_pos][search_index] = sad8x8_0 +
                 sad8x8_1 + sad8x8_2 + sad8x8_3;
@@ -276,7 +276,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_16x16[0] = (uint32_t)sad16x16;
                 x_mv                = _MVXT(mv) + (int16_t)search_index;
                 y_mv                = _MVYT(mv);
-                p_best_mv16x16[0]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv16x16[0]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
         }
     } else {
@@ -287,7 +287,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_8x8[0] = (uint32_t)sad8x8_0;
                 x_mv              = _MVXT(mv) + (int16_t)search_index;
                 y_mv              = _MVYT(mv);
-                p_best_mv8x8[0]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv8x8[0]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
 
             uint32_t sad8x8_1 = (compute8x8_sad_kernel_c(
@@ -296,7 +296,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_8x8[1] = (uint32_t)sad8x8_1;
                 x_mv              = _MVXT(mv) + (int16_t)search_index;
                 y_mv              = _MVYT(mv);
-                p_best_mv8x8[1]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv8x8[1]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
 
             uint32_t sad8x8_2 = (compute8x8_sad_kernel_c(src + (src_stride << 3),
@@ -307,7 +307,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_8x8[2] = (uint32_t)sad8x8_2;
                 x_mv              = _MVXT(mv) + (int16_t)search_index;
                 y_mv              = _MVYT(mv);
-                p_best_mv8x8[2]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv8x8[2]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
 
             uint32_t sad8x8_3 = (compute8x8_sad_kernel_c(src + (src_stride << 3) + 8,
@@ -318,7 +318,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_8x8[3] = (uint32_t)sad8x8_3;
                 x_mv              = _MVXT(mv) + (int16_t)search_index;
                 y_mv              = _MVYT(mv);
-                p_best_mv8x8[3]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv8x8[3]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
             uint32_t sad16x16 = p_eight_sad16x16[start_16x16_pos][search_index] = sad8x8_0 +
                 sad8x8_1 + sad8x8_2 + sad8x8_3;
@@ -326,7 +326,7 @@ static void svt_ext_eight_sad_calculation_8x8_16x16(
                 p_best_sad_16x16[0] = (uint32_t)sad16x16;
                 x_mv                = _MVXT(mv) + (int16_t)search_index;
                 y_mv                = _MVYT(mv);
-                p_best_mv16x16[0]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+                p_best_mv16x16[0]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
             }
         }
     }
@@ -337,7 +337,7 @@ void svt_ext_all_sad_calculation_8x8_16x16_c(uint8_t *src, uint32_t src_stride, 
                                              uint32_t *p_best_sad_8x8, uint32_t *p_best_sad_16x16,
                                              uint32_t *p_best_mv8x8, uint32_t *p_best_mv16x16,
                                              uint32_t p_eight_sad16x16[16][8],
-                                             uint32_t p_eight_sad8x8[64][8], Bool sub_sad) {
+                                             uint32_t p_eight_sad8x8[64][8], bool sub_sad) {
     static const char offsets[16] = {0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15};
     //---- 16x16 : 0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15
     for (int y = 0; y < 4; y++) {
@@ -382,7 +382,7 @@ void svt_ext_eight_sad_calculation_32x32_64x64_c(uint32_t  p_sad16x16[16][8],
             p_best_sad_32x32[0] = sad32x32_0;
             x_mv                = _MVXT(mv) + (int16_t)search_index;
             y_mv                = _MVYT(mv);
-            p_best_mv32x32[0]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+            p_best_mv32x32[0]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
         }
 
         p_sad32x32[1][search_index] = sad32x32_1 = p_sad16x16[4][search_index] +
@@ -391,7 +391,7 @@ void svt_ext_eight_sad_calculation_32x32_64x64_c(uint32_t  p_sad16x16[16][8],
             p_best_sad_32x32[1] = sad32x32_1;
             x_mv                = _MVXT(mv) + (int16_t)search_index;
             y_mv                = _MVYT(mv);
-            p_best_mv32x32[1]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+            p_best_mv32x32[1]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
         }
 
         p_sad32x32[2][search_index] = sad32x32_2 = p_sad16x16[8][search_index] +
@@ -401,7 +401,7 @@ void svt_ext_eight_sad_calculation_32x32_64x64_c(uint32_t  p_sad16x16[16][8],
             p_best_sad_32x32[2] = sad32x32_2;
             x_mv                = _MVXT(mv) + (int16_t)search_index;
             y_mv                = _MVYT(mv);
-            p_best_mv32x32[2]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+            p_best_mv32x32[2]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
         }
 
         p_sad32x32[3][search_index] = sad32x32_3 = p_sad16x16[12][search_index] +
@@ -411,7 +411,7 @@ void svt_ext_eight_sad_calculation_32x32_64x64_c(uint32_t  p_sad16x16[16][8],
             p_best_sad_32x32[3] = sad32x32_3;
             x_mv                = _MVXT(mv) + (int16_t)search_index;
             y_mv                = _MVYT(mv);
-            p_best_mv32x32[3]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+            p_best_mv32x32[3]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
         }
 
         sad64x64 = sad32x32_0 + sad32x32_1 + sad32x32_2 + sad32x32_3;
@@ -419,7 +419,7 @@ void svt_ext_eight_sad_calculation_32x32_64x64_c(uint32_t  p_sad16x16[16][8],
             p_best_sad_64x64[0] = sad64x64;
             x_mv                = _MVXT(mv) + (int16_t)search_index;
             y_mv                = _MVYT(mv);
-            p_best_mv64x64[0]   = ((uint16_t)y_mv << 16) | ((uint16_t)x_mv);
+            p_best_mv64x64[0]   = ((uint32_t)y_mv << 16) | ((uint16_t)x_mv);
         }
     }
 }
@@ -439,13 +439,13 @@ static void open_loop_me_get_eight_search_point_results_block(
 ) {
     // uint32_t ref_luma_stride = ref_pic_ptr->stride_y; // NADER
     // uint8_t  *ref_ptr = ref_pic_ptr->buffer_y; // NADER
-    const Bool sub_sad         = (me_ctx->me_search_method == SUB_SAD_SEARCH);
+    const bool sub_sad         = (me_ctx->me_search_method == SUB_SAD_SEARCH);
     uint32_t     ref_luma_stride = me_ctx->interpolated_full_stride[list_index][ref_pic_index];
     uint8_t *    ref_ptr         = me_ctx->integer_buffer_ptr[list_index][ref_pic_index] +
         ((ME_FILTER_TAP >> 1) * me_ctx->interpolated_full_stride[list_index][ref_pic_index]) +
         (ME_FILTER_TAP >> 1) + search_region_index;
 
-    uint32_t curr_mv_1 = (((uint16_t)y_search_index) << 16);
+    uint32_t curr_mv_1 = (((uint32_t)y_search_index) << 16);
     uint16_t curr_mv_2 = ((uint16_t)x_search_index);
     uint32_t curr_mv   = curr_mv_1 | curr_mv_2;
 
@@ -484,7 +484,7 @@ static void open_loop_me_get_search_point_results_block(
     int32_t y_search_index) // input parameter, search region position in the
 // vertical direction, used to derive yMV
 {
-    const Bool sub_sad = (me_ctx->me_search_method == SUB_SAD_SEARCH);
+    const bool sub_sad = (me_ctx->me_search_method == SUB_SAD_SEARCH);
     uint8_t *    src_ptr = me_ctx->b64_src_ptr;
 
     // uint8_t  *ref_ptr = ref_pic_ptr->buffer_y; // NADER
@@ -499,7 +499,7 @@ static void open_loop_me_get_search_point_results_block(
     uint32_t src_next_16x16_offset;
     // uint32_t ref_next_16x16_offset = (ref_pic_ptr->stride_y << 4); // NADER
     uint32_t  ref_next_16x16_offset = (ref_luma_stride << 4);
-    uint32_t  curr_mv_1             = (((uint16_t)y_search_index) << 16);
+    uint32_t  curr_mv_1             = (((uint32_t)y_search_index) << 16);
     uint16_t  curr_mv_2             = ((uint16_t)x_search_index);
     uint32_t  curr_mv               = curr_mv_1 | curr_mv_2;
     uint32_t *p_best_sad_8x8        = me_ctx->p_best_sad_8x8;
@@ -1246,10 +1246,8 @@ uint16_t svt_aom_get_scaled_picture_distance(uint16_t dist) {
  *   performs integer search motion estimation for
  all avaiable references frames
  *******************************************/
-static void integer_search_b64(PictureParentControlSet *pcs, uint32_t b64_index, uint32_t b64_origin_x,
-    uint32_t b64_origin_y, MeContext *me_ctx,
-    EbPictureBufferDesc *input_ptr) {
-    SequenceControlSet *scs        = pcs->scs;
+static void integer_search_b64(PictureParentControlSet *pcs, MeContext* me_ctx,
+    uint32_t b64_origin_x, uint32_t b64_origin_y, EbPictureBufferDesc *input_ptr) {
     int16_t             picture_width  = pcs->aligned_width;
     int16_t             picture_height = pcs->aligned_height;
     uint32_t            b64_width      = me_ctx->b64_width;
@@ -1330,7 +1328,7 @@ static void integer_search_b64(PictureParentControlSet *pcs, uint32_t b64_index,
             } else {
                 uint8_t hme_is_accuarte = 1;
                     if ((x_search_center != 0 || y_search_center != 0) &&
-                        (me_ctx->is_ref == TRUE)) {
+                        (me_ctx->is_ref == true)) {
 
                         best_hme_sad = check_00_center(
                             ref_pic_ptr,
@@ -1442,123 +1440,55 @@ static void integer_search_b64(PictureParentControlSet *pcs, uint32_t b64_index,
             x_search_area_origin = x_search_center - (search_area_width >> 1);
             y_search_area_origin = y_search_center - (search_area_height >> 1);
 
-            if (scs->static_config.restricted_motion_vector) {
-                // b64_geom in scs and ppcs are different when super-res is enabled
-                // ME_OPEN_LOOP is performed on downscaled frames while others (ME_MCTF and ME_FIRST_PASS) are performed on unscaled frames
-                B64Geom *b64_geom = me_ctx->me_type != ME_OPEN_LOOP
-                    ? scs->b64_geom
-                    : pcs->b64_geom;
+            // Correct the left edge of the Search Area if it is not on the
+            // reference Picture
+            x_search_area_origin = ((org_x + x_search_area_origin) < -pad_width)
+                ? -pad_width - org_x
+                : x_search_area_origin;
+            search_area_width = ((org_x + x_search_area_origin) < -pad_width)
+                ? search_area_width - (-pad_width - (org_x + x_search_area_origin))
+                : search_area_width;
+            // Correct the right edge of the Search Area if its not on the
+            // reference Picture
+            x_search_area_origin = ((org_x + x_search_area_origin) > picture_width - 1)
+                ? x_search_area_origin -
+                ((org_x + x_search_area_origin) - (picture_width - 1))
+                : x_search_area_origin;
 
-                int       tile_start_x    = b64_geom[b64_index].tile_start_x;
-                int       tile_end_x      = b64_geom[b64_index].tile_end_x;
+            search_area_width = ((org_x + x_search_area_origin + search_area_width) >
+                picture_width)
+                ? MAX(1,
+                    search_area_width -
+                    ((org_x + x_search_area_origin + search_area_width) -
+                        picture_width))
+                : search_area_width;
 
-                // Correct the left edge of the Search Area if it is not on the
-                // reference Picture
-                x_search_area_origin = ((org_x + x_search_area_origin) < tile_start_x)
-                    ? tile_start_x - org_x
-                    : x_search_area_origin;
-                search_area_width    = ((org_x + x_search_area_origin) < tile_start_x)
-                       ? search_area_width - (tile_start_x - (org_x + x_search_area_origin))
-                       : search_area_width;
-                // Correct the right edge of the Search Area if its not on the
-                // reference Picture
-                x_search_area_origin = ((org_x + x_search_area_origin) > tile_end_x - 1)
-                    ? x_search_area_origin - ((org_x + x_search_area_origin) - (tile_end_x - 1))
-                    : x_search_area_origin;
-                search_area_width    = ((org_x + x_search_area_origin + search_area_width) >
-                                     tile_end_x)
-                       ? MAX(1,
-                          search_area_width -
-                              ((org_x + x_search_area_origin + search_area_width) - tile_end_x))
-                       : search_area_width;
-                // Constrain x_ME to be a multiple of 8 (round down as cropping
-                // already performed)
-                search_area_width = (search_area_width < 8) ? search_area_width
-                                                            : search_area_width & ~0x07;
-            } else {
-                // Correct the left edge of the Search Area if it is not on the
-                // reference Picture
-                x_search_area_origin = ((org_x + x_search_area_origin) < -pad_width)
-                    ? -pad_width - org_x
-                    : x_search_area_origin;
-                search_area_width    = ((org_x + x_search_area_origin) < -pad_width)
-                       ? search_area_width - (-pad_width - (org_x + x_search_area_origin))
-                       : search_area_width;
-                // Correct the right edge of the Search Area if its not on the
-                // reference Picture
-                x_search_area_origin = ((org_x + x_search_area_origin) > picture_width - 1)
-                    ? x_search_area_origin -
-                        ((org_x + x_search_area_origin) - (picture_width - 1))
-                    : x_search_area_origin;
+            // Constrain x_ME to be a multiple of 8 (round down as cropping
+            // already performed)
+            search_area_width = (search_area_width < 8) ? search_area_width
+                : search_area_width & ~0x07;
 
-                search_area_width = ((org_x + x_search_area_origin + search_area_width) >
-                                     picture_width)
-                    ? MAX(1,
-                          search_area_width -
-                              ((org_x + x_search_area_origin + search_area_width) -
-                               picture_width))
-                    : search_area_width;
-
-                // Constrain x_ME to be a multiple of 8 (round down as cropping
-                // already performed)
-                search_area_width = (search_area_width < 8) ? search_area_width
-                                                            : search_area_width & ~0x07;
-            }
-            if (scs->static_config.restricted_motion_vector) {
-                // b64_geom in scs and ppcs are different when super-res is enabled
-                // ME_OPEN_LOOP is performed on downscaled frames while others (ME_MCTF and ME_FIRST_PASS) are performed on unscaled frames
-                B64Geom *b64_geom = me_ctx->me_type != ME_OPEN_LOOP
-                    ? scs->b64_geom
-                    : pcs->b64_geom;
-
-                int       tile_start_y    = b64_geom[b64_index].tile_start_y;
-                int       tile_end_y      = b64_geom[b64_index].tile_end_y;
-
-                // Correct the top edge of the Search Area if it is not on the
-                // reference Picture
-                y_search_area_origin = ((org_y + y_search_area_origin) < tile_start_y)
-                    ? tile_start_y - org_y
-                    : y_search_area_origin;
-
-                search_area_height = ((org_y + y_search_area_origin) < tile_start_y)
-                    ? search_area_height - (tile_start_y - (org_y + y_search_area_origin))
-                    : search_area_height;
-
-                // Correct the bottom edge of the Search Area if its not on the
-                // reference Picture
-                y_search_area_origin = ((org_y + y_search_area_origin) > tile_end_y - 1)
-                    ? y_search_area_origin - ((org_y + y_search_area_origin) - (tile_end_y - 1))
-                    : y_search_area_origin;
-
-                search_area_height = (org_y + y_search_area_origin + search_area_height >
-                                      tile_end_y)
-                    ? MAX(1,
-                          search_area_height -
-                              ((org_y + y_search_area_origin + search_area_height) - tile_end_y))
-                    : search_area_height;
-            } else {
-                // Correct the top edge of the Search Area if it is not on the
-                // reference Picture
-                y_search_area_origin = ((org_y + y_search_area_origin) < -pad_height)
-                    ? -pad_height - org_y
-                    : y_search_area_origin;
-                search_area_height   = ((org_y + y_search_area_origin) < -pad_height)
-                      ? search_area_height - (-pad_height - (org_y + y_search_area_origin))
-                      : search_area_height;
-                // Correct the bottom edge of the Search Area if its not on the
-                // reference Picture
-                y_search_area_origin = ((org_y + y_search_area_origin) > picture_height - 1)
-                    ? y_search_area_origin -
-                        ((org_y + y_search_area_origin) - (picture_height - 1))
-                    : y_search_area_origin;
-                search_area_height   = (org_y + y_search_area_origin + search_area_height >
-                                      picture_height)
-                      ? MAX(1,
-                          search_area_height -
-                              ((org_y + y_search_area_origin + search_area_height) -
-                               picture_height))
-                      : search_area_height;
-            }
+            // Correct the top edge of the Search Area if it is not on the
+            // reference Picture
+            y_search_area_origin = ((org_y + y_search_area_origin) < -pad_height)
+                ? -pad_height - org_y
+                : y_search_area_origin;
+            search_area_height = ((org_y + y_search_area_origin) < -pad_height)
+                ? search_area_height - (-pad_height - (org_y + y_search_area_origin))
+                : search_area_height;
+            // Correct the bottom edge of the Search Area if its not on the
+            // reference Picture
+            y_search_area_origin = ((org_y + y_search_area_origin) > picture_height - 1)
+                ? y_search_area_origin -
+                ((org_y + y_search_area_origin) - (picture_height - 1))
+                : y_search_area_origin;
+            search_area_height = (org_y + y_search_area_origin + search_area_height >
+                picture_height)
+                ? MAX(1,
+                    search_area_height -
+                    ((org_y + y_search_area_origin + search_area_height) -
+                        picture_height))
+                : search_area_height;
 
             x_top_left_search_region            = (int16_t)(ref_pic_ptr->org_x + b64_origin_x) -
                 (ME_FILTER_TAP >> 1) + x_search_area_origin;
@@ -1760,7 +1690,7 @@ static uint32_t get_zz_sad(EbPictureBufferDesc *ref_pic_ptr, MeContext *me_ctx, 
 // Determine if pre-HME for the current picture and search region should be skipped.
 // Return 1 if can early exit (i.e. skip pre-hme for current frame and search region)
 // Return 0 if can't skip
-static Bool check_prehme_early_exit(MeContext *me_ctx, uint8_t list_i, uint8_t ref_i, uint8_t sr_i) {
+static bool check_prehme_early_exit(MeContext *me_ctx, uint8_t list_i, uint8_t ref_i, uint8_t sr_i) {
     SearchInfo *prehme_data = &me_ctx->prehme_data[list_i][ref_i][sr_i];
 
     if (me_ctx->me_early_exit_th) {
@@ -2265,9 +2195,9 @@ void set_final_seach_centre_sb(PictureParentControlSet *pcs, MeContext *me_ctx) 
     uint32_t list_index;
     uint8_t  ref_pic_index;
     // Configure HME level 0, level 1 and level 2 from static config parameters
-    Bool enable_hme_level0_flag = me_ctx->enable_hme_level0_flag;
-    Bool enable_hme_level1_flag = me_ctx->enable_hme_level1_flag;
-    Bool enable_hme_level2_flag = me_ctx->enable_hme_level2_flag;
+    bool enable_hme_level0_flag = me_ctx->enable_hme_level0_flag;
+    bool enable_hme_level1_flag = me_ctx->enable_hme_level1_flag;
+    bool enable_hme_level2_flag = me_ctx->enable_hme_level2_flag;
 
     uint64_t best_cost         = (uint64_t)~0;
     me_ctx->best_list_idx = 0;
@@ -3186,7 +3116,7 @@ EbErrorType svt_aom_motion_estimation_b64(
         hme_prune_ref_and_adjust_sr(me_ctx);
     }
     // Full pel: Perform the Integer Motion Estimation on the allowed refrence frames.
-    integer_search_b64(pcs, b64_index, b64_origin_x, b64_origin_y, me_ctx, input_ptr);
+    integer_search_b64(pcs, me_ctx, b64_origin_x, b64_origin_y, input_ptr);
 
     // prune the refrence frames
     if (prune_ref && me_ctx->me_hme_prune_ctrls.enable_me_hme_ref_pruning) {
@@ -3252,7 +3182,7 @@ EbErrorType svt_aom_open_loop_intra_search_mb(PictureParentControlSet *pcs, uint
         const CodedBlockStats *blk_stats_ptr;
         blk_stats_ptr              = svt_aom_get_coded_blk_stats(pa_blk_index);
         uint8_t bsize              = blk_stats_ptr->size;
-        Bool  small_boundary_blk = FALSE;
+        bool  small_boundary_blk = false;
 
         //if(sb_params->raster_scan_blk_validity[md_scan_to_raster_scan[pa_blk_index]])
         {
@@ -3261,7 +3191,7 @@ EbErrorType svt_aom_open_loop_intra_search_mb(PictureParentControlSet *pcs, uint
             if ((blk_stats_ptr->org_x % 16) == 0 && (blk_stats_ptr->org_y % 16) == 0 &&
                 ((pcs->enhanced_pic->width - cu_origin_x) < 16 ||
                  (pcs->enhanced_pic->height - cu_origin_y) < 16))
-                small_boundary_blk = TRUE;
+                small_boundary_blk = true;
         }
 
         if (bsize != 16 && !small_boundary_blk) {

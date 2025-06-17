@@ -77,9 +77,9 @@ EbErrorType svt_picture_buffer_desc_ctor_noy8b(EbPictureBufferDesc *pictureBuffe
         ((picture_buffer_desc_init_data_ptr->max_height + subsampling_y +
           picture_buffer_desc_init_data_ptr->top_padding + picture_buffer_desc_init_data_ptr->bot_padding) >>
          subsampling_y);
-    pictureBufferDescPtr->packed_flag = FALSE;
+    pictureBufferDescPtr->packed_flag = false;
 
-    if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+    if (picture_buffer_desc_init_data_ptr->split_mode == true) {
         pictureBufferDescPtr->stride_bit_inc_y  = pictureBufferDescPtr->stride_y;
         pictureBufferDescPtr->stride_bit_inc_cb = pictureBufferDescPtr->stride_cb;
         pictureBufferDescPtr->stride_bit_inc_cr = pictureBufferDescPtr->stride_cr;
@@ -94,7 +94,7 @@ EbErrorType svt_picture_buffer_desc_ctor_noy8b(EbPictureBufferDesc *pictureBuffe
         //    pictureBufferDescPtr->luma_size * bytes_per_pixel);
 
         pictureBufferDescPtr->buffer_bit_inc_y = 0;
-        if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+        if (picture_buffer_desc_init_data_ptr->split_mode == true) {
             EB_CALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_bit_inc_y,
                                     pictureBufferDescPtr->luma_size * bytes_per_pixel / 4);
         }
@@ -103,7 +103,7 @@ EbErrorType svt_picture_buffer_desc_ctor_noy8b(EbPictureBufferDesc *pictureBuffe
     if (picture_buffer_desc_init_data_ptr->buffer_enable_mask & PICTURE_BUFFER_DESC_Cb_FLAG) {
         EB_CALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_cb, pictureBufferDescPtr->chroma_size * bytes_per_pixel);
         pictureBufferDescPtr->buffer_bit_inc_cb = 0;
-        if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+        if (picture_buffer_desc_init_data_ptr->split_mode == true) {
             EB_CALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_bit_inc_cb,
                                     pictureBufferDescPtr->chroma_size * bytes_per_pixel / 4);
         }
@@ -112,7 +112,7 @@ EbErrorType svt_picture_buffer_desc_ctor_noy8b(EbPictureBufferDesc *pictureBuffe
     if (picture_buffer_desc_init_data_ptr->buffer_enable_mask & PICTURE_BUFFER_DESC_Cr_FLAG) {
         EB_CALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_cr, pictureBufferDescPtr->chroma_size * bytes_per_pixel);
         pictureBufferDescPtr->buffer_bit_inc_cr = 0;
-        if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+        if (picture_buffer_desc_init_data_ptr->split_mode == true) {
             EB_CALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_bit_inc_cr,
                                     pictureBufferDescPtr->chroma_size * bytes_per_pixel / 4);
         }
@@ -161,9 +161,9 @@ EbErrorType svt_picture_buffer_desc_noy8b_update(EbPictureBufferDesc *pictureBuf
         ((picture_buffer_desc_init_data_ptr->max_height + subsampling_y +
           picture_buffer_desc_init_data_ptr->top_padding + picture_buffer_desc_init_data_ptr->bot_padding) >>
          subsampling_y);
-    pictureBufferDescPtr->packed_flag = FALSE;
+    pictureBufferDescPtr->packed_flag = false;
 
-    if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+    if (picture_buffer_desc_init_data_ptr->split_mode == true) {
         pictureBufferDescPtr->stride_bit_inc_y  = pictureBufferDescPtr->stride_y;
         pictureBufferDescPtr->stride_bit_inc_cb = pictureBufferDescPtr->stride_cb;
         pictureBufferDescPtr->stride_bit_inc_cr = pictureBufferDescPtr->stride_cr;
@@ -206,7 +206,7 @@ EbErrorType svt_picture_buffer_desc_update(EbPictureBufferDesc *pictureBufferDes
           picture_buffer_desc_init_data_ptr->top_padding + picture_buffer_desc_init_data_ptr->bot_padding) >>
          subsampling_y);
 
-    if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+    if (picture_buffer_desc_init_data_ptr->split_mode == true) {
         pictureBufferDescPtr->stride_bit_inc_y  = pictureBufferDescPtr->stride_y;
         pictureBufferDescPtr->stride_bit_inc_cb = pictureBufferDescPtr->stride_cb;
         pictureBufferDescPtr->stride_bit_inc_cr = pictureBufferDescPtr->stride_cr;
@@ -229,7 +229,7 @@ EbErrorType svt_picture_buffer_desc_ctor(EbPictureBufferDesc *pictureBufferDescP
 
     if (picture_buffer_desc_init_data_ptr->bit_depth > EB_EIGHT_BIT &&
         picture_buffer_desc_init_data_ptr->bit_depth <= EB_SIXTEEN_BIT &&
-        picture_buffer_desc_init_data_ptr->split_mode == TRUE)
+        picture_buffer_desc_init_data_ptr->split_mode == true)
         bytes_per_pixel = 1;
 
     // Set the Picture Buffer Static variables
@@ -257,9 +257,9 @@ EbErrorType svt_picture_buffer_desc_ctor(EbPictureBufferDesc *pictureBufferDescP
           picture_buffer_desc_init_data_ptr->top_padding + picture_buffer_desc_init_data_ptr->bot_padding) >>
          subsampling_y);
 
-    pictureBufferDescPtr->packed_flag = bytes_per_pixel > 1 ? TRUE : FALSE;
+    pictureBufferDescPtr->packed_flag = bytes_per_pixel > 1 ? true : false;
 
-    if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+    if (picture_buffer_desc_init_data_ptr->split_mode == true) {
         pictureBufferDescPtr->stride_bit_inc_y  = pictureBufferDescPtr->stride_y;
         pictureBufferDescPtr->stride_bit_inc_cb = pictureBufferDescPtr->stride_cb;
         pictureBufferDescPtr->stride_bit_inc_cr = pictureBufferDescPtr->stride_cr;
@@ -270,7 +270,7 @@ EbErrorType svt_picture_buffer_desc_ctor(EbPictureBufferDesc *pictureBufferDescP
     if (picture_buffer_desc_init_data_ptr->buffer_enable_mask & PICTURE_BUFFER_DESC_Y_FLAG) {
         EB_MALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_y, pictureBufferDescPtr->luma_size * bytes_per_pixel);
         pictureBufferDescPtr->buffer_bit_inc_y = 0;
-        if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+        if (picture_buffer_desc_init_data_ptr->split_mode == true) {
             EB_MALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_bit_inc_y,
                                     pictureBufferDescPtr->luma_size * bytes_per_pixel);
         }
@@ -279,7 +279,7 @@ EbErrorType svt_picture_buffer_desc_ctor(EbPictureBufferDesc *pictureBufferDescP
     if (picture_buffer_desc_init_data_ptr->buffer_enable_mask & PICTURE_BUFFER_DESC_Cb_FLAG) {
         EB_MALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_cb, pictureBufferDescPtr->chroma_size * bytes_per_pixel);
         pictureBufferDescPtr->buffer_bit_inc_cb = 0;
-        if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+        if (picture_buffer_desc_init_data_ptr->split_mode == true) {
             EB_MALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_bit_inc_cb,
                                     pictureBufferDescPtr->chroma_size * bytes_per_pixel);
         }
@@ -288,7 +288,7 @@ EbErrorType svt_picture_buffer_desc_ctor(EbPictureBufferDesc *pictureBufferDescP
     if (picture_buffer_desc_init_data_ptr->buffer_enable_mask & PICTURE_BUFFER_DESC_Cr_FLAG) {
         EB_MALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_cr, pictureBufferDescPtr->chroma_size * bytes_per_pixel);
         pictureBufferDescPtr->buffer_bit_inc_cr = 0;
-        if (picture_buffer_desc_init_data_ptr->split_mode == TRUE) {
+        if (picture_buffer_desc_init_data_ptr->split_mode == true) {
             EB_MALLOC_ALIGNED_ARRAY(pictureBufferDescPtr->buffer_bit_inc_cr,
                                     pictureBufferDescPtr->chroma_size * bytes_per_pixel);
         }
@@ -340,7 +340,7 @@ EbErrorType svt_recon_picture_buffer_desc_update(EbPictureBufferDesc *pictureBuf
         ((picture_buffer_desc_init_data_ptr->max_height + subsampling_y +
           picture_buffer_desc_init_data_ptr->top_padding + picture_buffer_desc_init_data_ptr->bot_padding) >>
          subsampling_y);
-    pictureBufferDescPtr->packed_flag = (picture_buffer_desc_init_data_ptr->bit_depth > EB_EIGHT_BIT) ? TRUE : FALSE;
+    pictureBufferDescPtr->packed_flag = (picture_buffer_desc_init_data_ptr->bit_depth > EB_EIGHT_BIT) ? true : false;
 
     pictureBufferDescPtr->buffer_enable_mask = picture_buffer_desc_init_data_ptr->buffer_enable_mask;
 
@@ -384,7 +384,7 @@ EbErrorType svt_recon_picture_buffer_desc_ctor(EbPictureBufferDesc *pictureBuffe
         ((picture_buffer_desc_init_data_ptr->max_height + subsampling_y +
           picture_buffer_desc_init_data_ptr->top_padding + picture_buffer_desc_init_data_ptr->bot_padding) >>
          subsampling_y);
-    pictureBufferDescPtr->packed_flag = (picture_buffer_desc_init_data_ptr->bit_depth > EB_EIGHT_BIT) ? TRUE : FALSE;
+    pictureBufferDescPtr->packed_flag = (picture_buffer_desc_init_data_ptr->bit_depth > EB_EIGHT_BIT) ? true : false;
 
     pictureBufferDescPtr->buffer_enable_mask = picture_buffer_desc_init_data_ptr->buffer_enable_mask;
 
@@ -434,7 +434,7 @@ void svt_aom_link_eb_to_aom_buffer_desc_8bit(EbPictureBufferDesc *picBuffDsc, Yv
 }
 
 void svt_aom_link_eb_to_aom_buffer_desc(EbPictureBufferDesc *picBuffDsc, Yv12BufferConfig *aomBuffDsc,
-                                        uint16_t pad_right, uint16_t pad_bottom, Bool is_16bit) {
+                                        uint16_t pad_right, uint16_t pad_bottom, bool is_16bit) {
     (void)is_16bit;
 
     const int32_t ss_x = 1, ss_y = 1;

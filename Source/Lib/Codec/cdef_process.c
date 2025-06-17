@@ -27,7 +27,7 @@
 #include "resize.h"
 
 void svt_aom_copy_sb8_16(uint16_t *dst, int32_t dstride, const uint8_t *src, int32_t src_voffset, int32_t src_hoffset,
-                         int32_t sstride, int32_t vsize, int32_t hsize, Bool is_16bit);
+                         int32_t sstride, int32_t vsize, int32_t hsize, bool is_16bit);
 
 void   *svt_aom_memalign(size_t align, size_t size);
 void    svt_aom_free(void *memblk);
@@ -41,7 +41,7 @@ void    svt_av1_loop_restoration_save_boundary_lines(const Yv12BufferConfig *fra
 void    svt_av1_superres_upscale_frame(struct Av1Common *cm, PictureControlSet *pcs, SequenceControlSet *scs);
 void    set_unscaled_input_16bit(PictureControlSet *pcs);
 
-void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, Bool is_highbd);
+void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, bool is_highbd);
 
 /**************************************
  * Cdef Context
@@ -78,7 +78,7 @@ EbErrorType svt_aom_cdef_context_ctor(EbThreadContext *thread_ctx, const EbEncHa
 #define default_mse_uv 1040400
 static uint64_t compute_cdef_dist(const EbByte dst, int32_t doffset, int32_t dstride, const uint8_t *src,
                                   const CdefList *dlist, int32_t cdef_count, BlockSize bsize, int32_t coeff_shift,
-                                  int32_t pli, uint8_t subsampling_factor, Bool is_16bit) {
+                                  int32_t pli, uint8_t subsampling_factor, bool is_16bit) {
     uint64_t curr_mse = 0;
     if (is_16bit) {
         curr_mse = svt_compute_cdef_dist_16bit(((uint16_t *)dst) + doffset,
@@ -107,7 +107,7 @@ static void cdef_seg_search(PictureControlSet *pcs, SequenceControlSet *scs, uin
     struct PictureParentControlSet *ppcs     = pcs->ppcs;
     FrameHeader                    *frm_hdr  = &ppcs->frm_hdr;
     Av1Common                      *cm       = ppcs->av1_cm;
-    const Bool                      is_16bit = scs->is_16bit_pipeline;
+    const bool                      is_16bit = scs->is_16bit_pipeline;
     uint32_t                        x_seg_idx;
     uint32_t                        y_seg_idx;
     const uint32_t                  b64_pic_width  = (ppcs->aligned_width + 64 - 1) / 64;
@@ -118,28 +118,28 @@ static void cdef_seg_search(PictureControlSet *pcs, SequenceControlSet *scs, uin
     const uint32_t y_b64_start_idx = SEGMENT_START_IDX(y_seg_idx, b64_pic_height, pcs->cdef_segments_row_count);
     const uint32_t y_b64_end_idx   = SEGMENT_END_IDX(y_seg_idx, b64_pic_height, pcs->cdef_segments_row_count);
 
-    const int32_t mi_rows                    = cm->mi_rows;
-    const int32_t mi_cols                    = cm->mi_cols;
-    CdefControls *cdef_ctrls                 = &ppcs->cdef_ctrls;
-    const int     first_pass_fs_num          = cdef_ctrls->first_pass_fs_num;
-    const int     default_second_pass_fs_num = cdef_ctrls->default_second_pass_fs_num;
-    EbByte        src[3];
-    EbByte        ref[3];
-    int32_t       stride_src[3];
-    int32_t       stride_ref[3];
-    int32_t       plane_bsize[3];
-    int32_t       mi_wide_l2[3];
-    int32_t       mi_high_l2[3];
-    int32_t       xdec[3];
-    int32_t       ydec[3];
-    int32_t       cdef_count;
-    const int32_t coeff_shift = AOMMAX(scs->static_config.encoder_bit_depth - 8, 0);
-    const int32_t nvfb        = (mi_rows + MI_SIZE_64X64 - 1) / MI_SIZE_64X64;
-    const int32_t nhfb        = (mi_cols + MI_SIZE_64X64 - 1) / MI_SIZE_64X64;
-    const int32_t pri_damping = 3 + (frm_hdr->quantization_params.base_q_idx >> 6);
-    const int32_t sec_damping = pri_damping;
-    const int32_t num_planes  = 3;
-    CdefList      dlist[MI_SIZE_128X128 * MI_SIZE_128X128];
+    const int32_t       mi_rows                    = cm->mi_rows;
+    const int32_t       mi_cols                    = cm->mi_cols;
+    CdefSearchControls *cdef_ctrls                 = &ppcs->cdef_search_ctrls;
+    const int           first_pass_fs_num          = cdef_ctrls->first_pass_fs_num;
+    const int           default_second_pass_fs_num = cdef_ctrls->default_second_pass_fs_num;
+    EbByte              src[3];
+    EbByte              ref[3];
+    int32_t             stride_src[3];
+    int32_t             stride_ref[3];
+    int32_t             plane_bsize[3];
+    int32_t             mi_wide_l2[3];
+    int32_t             mi_high_l2[3];
+    int32_t             xdec[3];
+    int32_t             ydec[3];
+    int32_t             cdef_count;
+    const int32_t       coeff_shift = AOMMAX(scs->static_config.encoder_bit_depth - 8, 0);
+    const int32_t       nvfb        = (mi_rows + MI_SIZE_64X64 - 1) / MI_SIZE_64X64;
+    const int32_t       nhfb        = (mi_cols + MI_SIZE_64X64 - 1) / MI_SIZE_64X64;
+    const int32_t       pri_damping = 3 + (frm_hdr->quantization_params.base_q_idx >> 6);
+    const int32_t       sec_damping = pri_damping;
+    const int32_t       num_planes  = 3;
+    CdefList            dlist[MI_SIZE_128X128 * MI_SIZE_128X128];
 
     DECLARE_ALIGNED(32, uint16_t, inbuf[CDEF_INBUF_SIZE]);
     uint16_t *in = inbuf + CDEF_VBORDER * CDEF_BSTRIDE + CDEF_HBORDER;
@@ -348,6 +348,56 @@ static void cdef_seg_search(PictureControlSet *pcs, SequenceControlSet *scs, uin
     }
 }
 
+const uint32_t disable_cdef_th[4][INPUT_SIZE_COUNT] = {{0, 0, 0, 0, 0, 0, 0},
+                                                       {100, 200, 500, 800, 1000, 1000, 1000},
+                                                       {900, 1000, 2000, 3000, 4000, 4000, 4000},
+                                                       {6000, 7000, 8000, 9000, 10000, 10000, 10000}};
+static void    me_based_cdef_skip(PictureControlSet *pcs, uint16_t prev_cdef_dist_th, bool *do_cdef) {
+    *do_cdef = true;
+    if (pcs->slice_type == I_SLICE)
+        return;
+
+    const uint8_t  in_res = pcs->ppcs->input_resolution;
+    const uint32_t use_zero_strength_th =
+        disable_cdef_th[pcs->ppcs->cdef_recon_ctrls.zero_filter_strength_lvl][in_res] * (pcs->temporal_layer_index + 1);
+    if (!use_zero_strength_th)
+        return;
+
+    uint32_t total_me_sad = 0;
+    for (uint16_t b64_index = 0; b64_index < pcs->b64_total_count; ++b64_index) {
+        total_me_sad += pcs->ppcs->rc_me_distortion[b64_index];
+    }
+    uint32_t average_me_sad = total_me_sad / pcs->b64_total_count;
+
+    int32_t prev_cdef_dist = 0;
+    if (prev_cdef_dist_th) {
+        int32_t tot_refs = 0;
+        for (uint32_t ref_it = 0; ref_it < pcs->ppcs->tot_ref_frame_types; ++ref_it) {
+            MvReferenceFrame ref_pair = pcs->ppcs->ref_frame_type_arr[ref_it];
+            MvReferenceFrame rf[2];
+            av1_set_ref_frame(rf, ref_pair);
+
+            if (rf[1] == NONE_FRAME) {
+                uint8_t            list_idx = get_list_idx(rf[0]);
+                uint8_t            ref_idx  = get_ref_frame_idx(rf[0]);
+                EbReferenceObject *ref_obj  = pcs->ref_pic_ptr_array[list_idx][ref_idx]->object_ptr;
+
+                if (ref_obj->cdef_dist_dev >= 0) {
+                    prev_cdef_dist += ref_obj->cdef_dist_dev;
+                    tot_refs++;
+                }
+            }
+        }
+        if (tot_refs)
+            prev_cdef_dist /= tot_refs;
+    }
+
+    if (!prev_cdef_dist_th || (prev_cdef_dist < prev_cdef_dist_th * (pcs->temporal_layer_index + 1))) {
+        if (average_me_sad < use_zero_strength_th)
+            *do_cdef = false;
+    }
+}
+
 /******************************************************
  * CDEF Kernel
  ******************************************************/
@@ -379,11 +429,16 @@ void *svt_aom_cdef_kernel(void *input_ptr) {
         PictureParentControlSet *ppcs = pcs->ppcs;
         scs                           = pcs->scs;
 
-        Bool       is_16bit      = scs->is_16bit_pipeline;
-        Av1Common *cm            = pcs->ppcs->av1_cm;
-        frm_hdr                  = &pcs->ppcs->frm_hdr;
-        CdefControls *cdef_ctrls = &pcs->ppcs->cdef_ctrls;
-        if (!cdef_ctrls->use_reference_cdef_fs) {
+        bool       is_16bit = scs->is_16bit_pipeline;
+        Av1Common *cm       = pcs->ppcs->av1_cm;
+        frm_hdr             = &pcs->ppcs->frm_hdr;
+        pcs->cdef_dist_dev  = -1;
+        bool do_cdef        = true;
+        me_based_cdef_skip(pcs, pcs->ppcs->cdef_recon_ctrls.prev_cdef_dist_th, &do_cdef);
+        if (!do_cdef)
+            pcs->ppcs->cdef_level = 0;
+        CdefSearchControls *cdef_search_ctrls = &pcs->ppcs->cdef_search_ctrls;
+        if (!cdef_search_ctrls->use_reference_cdef_fs) {
             if (scs->seq_header.cdef_level && pcs->ppcs->cdef_level) {
                 cdef_seg_search(pcs, scs, dlf_results->segment_index);
             }
@@ -410,8 +465,13 @@ void *svt_aom_cdef_kernel(void *input_ptr) {
                 frm_hdr->cdef_params.cdef_uv_strength[0] = 0;
             }
 
+            if (pcs->ppcs->nb_cdef_strengths == 1 && frm_hdr->cdef_params.cdef_y_strength[0] == 0 &&
+                frm_hdr->cdef_params.cdef_uv_strength[0] == 0) {
+                pcs->cdef_dist_dev = 0;
+            }
+
             //restoration prep
-            Bool is_lr = ppcs->enable_restoration && frm_hdr->allow_intrabc == 0;
+            bool is_lr = ppcs->enable_restoration && frm_hdr->allow_intrabc == 0;
             if (is_lr) {
                 svt_av1_loop_restoration_save_boundary_lines(cm->frame_to_show, cm, 1);
                 if (is_16bit) {
@@ -435,7 +495,7 @@ void *svt_aom_cdef_kernel(void *input_ptr) {
                     svt_aom_assert_err(pcs->scaled_input_pic == NULL, "pcs_ptr->scaled_input_pic is not desctoried!");
                     EbPictureBufferDesc *scaled_input_pic = NULL;
                     // downscale input picture if recon is resized
-                    Bool is_resized = recon->width != input_pic->width || recon->height != input_pic->height;
+                    bool is_resized = recon->width != input_pic->width || recon->height != input_pic->height;
                     if (is_resized) {
                         superres_params_type spr_params = {recon->width, recon->height, 0};
                         svt_aom_downscaled_source_buffer_desc_ctor(&scaled_input_pic, input_pic, spr_params);
@@ -459,9 +519,9 @@ void *svt_aom_cdef_kernel(void *input_ptr) {
             pcs->rest_segments_total_count = (uint16_t)(pcs->rest_segments_column_count * pcs->rest_segments_row_count);
             pcs->tot_seg_searched_rest     = 0;
             pcs->ppcs->av1_cm->use_boundaries_in_rest_search = scs->use_boundaries_in_rest_search;
-            pcs->rest_extend_flag[0]                         = FALSE;
-            pcs->rest_extend_flag[1]                         = FALSE;
-            pcs->rest_extend_flag[2]                         = FALSE;
+            pcs->rest_extend_flag[0]                         = false;
+            pcs->rest_extend_flag[1]                         = false;
+            pcs->rest_extend_flag[2]                         = false;
 
             uint32_t segment_index;
             for (segment_index = 0; segment_index < pcs->rest_segments_total_count; ++segment_index) {

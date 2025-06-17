@@ -24,9 +24,9 @@
 #include "pack_unpack_c.h"
 #include "utility.h"
 
-#if defined ARCH_X86_64
+#if defined(HAVE_CPUINFO) && HAVE_CPUINFO
 // for svt_aom_get_cpu_flags
-#include "cpuinfo.h"
+#include <cpuinfo.h>
 #endif
 
 #if defined ARCH_AARCH64
@@ -99,6 +99,7 @@ int64_t svt_av1_block_error_c(const TranLow *coeff, const TranLow *dqcoeff,
 EbCpuFlags svt_aom_get_cpu_flags() {
     EbCpuFlags flags = 0;
 
+#if defined(HAVE_CPUINFO) && HAVE_CPUINFO
     // safe to call multiple times, and threadsafe
     // also correctly checks whether the OS saves AVX(2|512) registers
     cpuinfo_initialize();
@@ -120,7 +121,13 @@ EbCpuFlags svt_aom_get_cpu_flags() {
     flags |= cpuinfo_has_x86_avx512bw() ? EB_CPU_FLAGS_AVX512BW : 0;
     flags |= cpuinfo_has_x86_avx512vl() ? EB_CPU_FLAGS_AVX512VL : 0;
 
+#if FIX_AVX512_ICL_RTCD
+    EbCpuFlags avx512_skylake_flags = EB_CPU_FLAGS_AVX512F | EB_CPU_FLAGS_AVX512DQ | EB_CPU_FLAGS_AVX512CD |
+        EB_CPU_FLAGS_AVX512BW | EB_CPU_FLAGS_AVX512VL;
+#else
     EbCpuFlags avx512_skylake_flags = (EB_CPU_FLAGS_AVX512VL << 1) - EB_CPU_FLAGS_AVX512F;
+#endif
+
     if ((flags & avx512_skylake_flags) == avx512_skylake_flags) {
         if (cpuinfo_has_x86_avx512ifma() && cpuinfo_has_x86_avx512vbmi() && cpuinfo_has_x86_avx512vpopcntdq() &&
             cpuinfo_has_x86_avx512vnni() && cpuinfo_has_x86_avx512vbmi2() && cpuinfo_has_x86_avx512bitalg() &&
@@ -128,6 +135,7 @@ EbCpuFlags svt_aom_get_cpu_flags() {
             flags |= EB_CPU_FLAGS_AVX512ICL;
         }
     }
+#endif
 
     return flags;
 }
@@ -429,7 +437,7 @@ EbCpuFlags svt_aom_get_cpu_flags_to_use() {
 #endif
 #endif
 
-/* Macros SET_* use local variable EbCpuFlags flags and Bool check_pointer_was_set */
+/* Macros SET_* use local variable EbCpuFlags flags and bool check_pointer_was_set */
 #ifdef ARCH_X86_64
     #define SET_ONLY_C(ptr, c)                                      SET_FUNCTIONS(ptr, c, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     #define SET_SSE2(ptr, c, sse2)                                  SET_FUNCTIONS(ptr, c, 0, 0, sse2, 0, 0, 0, 0, 0, 0, 0)
@@ -459,9 +467,9 @@ EbCpuFlags svt_aom_get_cpu_flags_to_use() {
 
 void svt_aom_setup_common_rtcd_internal(EbCpuFlags flags) {
     /* Avoid check that pointer is set double, after first  setup. */
-    static Bool first_call_setup = TRUE;
-    Bool        check_pointer_was_set = first_call_setup;
-    first_call_setup = FALSE;
+    static bool first_call_setup = true;
+    bool        check_pointer_was_set = first_call_setup;
+    first_call_setup = false;
     /** Should be done during library initialization,
         but for safe limiting cpu flags again. */
 #if defined ARCH_X86_64 || defined ARCH_AARCH64
@@ -1026,23 +1034,23 @@ void svt_aom_setup_common_rtcd_internal(EbCpuFlags flags) {
     SET_NEON(svt_apply_selfguided_restoration, svt_apply_selfguided_restoration_c, svt_aom_apply_selfguided_restoration_neon);
     SET_NEON(svt_av1_selfguided_restoration, svt_av1_selfguided_restoration_c, svt_av1_selfguided_restoration_neon);
     SET_NEON(svt_av1_inv_txfm2d_add_4x4, svt_av1_inv_txfm2d_add_4x4_c, svt_av1_inv_txfm2d_add_4x4_neon);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_4x8, svt_av1_inv_txfm2d_add_4x8_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_4x16, svt_av1_inv_txfm2d_add_4x16_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_8x4, svt_av1_inv_txfm2d_add_8x4_c);
+    SET_NEON(svt_av1_inv_txfm2d_add_4x8, svt_av1_inv_txfm2d_add_4x8_c, svt_av1_inv_txfm2d_add_4x8_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_4x16, svt_av1_inv_txfm2d_add_4x16_c, svt_av1_inv_txfm2d_add_4x16_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_8x4, svt_av1_inv_txfm2d_add_8x4_c, svt_av1_inv_txfm2d_add_8x4_neon);
     SET_NEON(svt_av1_inv_txfm2d_add_8x8, svt_av1_inv_txfm2d_add_8x8_c, svt_av1_inv_txfm2d_add_8x8_neon);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_8x16, svt_av1_inv_txfm2d_add_8x16_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_8x32, svt_av1_inv_txfm2d_add_8x32_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_16x4, svt_av1_inv_txfm2d_add_16x4_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_16x8, svt_av1_inv_txfm2d_add_16x8_c);
+    SET_NEON(svt_av1_inv_txfm2d_add_8x16, svt_av1_inv_txfm2d_add_8x16_c, svt_av1_inv_txfm2d_add_8x16_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_8x32, svt_av1_inv_txfm2d_add_8x32_c, svt_av1_inv_txfm2d_add_8x32_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_16x4, svt_av1_inv_txfm2d_add_16x4_c, svt_av1_inv_txfm2d_add_16x4_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_16x8, svt_av1_inv_txfm2d_add_16x8_c, svt_av1_inv_txfm2d_add_16x8_neon);
     SET_NEON(svt_av1_inv_txfm2d_add_16x16, svt_av1_inv_txfm2d_add_16x16_c, svt_av1_inv_txfm2d_add_16x16_neon);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_16x32, svt_av1_inv_txfm2d_add_16x32_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_16x64, svt_av1_inv_txfm2d_add_16x64_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_32x8, svt_av1_inv_txfm2d_add_32x8_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_32x16, svt_av1_inv_txfm2d_add_32x16_c);
+    SET_NEON(svt_av1_inv_txfm2d_add_16x32, svt_av1_inv_txfm2d_add_16x32_c, svt_av1_inv_txfm2d_add_16x32_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_16x64, svt_av1_inv_txfm2d_add_16x64_c, svt_av1_inv_txfm2d_add_16x64_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_32x8, svt_av1_inv_txfm2d_add_32x8_c, svt_av1_inv_txfm2d_add_32x8_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_32x16, svt_av1_inv_txfm2d_add_32x16_c, svt_av1_inv_txfm2d_add_32x16_neon);
     SET_NEON(svt_av1_inv_txfm2d_add_32x32, svt_av1_inv_txfm2d_add_32x32_c, svt_av1_inv_txfm2d_add_32x32_neon);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_32x64, svt_av1_inv_txfm2d_add_32x64_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_64x16, svt_av1_inv_txfm2d_add_64x16_c);
-    SET_ONLY_C(svt_av1_inv_txfm2d_add_64x32, svt_av1_inv_txfm2d_add_64x32_c);
+    SET_NEON(svt_av1_inv_txfm2d_add_32x64, svt_av1_inv_txfm2d_add_32x64_c, svt_av1_inv_txfm2d_add_32x64_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_64x16, svt_av1_inv_txfm2d_add_64x16_c, svt_av1_inv_txfm2d_add_64x16_neon);
+    SET_NEON(svt_av1_inv_txfm2d_add_64x32, svt_av1_inv_txfm2d_add_64x32_c, svt_av1_inv_txfm2d_add_64x32_neon);
     SET_NEON(svt_av1_inv_txfm2d_add_64x64, svt_av1_inv_txfm2d_add_64x64_c, svt_av1_inv_txfm2d_add_64x64_neon);
     SET_NEON(svt_av1_inv_txfm_add, svt_av1_inv_txfm_add_c, svt_dav1d_inv_txfm_add_neon);
 
@@ -1066,10 +1074,10 @@ void svt_aom_setup_common_rtcd_internal(EbCpuFlags flags) {
     SET_ONLY_C(svt_picture_average_kernel, svt_picture_average_kernel_c);
     SET_ONLY_C(svt_picture_average_kernel1_line, svt_picture_average_kernel1_line_c);
     SET_NEON(svt_av1_wiener_convolve_add_src, svt_av1_wiener_convolve_add_src_c, svt_av1_wiener_convolve_add_src_neon);
-    SET_ONLY_C(svt_av1_convolve_2d_scale, svt_av1_convolve_2d_scale_c);
+    SET_NEON_NEON_DOTPROD_NEON_I8MM(svt_av1_convolve_2d_scale, svt_av1_convolve_2d_scale_c, svt_av1_convolve_2d_scale_neon, svt_av1_convolve_2d_scale_neon_dotprod, svt_av1_convolve_2d_scale_neon_i8mm);
     SET_NEON_SVE2(svt_av1_highbd_convolve_2d_sr, svt_av1_highbd_convolve_2d_sr_c, svt_av1_highbd_convolve_2d_sr_neon, svt_av1_highbd_convolve_2d_sr_sve2);
     SET_NEON_SVE2(svt_av1_highbd_convolve_y_sr, svt_av1_highbd_convolve_y_sr_c, svt_av1_highbd_convolve_y_sr_neon, svt_av1_highbd_convolve_y_sr_sve2);
-    SET_ONLY_C(svt_av1_highbd_convolve_2d_scale, svt_av1_highbd_convolve_2d_scale_c);
+    SET_NEON(svt_av1_highbd_convolve_2d_scale, svt_av1_highbd_convolve_2d_scale_c, svt_av1_highbd_convolve_2d_scale_neon);
     SET_NEON(svt_av1_highbd_convolve_2d_copy_sr, svt_av1_highbd_convolve_2d_copy_sr_c, svt_av1_highbd_convolve_2d_copy_sr_neon);
     SET_NEON_SVE2(svt_av1_highbd_jnt_convolve_2d, svt_av1_highbd_jnt_convolve_2d_c, svt_av1_highbd_jnt_convolve_2d_neon, svt_av1_highbd_jnt_convolve_2d_sve2);
     SET_NEON(svt_av1_highbd_jnt_convolve_2d_copy, svt_av1_highbd_jnt_convolve_2d_copy_c, svt_av1_highbd_jnt_convolve_2d_copy_neon);
