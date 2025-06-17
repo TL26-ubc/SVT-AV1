@@ -67,8 +67,13 @@ def parse_stats_file(filename):
 
     return results
 
-# Example usage:
-stats = parse_stats_file('console.log')
+# take the first argument as the filename
+import sys
+if len(sys.argv) > 1:
+    filename = sys.argv[1]
+else:
+    raise ValueError("Please provide a stats file to parse.")
+stats = parse_stats_file(filename)
 
 # create a folder named graphs if it does not exist
 import os
@@ -94,7 +99,7 @@ def plot_psnr(data, title, filename):
     plt.grid()
     plt.savefig(f'graphs/{filename}.png')
     plt.close()
-plot_psnr(stats, 'Average PSNR per Frame', 'average_psnr')
+plot_psnr(stats, 'Average PSNR per Run', 'average_psnr')
 
 # create a graph for Y-SSIM, U-SSIM, V-SSIM
 def plot_ssim(data, title, filename):
@@ -114,7 +119,7 @@ def plot_ssim(data, title, filename):
     plt.grid()
     plt.savefig(f'graphs/{filename}.png')
     plt.close()
-plot_ssim(stats, 'Average SSIM per Frame', 'average_ssim')
+plot_ssim(stats, 'Average SSIM per Run', 'average_ssim')
 
 # create a graph for bitrate
 def plot_bitrate(data, title, filename):
@@ -130,4 +135,4 @@ def plot_bitrate(data, title, filename):
     plt.grid()
     plt.savefig(f'graphs/{filename}.png')
     plt.close()
-plot_bitrate(stats, 'Bitrate per Frame', 'bitrate')
+plot_bitrate(stats, 'Bitrate per Run', 'bitrate')
