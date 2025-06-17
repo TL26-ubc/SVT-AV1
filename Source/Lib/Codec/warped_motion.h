@@ -34,16 +34,9 @@ extern "C" {
 
 #define WARPEDDIFF_PREC_BITS (WARPEDMODEL_PREC_BITS - WARPEDPIXEL_PREC_BITS)
 
-#if !CLN_WMMAT
-#define MAX_PARAMDIM 9
-#endif
 #define LEAST_SQUARES_SAMPLES_MAX_BITS 3
 #define LEAST_SQUARES_SAMPLES_MAX (1 << LEAST_SQUARES_SAMPLES_MAX_BITS)
 #define SAMPLES_ARRAY_SIZE (LEAST_SQUARES_SAMPLES_MAX * 2)
-#if !CLN_WMMAT
-#define WARPED_MOTION_DEBUG 0
-#define DEFAULT_WMTYPE AFFINE
-#endif
 
 extern const int16_t svt_aom_warped_filter[WARPEDPIXEL_PREC_SHIFTS * 3 + 1][8];
 
@@ -85,7 +78,7 @@ void svt_av1_warp_plane(EbWarpedMotionParams *wm, int use_hbd, int bd, const uin
                         int width, int height, int stride, uint8_t *pred, int p_col, int p_row, int p_width,
                         int p_height, int p_stride, int subsampling_x, int subsampling_y, ConvolveParams *conv_params);
 
-Bool svt_find_projection(int np, int *pts1, int *pts2, BlockSize bsize, int mvy, int mvx,
+bool svt_find_projection(int np, int *pts1, int *pts2, BlockSize bsize, int mvy, int mvx,
                          EbWarpedMotionParams *wm_params, int mi_row, int mi_col);
 
 int svt_get_shear_params(EbWarpedMotionParams *wm);

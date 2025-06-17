@@ -17,14 +17,6 @@
 
 #define DIVIDE_AND_ROUND(x, y) (((x) + ((y) >> 1)) / (y))
 
-#if !CLN_LCG_RAND16
-// Generate a random number in the range [0, 32768).
-static INLINE unsigned int lcg_rand16(unsigned int *state) {
-    *state = (unsigned int)(*state * 1103515245ULL + 12345);
-    return *state / 65536 % 32768;
-}
-#endif
-
 #define AV1_K_MEANS_RENAME(func, dim) func##_dim##dim##_c
 
 void AV1_K_MEANS_RENAME(svt_av1_calc_indices, 1)(const int *data, const int *centroids, uint8_t *indices, int n, int k);
@@ -311,7 +303,7 @@ int svt_av1_count_colors_highbd(uint16_t *src, int stride, int rows, int cols, i
 void search_palette_luma(PictureControlSet *pcs, ModeDecisionContext *ctx, PaletteInfo *palette_cand,
                          uint8_t *palette_size_array, uint32_t *tot_palette_cands) {
     int  colors;
-    Bool is16bit = ctx->hbd_md > 0;
+    bool is16bit = ctx->hbd_md > 0;
 
     EbPictureBufferDesc *src_pic    = is16bit ? pcs->input_frame16bit : pcs->ppcs->enhanced_pic;
     const int            src_stride = src_pic->stride_y;
