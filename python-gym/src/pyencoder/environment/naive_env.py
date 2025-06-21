@@ -3,7 +3,6 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
-
 import av
 import cv2
 import gymnasium as gym
@@ -12,6 +11,7 @@ from pyencoder.environment.av1_running_env import Av1RunningEnv
 from pyencoder.utils import video_reader
 from pyencoder.utils.video_reader import VideoReader
 from sympy import false
+import math
 
 # Constants
 QP_MIN, QP_MAX = -3, 3  # delta QP range which will be action
@@ -22,6 +22,85 @@ SB_SIZE = 64  # superblock size
 # class Av1GymInfo:
 #     actions: np.ndarray
 #     reward: float
+
+class InvalidStateError(Exception):
+    pass
+
+
+class InvalidRewardError(Exception):
+    pass
+
+
+def validate_array(arr: np.ndarray, name: str) -> None:
+    """Validate numpy array for NaN, inf, and other invalid values"""
+    if arr is None:
+        raise ValueError(f"{name} is None")
+
+    if not isinstance(arr, np.ndarray):
+        raise TypeError(f"{name} must be numpy array, got {type(arr)}")
+
+    if arr.size == 0:
+        raise ValueError(f"{name} is empty")
+
+    # Check for NaN values
+    nan_mask = np.isnan(arr)
+    if np.any(nan_mask):
+        nan_count = np.sum(nan_mask)
+        nan_indices = np.where(nan_mask)
+        raise InvalidStateError(
+            (
+                (
+                    f"{name} contains {nan_count} NaN values at indices: {nan_indices}. "
+                    f"Array shape: {arr.shape}, dtype: {arr.dtype}\n"
+                    f"Array sample: {arr.flat[:min(10, arr.size)]}"
+                )
+            )
+        )
+
+    # Check for infinite values
+    inf_mask = np.isinf(arr)
+    if np.any(inf_mask):
+        inf_count = np.sum(inf_mask)
+        inf_indices = np.where(inf_mask)
+        raise InvalidStateError(
+            f"{name} contains {inf_count} infinite values at indices: {inf_indices}. "
+            f"Array shape: {arr.shape}, dtype: {arr.dtype}\n"
+            f"Array sample: {arr.flat[:min(10, arr.size)]}"
+        )
+
+    # Check for extremely large values that might cause numerical issues
+    max_val = np.max(np.abs(arr))
+    if max_val > 1e6:
+        print(f"Warning: {name} contains very large values (max abs: {max_val:.2e})")
+
+
+def validate_reward(
+    reward: float,
+    frame_number: int,
+    details: dict = None
+) -> None:
+    """Validate reward value"""
+    if reward is None:
+        raise InvalidRewardError(f"Reward is None for frame {frame_number}")
+    
+    if not isinstance(reward, (int, float, np.number)):
+        raise InvalidRewardError(
+            f"Reward must be numeric, got {type(reward)} for frame {frame_number}"
+        )
+    
+    if math.isnan(reward):
+        raise InvalidRewardError(
+            f"Reward is NaN for frame {frame_number}. Details: {details}"
+        )
+    
+    if math.isinf(reward):
+        raise InvalidRewardError(
+            f"Reward is infinite ({reward}) for frame {frame_number}. Details: {details}"
+        )
+    
+    # Check for extremely large rewards that might indicate calculation errors
+    if abs(reward) > 1000:
+        print(f"Warning: Very large reward ({reward:.2f}) for frame {frame_number}")
 
 
 # Extending gymnasium's Env class
@@ -121,8 +200,17 @@ class Av1GymEnv(gym.Env):
             ycbcr = cv2.cvtColor(ycbcr, cv2.COLOR_RGB2YCrCb)
 
             # Get YCbCr PSNR for the current frame
-            y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(frame_number, ycbcr)
-
+            y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(frame_number, ycbcr)            
+            # Validate PSNR values
+            for psnr_val, psnr_name in [(y_psnr, "Y"), (cb_psnr, "Cb"), (cr_psnr, "Cr")]:
+                if math.isnan(psnr_val) or math.isinf(psnr_val):
+                    print(f"Warning: Invalid {psnr_name} PSNR ({psnr_val}) for baseline frame {frame_number}")
+                    raise InvalidStateError(
+                        f"Invalid {psnr_name} PSNR ({psnr_val}) for baseline frame {frame_number}"
+                    )
+                if psnr_val <= 0:
+                    print(f"Warning: Very low {psnr_name} PSNR ({psnr_val:.2f}) for baseline frame {frame_number}")
+            
             # Append to lists
             self.y_psnr_list.append(y_psnr)
             self.cb_psnr_list.append(cb_psnr)
@@ -179,7 +267,10 @@ class Av1GymEnv(gym.Env):
             raise ValueError(
                 f"Action shape {action.shape} != expected ({self.num_superblocks},)"
             )
-
+          
+        # Validate action values
+        validate_array(action, f"Action for frame {self.current_frame}")
+        
         # Convert action to QP offsets
         qp_offsets = self._action_to_qp_offsets(action)
 
@@ -191,16 +282,19 @@ class Av1GymEnv(gym.Env):
         if action_request is None:
             print("No action request received - episode terminated")
             self.terminated = True
-            return self._get_current_observation(), 0.0, True, False, {"timeout": True}
-
+            dummy_obs = np.zeros(
+                self.observation_space.shape, dtype=np.float32
+            )
+            return dummy_obs, 0.0, True, False, {"timeout": True}
+        
         frame_number = action_request["picture_number"]
-
+        
         # Send action response to encoder
         self.av1_running_env.send_action_response(qp_offsets.tolist())
-
+        
         # Wait for encoding feedback
         feedback = self.av1_running_env.wait_for_feedback(timeout=self.queue_timeout)
-
+        
         if feedback is None:
             print("No feedback received - episode terminated")
             self.terminated = True
@@ -221,10 +315,23 @@ class Av1GymEnv(gym.Env):
 
         # Check termination conditions
         self._check_termination_conditions()
-
-        # Get next observation
-        next_obs = self._get_current_observation()
-
+        
+        # Get next observation with validation
+        if self.terminated:
+            # Episode has ended, return dummy observation
+            next_obs = np.zeros(self.observation_space.shape, dtype=np.float32)
+            print(f"Episode terminated at frame {self.current_frame-1} (total frames: {self.num_frames})")
+        else:
+            # Get next observation with validation
+            try:
+                next_obs = self._get_current_observation()
+            except Exception as e:
+                print(f"Failed to get observation for frame {self.current_frame}: {e}")
+                # Force termination and return dummy observation
+                self.terminated = True
+                next_obs = np.zeros(self.observation_space.shape, dtype=np.float32)
+    
+        
         # Store frame data
         self.frame_history.append(
             {
@@ -263,53 +370,147 @@ class Av1GymEnv(gym.Env):
 
     def _get_initial_observation(self) -> np.ndarray:
         """Get initial observation for episode start"""
-        # Get first frame state
-        frame_state = self.video_reader.get_x_frame_state(frame_number=0)
-        return np.array(frame_state, dtype=np.float32)
+        try:
+            # Get first frame state
+            frame_state = self.video_reader.get_x_frame_state(frame_number=0)
+            obs_array = np.array(frame_state, dtype=np.float32)
+            
+            # Validate the observation
+            validate_array(obs_array, "Initial observation (frame 0)")
+            
+            # Check shape consistency
+            expected_shape = (4, self.num_superblocks)
+            if obs_array.shape != expected_shape:
+                raise InvalidStateError(
+                    f"Initial observation shape {obs_array.shape} != expected {expected_shape}"
+                )
+            
+            return obs_array
+            
+        except Exception as e:
+            raise InvalidStateError(f"Failed to get initial observation: {e}")
 
     def _get_current_observation(self) -> np.ndarray:
         """Get current observation based on current frame"""
-        frame_state = self.video_reader.get_x_frame_state(
-            frame_number=self.current_frame
-        )
-        return np.array(frame_state, dtype=np.float32)
+        try:
+            frame_state = self.video_reader.get_x_frame_state(
+                frame_number=self.current_frame
+            )
+            obs_array = np.array(frame_state, dtype=np.float32)
+            
+            # Validate the observation
+            validate_array(obs_array, f"Current observation (frame {self.current_frame})")
+            
+            # Check shape consistency
+            expected_shape = (4, self.num_superblocks)
+            if obs_array.shape != expected_shape:
+                raise InvalidStateError(
+                    f"Current observation shape {obs_array.shape} != expected {expected_shape} "
+                    f"for frame {self.current_frame}"
+                )
+            
+            return obs_array
+            
+        except Exception as e:
+            raise InvalidStateError(f"Failed to get current observation for frame {self.current_frame}: {e}")
 
     def _action_to_qp_offsets(self, action: np.ndarray) -> np.ndarray:
         """Convert discrete action to QP offsets"""
         # Map from [0, QP_MAX-QP_MIN] to [QP_MIN, QP_MAX]
         qp_offsets = action + QP_MIN
-        return np.clip(qp_offsets, QP_MIN, QP_MAX)
+        qp_offsets = np.clip(qp_offsets, QP_MIN, QP_MAX)
+        
+        # Validate QP offsets
+        validate_array(qp_offsets, f"QP offsets for frame {self.current_frame}")
+        
+        return qp_offsets
 
     def _calculate_reward(
         self, feedback: Dict, action_request: Dict, qp_offsets: np.ndarray
     ) -> float:
         """Calculate reward based on encoding feedback"""
-
-        # get rgb com
-        encoded_frame_data = feedback["encoded_frame_data"]
-
-        y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(
-            self.current_frame, encoded_frame_data
-        )
-
-        # TODO: a reward function that balances quality and bitrate
-        a = 1
-        b = c = 0.5
-        d = 2
-        byte_saved, current_usage = self.av1_running_env.get_byte_usage_diff(
-            action_request["picture_number"]
-        )
-
-        y_psnr_improvement = y_psnr - self.y_psnr_list[self.current_frame]
-        cb_psnr_improvement = cb_psnr - self.cb_psnr_list[self.current_frame]
-        cr_psnr_improvement = cr_psnr - self.cr_psnr_list[self.current_frame]
-
-        return (
-            y_psnr_improvement * a
-            + cb_psnr_improvement * b
-            + cr_psnr_improvement * c
-            + byte_saved / current_usage * d
-        )
+        try:
+            # Get encoded frame data
+            encoded_frame_data = feedback["encoded_frame_data"]
+            
+            # Get YCbCr PSNR for the current frame
+            y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(
+                self.current_frame, encoded_frame_data
+            )
+            
+            # Validate PSNR values
+            for psnr_val, psnr_name in [(y_psnr, "Y"), (cb_psnr, "Cb"), (cr_psnr, "Cr")]:
+                if math.isnan(psnr_val) or math.isinf(psnr_val):
+                    raise InvalidRewardError(
+                        f"Invalid {psnr_name} PSNR ({psnr_val}) for frame {self.current_frame}"
+                    )
+            
+            # Get byte usage difference
+            byte_saved, current_usage = self.av1_running_env.get_byte_usage_diff(
+                action_request["picture_number"]
+            )
+            
+            # Validate byte usage values
+            if math.isnan(byte_saved) or math.isinf(byte_saved):
+                raise InvalidRewardError(f"Invalid byte_saved ({byte_saved}) for frame {self.current_frame}")
+            if math.isnan(current_usage) or math.isinf(current_usage) or current_usage <= 0:
+                raise InvalidRewardError(f"Invalid current_usage ({current_usage}) for frame {self.current_frame}")
+            
+            # Calculate PSNR improvements
+            y_psnr_improvement = y_psnr - self.y_psnr_list[self.current_frame]
+            cb_psnr_improvement = cb_psnr - self.cb_psnr_list[self.current_frame]
+            cr_psnr_improvement = cr_psnr - self.cr_psnr_list[self.current_frame]
+            
+            # Validate improvements
+            for improvement, name in [
+                (y_psnr_improvement, "Y PSNR improvement"),
+                (cb_psnr_improvement, "Cb PSNR improvement"), 
+                (cr_psnr_improvement, "Cr PSNR improvement")
+            ]:
+                if math.isnan(improvement) or math.isinf(improvement):
+                    raise InvalidRewardError(f"Invalid {name} ({improvement}) for frame {self.current_frame}")
+            
+            # Calculate reward components
+            a = 1
+            b = c = 0.5
+            d = 2
+            
+            byte_efficiency = byte_saved / current_usage
+            
+            # Validate byte efficiency
+            if math.isnan(byte_efficiency) or math.isinf(byte_efficiency):
+                raise InvalidRewardError(
+                    f"Invalid byte efficiency ({byte_efficiency}) for frame {self.current_frame}. "
+                    f"byte_saved: {byte_saved}, current_usage: {current_usage}"
+                )
+            
+            # Calculate final reward
+            reward = (
+                y_psnr_improvement * a
+                + cb_psnr_improvement * b
+                + cr_psnr_improvement * c
+                + byte_efficiency * d
+            )
+            
+            # Final reward validation
+            reward_details = {
+                "y_psnr": y_psnr,
+                "cb_psnr": cb_psnr,
+                "cr_psnr": cr_psnr,
+                "y_psnr_improvement": y_psnr_improvement,
+                "cb_psnr_improvement": cb_psnr_improvement,
+                "cr_psnr_improvement": cr_psnr_improvement,
+                "byte_saved": byte_saved,
+                "current_usage": current_usage,
+                "byte_efficiency": byte_efficiency
+            }
+            
+            validate_reward(reward, self.current_frame, reward_details)
+            
+            return reward
+            
+        except Exception as e:
+            raise InvalidRewardError(f"Failed to calculate reward for frame {self.current_frame}: {e}")
 
     def _start_encoder_thread(self):
         """Start encoder in separate thread"""

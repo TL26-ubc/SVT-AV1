@@ -18,7 +18,7 @@ def prase_arg():
 
     # Video and output
     parser.add_argument(
-        "--file", help="Input video file", default="Data/akiyo_qcif.y4m"
+        "--file", help="Input video file", default="Data/bridge_close_qcif.y4m"
     )
     parser.add_argument(
         "--output_dir", default="logs/", help="Output directory for models and logs"
