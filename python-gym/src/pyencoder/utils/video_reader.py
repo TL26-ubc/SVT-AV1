@@ -164,7 +164,8 @@ class VideoReader:
     def compute_psnr(target, reference):
         mse = np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2)
         if mse == 0:
-            return float("inf")
+            # cannot return inf, as it will cause issues in rl training
+            return 100
         return 10 * np.log10((255.0**2) / mse)
 
 
