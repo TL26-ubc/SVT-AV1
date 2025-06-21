@@ -114,7 +114,7 @@ class VideoReader:
         return [y_comp_list, h_mv_list, v_mv_list, beta_list]
 
     def ycrcb_psnr(
-        self, frame_number: int, other_frame: tuple[np.ndarray, np.ndarray, np.ndarray]
+        self, frame_number: int, other_frame: tuple[np.ndarray, np.ndarray, np.ndarray], baseline_heighest_psnr
     ):
         """
         frame number
@@ -131,9 +131,9 @@ class VideoReader:
             )
 
         # VideoReader.render_single_component(other_frame[0], VideoComponent.Y)
-        y_psnr = VideoReader.compute_psnr(target_components[0], other_frame[0])
-        cb_psnr = VideoReader.compute_psnr(target_components[1], other_frame[1])
-        cr_psnr = VideoReader.compute_psnr(target_components[2], other_frame[2])
+        y_psnr = VideoReader.compute_psnr(target_components[0], other_frame[0], baseline_heighest_psnr["y"])
+        cb_psnr = VideoReader.compute_psnr(target_components[1], other_frame[1], baseline_heighest_psnr['cb'])
+        cr_psnr = VideoReader.compute_psnr(target_components[2], other_frame[2], baseline_heighest_psnr['cr'])
 
         # render the image for debug 
         # target_bgr = cv2.cvtColor(target_components, cv2.COLOR_YCrCb2BGR)
@@ -161,11 +161,11 @@ class VideoReader:
         cv2.destroyAllWindows()
 
     @staticmethod
-    def compute_psnr(target, reference):
+    def compute_psnr(target, reference, baseline_heighest_psnr: float = 100.0):
         mse = np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2)
         if mse == 0:
             # cannot return inf, as it will cause issues in rl training
-            return 100
+            return baseline_heighest_psnr
         return 10 * np.log10((255.0**2) / mse)
 
 

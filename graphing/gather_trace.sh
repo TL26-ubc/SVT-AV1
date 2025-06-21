@@ -12,7 +12,12 @@ if [ -z "$output_console" ]; then
     output_console="console.log"
 fi
 
+iterations="$3"
+if [ -z "$iterations" ]; then
+    iterations=50
+fi
+
 python3 ../python-gym/src/pyencoder/environment/train_refactor.py \
     --file "$path" \
     --output_dir ../Output \
-    --total_iteration 50 2> >(tee $output_console >&2)
+    --total_iteration $iterations 2> >(tee $output_console >&2)

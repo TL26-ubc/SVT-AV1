@@ -168,6 +168,11 @@ class Av1GymEnv(gym.Env):
         self.y_psnr_list = []
         self.cb_psnr_list = []
         self.cr_psnr_list = []
+        self.baseline_heighest_psnr = {
+            "y": -114514.0,  # Initialize with very low values
+            "cb": -114514.0,
+            "cr": -114514.0,
+        }
 
         self.save_baseline_frame_psnr(
             baseline_video_path=f"{str(output_dir)}/baseline_output.ivf"
@@ -200,16 +205,14 @@ class Av1GymEnv(gym.Env):
             ycbcr = cv2.cvtColor(ycbcr, cv2.COLOR_RGB2YCrCb)
 
             # Get YCbCr PSNR for the current frame
-            y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(frame_number, ycbcr)            
+            y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(frame_number, ycbcr, self.baseline_heighest_psnr)            
             # Validate PSNR values
-            for psnr_val, psnr_name in [(y_psnr, "Y"), (cb_psnr, "Cb"), (cr_psnr, "Cr")]:
-                if math.isnan(psnr_val) or math.isinf(psnr_val):
-                    print(f"Warning: Invalid {psnr_name} PSNR ({psnr_val}) for baseline frame {frame_number}")
-                    raise InvalidStateError(
-                        f"Invalid {psnr_name} PSNR ({psnr_val}) for baseline frame {frame_number}"
-                    )
-                if psnr_val <= 0:
-                    print(f"Warning: Very low {psnr_name} PSNR ({psnr_val:.2f}) for baseline frame {frame_number}")
+            if not np.all(np.isfinite([y_psnr, cb_psnr, cr_psnr])):
+                invalid_names = [name for val, name in zip([y_psnr, cb_psnr, cr_psnr], ["Y", "Cb", "Cr"]) if not np.isfinite(val)]
+                print(f"Warning: Invalid PSNR(s) {invalid_names} for baseline frame {frame_number}")
+                raise InvalidStateError(
+                    f"Invalid PSNR(s) {invalid_names} for baseline frame {frame_number}"
+                )
             
             # Append to lists
             self.y_psnr_list.append(y_psnr)
@@ -225,8 +228,22 @@ class Av1GymEnv(gym.Env):
         assert (
             len(self.cr_psnr_list) == self.num_frames
         ), f"Expected {self.num_frames} Cr PSNR values, got {len(self.cr_psnr_list)}"
-        print("Baseline frame PSNRs saved:")
         container.close()
+        
+        self.baseline_heighest_psnr['y'] = max(self.y_psnr_list)
+        self.baseline_heighest_psnr['cb'] = max(self.cb_psnr_list)
+        self.baseline_heighest_psnr['cr'] = max(self.cr_psnr_list)
+        
+        # iterate through each list, replace negative values with heighest PSNR
+        for i in range(self.num_frames):
+            if self.y_psnr_list[i] < 0:
+                self.y_psnr_list[i] = self.baseline_heighest_psnr['y']
+            if self.cb_psnr_list[i] < 0:
+                self.cb_psnr_list[i] = self.baseline_heighest_psnr['cb']
+            if self.cr_psnr_list[i] < 0:
+                self.cr_psnr_list[i] = self.baseline_heighest_psnr['cr']
+        
+        print("Baseline frame PSNRs saved:")
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
     def reset(
@@ -435,7 +452,7 @@ class Av1GymEnv(gym.Env):
             
             # Get YCbCr PSNR for the current frame
             y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(
-                self.current_frame, encoded_frame_data
+                self.current_frame, encoded_frame_data, self.baseline_heighest_psnr
             )
             
             # Validate PSNR values
