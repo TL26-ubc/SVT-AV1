@@ -1,7 +1,6 @@
 import csv
 import enum
-from pathlib import Path
-from typing import Optional, Tuple, overload
+from typing import Optional, Tuple
 
 import cv2
 import numpy as np

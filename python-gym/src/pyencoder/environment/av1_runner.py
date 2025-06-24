@@ -1,15 +1,12 @@
 import io
 import queue
-import threading
 import time
-from ast import Assert
 from typing import Any, Dict, List, Optional
 
 import av
 import cv2
-import numpy as np
 import pyencoder
-from pyencoder.utils.sb_processing import get_frame_state, get_num_superblock
+import numpy as np
 
 global the_only_object
 the_only_object = None
@@ -38,8 +35,47 @@ def get_deltaq_offset_trampoline(picture_number: int) -> list[int]:
     """
     return the_only_object.get_deltaq_offset(picture_number)
 
+def get_num_superblock(
+    frame_or_video: np.ndarray | cv2.VideoCapture | str,
+    block_size: int = 64
+) -> int:
+    """
+    Get the number of superblocks in a video frame or video.
 
-class Av1RunningEnv:
+    Args:
+        frame_or_video (np.ndarray or cv2.VideoCapture): The video frame or video capture object.
+        block_size (int): Size of the blocks to be processed. Should be 64 in SVT-AV1.
+
+    Returns:
+        int: Number of superblocks in the frame or in the first frame of the video.
+    """
+    if isinstance(frame_or_video, np.ndarray):
+        h, w = frame_or_video.shape[:2]
+    elif isinstance(frame_or_video, cv2.VideoCapture):
+        pos = frame_or_video.get(cv2.CAP_PROP_POS_FRAMES)
+        ret, frame = frame_or_video.read()
+        if not ret:
+            raise ValueError("Could not read frame from video.")
+        h, w = frame.shape[:2]
+        frame_or_video.set(cv2.CAP_PROP_POS_FRAMES, pos)
+    elif isinstance(frame_or_video, str):
+        video_cv2 = cv2.VideoCapture(frame_or_video)
+        if not video_cv2.isOpened():
+            raise ValueError(f"Could not open video file: {frame_or_video}")
+        pos = video_cv2.get(cv2.CAP_PROP_POS_FRAMES)
+        ret, frame = video_cv2.read()
+        if not ret:
+            raise ValueError("Could not read frame from video.")
+        h, w = frame.shape[:2]
+        video_cv2.set(cv2.CAP_PROP_POS_FRAMES, pos)
+        video_cv2.release()
+    else:
+        raise TypeError("Input must be a numpy.ndarray or cv2.VideoCapture.")
+    num_blocks_h = (h + block_size - 1) // block_size
+    num_blocks_w = (w + block_size - 1) // block_size
+    return num_blocks_h * num_blocks_w
+
+class Av1Runner:
     """
     A class to handle callbacks from Python to C for encoding video frames.
     This class is designed to be used with a C encoder that requires specific

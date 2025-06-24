@@ -7,8 +7,7 @@ import av
 import cv2
 import gymnasium as gym
 import numpy as np
-from pyencoder.environment.av1_running_env import Av1RunningEnv
-from pyencoder.utils import video_reader
+from pyencoder.environment.av1_runner import Av1Runner
 from pyencoder.utils.video_reader import VideoReader
 from sympy import false
 import math
@@ -119,7 +118,7 @@ class Av1GymEnv(gym.Env):
         super().__init__()
         self.video_path = Path(video_path)
         self.output_dir = Path(output_dir)
-        self.av1_running_env = Av1RunningEnv(video_path=video_path)
+        self.av1_runner = Av1Runner(video_path=video_path)
         self.video_reader = VideoReader(path=video_path)
 
         self.lambda_rd = lambda_rd
@@ -162,7 +161,7 @@ class Av1GymEnv(gym.Env):
         self.encoder_thread = None
 
         # run the first round of encoding, save the baseline video at specified output path
-        self.av1_running_env.run_SVT_AV1_encoder(
+        self.av1_runner.run_SVT_AV1_encoder(
             output_path=f"{str(output_dir)}/baseline_output.ivf"
         )
         self.y_psnr_list = []
@@ -292,7 +291,7 @@ class Av1GymEnv(gym.Env):
         qp_offsets = self._action_to_qp_offsets(action)
 
         # Wait for encoder to request action for this frame
-        action_request = self.av1_running_env.wait_for_action_request(
+        action_request = self.av1_runner.wait_for_action_request(
             timeout=self.queue_timeout
         )
 
@@ -307,10 +306,10 @@ class Av1GymEnv(gym.Env):
         frame_number = action_request["picture_number"]
         
         # Send action response to encoder
-        self.av1_running_env.send_action_response(qp_offsets.tolist())
+        self.av1_runner.send_action_response(qp_offsets.tolist())
         
         # Wait for encoding feedback
-        feedback = self.av1_running_env.wait_for_feedback(timeout=self.queue_timeout)
+        feedback = self.av1_runner.wait_for_feedback(timeout=self.queue_timeout)
         
         if feedback is None:
             print("No feedback received - episode terminated")
@@ -463,7 +462,7 @@ class Av1GymEnv(gym.Env):
                     )
             
             # Get byte usage difference
-            byte_saved, current_usage = self.av1_running_env.get_byte_usage_diff(
+            byte_saved, current_usage = self.av1_runner.get_byte_usage_diff(
                 action_request["picture_number"]
             )
             
@@ -545,7 +544,7 @@ class Av1GymEnv(gym.Env):
     def _run_encoder(self):
         """Run encoder in separate thread"""
         print("Starting encoder thread...")
-        self.av1_running_env.run_SVT_AV1_encoder()
+        self.av1_runner.run_SVT_AV1_encoder()
         print(f"Encoder thread completed (thread id: {threading.get_ident()})")
 
     def _check_termination_conditions(self):
