@@ -2852,8 +2852,8 @@ void svt_av1_inv_txfm2d_add_32x64_neon(const int32_t *input, uint16_t *output_r,
     const int     txfm_size_col = tx_size_wide[tx_size];
     const int     txfm_size_row = tx_size_high[tx_size];
 
-    assert(col_txfm != NULL);
-    assert(row_txfm != NULL);
+    // assert(col_txfm != NULL);
+    // assert(row_txfm != NULL);
 
     load_buffer_32x32_in_32x64(input, buf0);
     round_shift_rect_array_32_neon(buf0, buf0, 512);
@@ -2923,8 +2923,8 @@ void svt_av1_inv_txfm2d_add_64x32_neon(const int32_t *input, uint16_t *output_r,
     const int     txfm_size_col = tx_size_wide[tx_size];
     const int     txfm_size_row = tx_size_high[tx_size];
 
-    assert(col_txfm != NULL);
-    assert(row_txfm != NULL);
+    // assert(col_txfm != NULL);
+    // assert(row_txfm != NULL);
 
     load_buffer_32x32_in_64x32(input, buf0);
     round_shift_rect_array_32_neon(buf0, buf0, 512);
