@@ -295,9 +295,23 @@ class Av1Runner:
 
 
         # Save previous training bytes
-        bitstream_data = b"".join(
-            self.previous_training_bytes_keeper.values()
-        )
+        # To make the bitstream playable, prepend the IVF header and frame headers
+        frames = list(self.previous_training_bytes_keeper.values())
+        if not frames:
+            bitstream_data = b""
+        else:
+            width = 0
+            height = 0
+            # Try to get width/height from the first frame using PyAV
+            container = av.open(io.BytesIO(frames[0]))
+            video_stream = next(s for s in container.streams if s.type == "video")
+            width = video_stream.width
+            height = video_stream.height
+            container.close()
+            bitstream_data = ivf_header(len(frames), width, height)
+            for i, frame in enumerate(frames):
+                bitstream_data += ivf_frame_header(frame, i)
+                bitstream_data += frame
 
 
         if not bitstream_data:
@@ -307,3 +321,19 @@ class Av1Runner:
         with open(output_path, "wb") as f:
             f.write(bitstream_data)
         print(f"Bitstream saved to {output_path}")
+
+def ivf_header(num_frames, width, height, fourcc=b'AV01'):
+    header = b'DKIF'  # signature
+    header += (0).to_bytes(2, 'little')  # version
+    header += (32).to_bytes(2, 'little')  # header size
+    header += fourcc  # fourcc
+    header += width.to_bytes(2, 'little')
+    header += height.to_bytes(2, 'little')
+    header += (30).to_bytes(4, 'little')  # timebase denominator
+    header += (1).to_bytes(4, 'little')   # timebase numerator
+    header += num_frames.to_bytes(4, 'little')
+    header += (0).to_bytes(4, 'little')  # unused
+    return header
+
+def ivf_frame_header(frame_bytes, pts):
+    return len(frame_bytes).to_bytes(4, 'little') + pts.to_bytes(8, 'little')
