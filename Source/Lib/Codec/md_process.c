@@ -149,16 +149,14 @@ EbErrorType svt_aom_mode_decision_context_ctor(ModeDecisionContext *ctx, EbColor
     // determine MAX_NICS for a given preset
     // get the min scaling level (the smallest scaling level is the most conservative)
     uint8_t min_nic_scaling_level = NICS_SCALING_LEVELS - 1;
-    for (uint8_t is_base = 0; is_base < 2; is_base++) {
-#if FTR_LOSSLESS_SUPPORT
-        for (uint8_t qp = MIN_QP_VALUE; qp <= MAX_QP_VALUE; qp++) {
-#else
-        // min QP is 1 b/c 0 is lossless and is not supported
-        for (uint8_t qp = 1; qp <= MAX_QP_VALUE; qp++) {
-#endif
-            uint8_t nic_level         = svt_aom_get_nic_level(enc_mode, is_base, qp, seq_qp_mod);
-            uint8_t nic_scaling_level = svt_aom_set_nic_controls(NULL, nic_level);
-            min_nic_scaling_level     = MIN(min_nic_scaling_level, nic_scaling_level);
+    for (uint8_t rtc_itr = 0; rtc_itr < 2; rtc_itr++) {
+        bool rtc_tune = (bool)rtc_itr;
+        for (uint8_t is_base = 0; is_base < 2; is_base++) {
+            for (uint8_t qp = MIN_QP_VALUE; qp <= MAX_QP_VALUE; qp++) {
+                uint8_t nic_level         = svt_aom_get_nic_level(enc_mode, is_base, qp, seq_qp_mod, rtc_tune);
+                uint8_t nic_scaling_level = svt_aom_set_nic_controls(NULL, nic_level);
+                min_nic_scaling_level     = MIN(min_nic_scaling_level, nic_scaling_level);
+            }
         }
     }
     uint8_t stage1_scaling_num = MD_STAGE_NICS_SCAL_NUM[min_nic_scaling_level][MD_STAGE_1];
@@ -236,12 +234,7 @@ EbErrorType svt_aom_mode_decision_context_ctor(ModeDecisionContext *ctx, EbColor
     // Allocate buffers for obmc prediction
     uint8_t obmc_allowed = 0;
     for (uint8_t is_base = 0; is_base < 2; is_base++) {
-#if FTR_LOSSLESS_SUPPORT
         for (uint8_t qp = MIN_QP_VALUE; qp <= MAX_QP_VALUE; qp++) {
-#else
-        // min QP is 1 b/c 0 is lossless and is not supported
-        for (uint8_t qp = 1; qp <= MAX_QP_VALUE; qp++) {
-#endif
             if (obmc_allowed)
                 break;
             obmc_allowed |= svt_aom_get_obmc_level(enc_mode, qp, is_base, seq_qp_mod);
@@ -376,7 +369,7 @@ EbErrorType svt_aom_mode_decision_context_ctor(ModeDecisionContext *ctx, EbColor
             init_data.right_padding      = 0;
             init_data.top_padding        = 0;
             init_data.bot_padding        = 0;
-            init_data.split_mode         = FALSE;
+            init_data.split_mode         = false;
 
             EB_NEW(ctx->md_blk_arr_nsq[coded_leaf_index].coeff_tmp, svt_picture_buffer_desc_ctor, (EbPtr)&init_data);
 
@@ -390,7 +383,7 @@ EbErrorType svt_aom_mode_decision_context_ctor(ModeDecisionContext *ctx, EbColor
             init_data.right_padding = 0;
             init_data.top_padding   = 0;
             init_data.bot_padding   = 0;
-            init_data.split_mode    = FALSE;
+            init_data.split_mode    = false;
 
             EB_NEW(ctx->md_blk_arr_nsq[coded_leaf_index].recon_tmp, svt_picture_buffer_desc_ctor, (EbPtr)&init_data);
         } else {
@@ -416,7 +409,7 @@ EbErrorType svt_aom_mode_decision_context_ctor(ModeDecisionContext *ctx, EbColor
     picture_buffer_desc_init_data.right_padding      = 0;
     picture_buffer_desc_init_data.top_padding        = 0;
     picture_buffer_desc_init_data.bot_padding        = 0;
-    picture_buffer_desc_init_data.split_mode         = FALSE;
+    picture_buffer_desc_init_data.split_mode         = false;
 
     thirty_two_width_picture_buffer_desc_init_data.max_width          = sb_size;
     thirty_two_width_picture_buffer_desc_init_data.max_height         = sb_size;
@@ -427,7 +420,7 @@ EbErrorType svt_aom_mode_decision_context_ctor(ModeDecisionContext *ctx, EbColor
     thirty_two_width_picture_buffer_desc_init_data.right_padding      = 0;
     thirty_two_width_picture_buffer_desc_init_data.top_padding        = 0;
     thirty_two_width_picture_buffer_desc_init_data.bot_padding        = 0;
-    thirty_two_width_picture_buffer_desc_init_data.split_mode         = FALSE;
+    thirty_two_width_picture_buffer_desc_init_data.split_mode         = false;
 
     for (uint32_t txt_itr = 0; txt_itr < TX_TYPES; ++txt_itr) {
         EB_NEW(ctx->recon_coeff_ptr[txt_itr],
@@ -450,7 +443,7 @@ EbErrorType svt_aom_mode_decision_context_ctor(ModeDecisionContext *ctx, EbColor
     double_width_picture_buffer_desc_init_data.right_padding      = 0;
     double_width_picture_buffer_desc_init_data.top_padding        = 0;
     double_width_picture_buffer_desc_init_data.bot_padding        = 0;
-    double_width_picture_buffer_desc_init_data.split_mode         = FALSE;
+    double_width_picture_buffer_desc_init_data.split_mode         = false;
 
     // The temp_recon_ptr and temp_residual will be shared by all candidates
     // If you want to do something with residual or recon, you need to create one
@@ -521,13 +514,8 @@ void svt_aom_reset_mode_decision_neighbor_arrays(PictureControlSet *pcs, uint16_
     return;
 }
 // If the ref intra percentage is below the TH, applying modulation to the MD lambda
-#if OPT_LAMBDA
 #define LAMBDA_MOD_INTRA_TH 50
 #define LAMBDA_MOD_INTRA_SCALING_FACTOR 138
-#else
-#define LAMBDA_MOD_INTRA_TH 65
-#define LAMBDA_MOD_SCALING_FACTOR 138
-#endif
 // Set the lambda for each sb.
 // When lambda tuning is on (blk_lambda_tuning), lambda of each block is set separately (full_lambda_md/fast_lambda_md)
 // later in svt_aom_set_tuned_blk_lambda
@@ -540,21 +528,12 @@ static void av1_lambda_assign_md(PictureControlSet *pcs, ModeDecisionContext *ct
 
     if (pcs->scs->stats_based_sb_lambda_modulation) {
         if (pcs->temporal_layer_index > 0) {
-#if OPT_LAMBDA
             if (pcs->ref_intra_percentage < LAMBDA_MOD_INTRA_TH) {
                 ctx->full_lambda_md[0] = (ctx->full_lambda_md[0] * LAMBDA_MOD_INTRA_SCALING_FACTOR) >> 7;
                 ctx->fast_lambda_md[0] = (ctx->fast_lambda_md[0] * LAMBDA_MOD_INTRA_SCALING_FACTOR) >> 7;
                 ctx->full_lambda_md[1] = (ctx->full_lambda_md[1] * LAMBDA_MOD_INTRA_SCALING_FACTOR) >> 7;
                 ctx->fast_lambda_md[1] = (ctx->fast_lambda_md[1] * LAMBDA_MOD_INTRA_SCALING_FACTOR) >> 7;
             }
-#else
-            if (pcs->ref_intra_percentage < LAMBDA_MOD_INTRA_TH) {
-                ctx->full_lambda_md[0] = (ctx->full_lambda_md[0] * LAMBDA_MOD_SCALING_FACTOR) >> 7;
-                ctx->fast_lambda_md[0] = (ctx->fast_lambda_md[0] * LAMBDA_MOD_SCALING_FACTOR) >> 7;
-                ctx->full_lambda_md[1] = (ctx->full_lambda_md[1] * LAMBDA_MOD_SCALING_FACTOR) >> 7;
-                ctx->fast_lambda_md[1] = (ctx->fast_lambda_md[1] * LAMBDA_MOD_SCALING_FACTOR) >> 7;
-            }
-#endif
         }
     }
     if (pcs->lambda_weight) {
@@ -578,7 +557,7 @@ static void av1_lambda_assign_md(PictureControlSet *pcs, ModeDecisionContext *ct
 }
 
 static void av1_lambda_assign(PictureControlSet *pcs, uint32_t *fast_lambda, uint32_t *full_lambda, uint8_t bit_depth,
-                              uint16_t qp_index, Bool multiply_lambda) {
+                              uint16_t qp_index, bool multiply_lambda) {
     if (bit_depth == 8) {
         *full_lambda = (uint32_t)svt_aom_compute_rd_mult(pcs, (uint8_t)qp_index, (uint8_t)qp_index, bit_depth);
         *fast_lambda = av1_lambda_mode_decision8_bit_sad[qp_index];

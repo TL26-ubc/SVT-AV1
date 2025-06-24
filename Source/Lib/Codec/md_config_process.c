@@ -65,29 +65,18 @@ void set_global_motion_field(PictureControlSet *pcs) {
         pcs->ppcs->global_motion[frame_index].wmmat[3] = 0;
         pcs->ppcs->global_motion[frame_index].wmmat[4] = 0;
         pcs->ppcs->global_motion[frame_index].wmmat[5] = (1 << WARPEDMODEL_PREC_BITS);
-#if !CLN_WMMAT
-        pcs->ppcs->global_motion[frame_index].wmmat[6] = 0;
-        pcs->ppcs->global_motion[frame_index].wmmat[7] = 0;
-#endif
     }
 
     //Update MV
     PictureParentControlSet *ppcs = pcs->ppcs;
     for (frame_index = INTRA_FRAME; frame_index <= ALTREF_FRAME; ++frame_index) {
-#if FIX_GM_TRANS
         const uint8_t list_idx = get_list_idx(frame_index);
         const uint8_t ref_idx  = get_ref_frame_idx(frame_index);
         if (!ppcs->is_global_motion[list_idx][ref_idx])
             continue;
         ppcs->global_motion[frame_index] = ppcs->svt_aom_global_motion_estimation[list_idx][ref_idx];
-#else
-        if (ppcs->is_global_motion[get_list_idx(frame_index)][get_ref_frame_idx(frame_index)])
-            ppcs->global_motion[frame_index] =
-                ppcs->svt_aom_global_motion_estimation[get_list_idx(frame_index)][get_ref_frame_idx(frame_index)];
-#endif
         uint8_t sf = ppcs->gm_downsample_level == GM_DOWN ? 2 : ppcs->gm_downsample_level == GM_DOWN16 ? 4 : 1;
         svt_aom_upscale_wm_params(&ppcs->global_motion[frame_index], sf);
-#if FIX_GM_TRANS
         if (ppcs->global_motion[frame_index].wmtype == TRANSLATION) {
             // The offset to derive the translation is different when the wmtype is TRANSLATION. Therefore,
             // for translation convert the param to the correct offset.
@@ -116,17 +105,29 @@ void set_global_motion_field(PictureControlSet *pcs) {
             ppcs->global_motion[frame_index].wmmat[1] = ppcs->global_motion[frame_index].wmmat[0];
             ppcs->global_motion[frame_index].wmmat[0] = temp_wm1;
         }
-#endif
     }
 }
 
-void svt_av1_build_quantizer(EbBitDepth bit_depth, int32_t y_dc_delta_q, int32_t u_dc_delta_q, int32_t u_ac_delta_q,
-                             int32_t v_dc_delta_q, int32_t v_ac_delta_q, Quants *const quants, Dequants *const deq) {
+void svt_av1_build_quantizer(PictureParentControlSet *pcs, EbBitDepth bit_depth, int32_t y_dc_delta_q,
+                             int32_t u_dc_delta_q, int32_t u_ac_delta_q, int32_t v_dc_delta_q, int32_t v_ac_delta_q,
+                             Quants *const quants, Dequants *const deq) {
     int32_t i, q, quant_qtx;
 
     for (q = 0; q < QINDEX_RANGE; q++) {
-        const int32_t qzbin_factor     = svt_aom_get_qzbin_factor(q, bit_depth);
-        const int32_t qrounding_factor = q == 0 ? 64 : 48;
+        int32_t qzbin_factor     = svt_aom_get_qzbin_factor(q, bit_depth);
+        int32_t qrounding_factor = q == 0 ? 64 : 48;
+        //  diff: q-range diff based on current quantizer
+        int           diff          = q - pcs->frm_hdr.quantization_params.base_q_idx;
+        const int32_t sharpness_val = pcs->scs->static_config.sharpness;
+
+        if ((sharpness_val > 0 && diff < 0) || (sharpness_val < 0 && diff > 0)) {
+            int32_t offset = sharpness_val > 0 ? MAX(sharpness_val << 1, abs(diff))
+                                               : MIN(abs(sharpness_val) << 1, diff);
+            qzbin_factor += (sharpness_val > 0) ? -offset : offset;
+            qrounding_factor += (sharpness_val > 0) ? offset : -offset;
+            qzbin_factor     = CLIP3(1, 256, qzbin_factor);
+            qrounding_factor = CLIP3(1, 256, qrounding_factor);
+        }
 
         for (i = 0; i < 2; ++i) {
             int32_t qrounding_factor_fp = 64;
@@ -292,7 +293,7 @@ void mode_decision_configuration_init_qp_update(PictureControlSet *pcs) {
     }
     // Initial Rate Estimation of the syntax elements
     svt_aom_estimate_syntax_rate(md_rate_est_ctx,
-                                 pcs->slice_type == I_SLICE ? TRUE : FALSE,
+                                 pcs->slice_type == I_SLICE ? true : false,
                                  pcs->ppcs->scs->seq_header.filter_intra_level,
                                  pcs->ppcs->frm_hdr.allow_screen_content_tools,
                                  pcs->ppcs->enable_restoration,
@@ -671,7 +672,7 @@ void *svt_aom_mode_decision_configuration_kernel(void *input_ptr) {
         // -------
         if ((pcs->ppcs->frame_superres_enabled == 1 || scs->static_config.resize_mode != RESIZE_NONE) &&
             pcs->slice_type != I_SLICE) {
-            if (pcs->ppcs->is_ref == TRUE && pcs->ppcs->ref_pic_wrapper != NULL) {
+            if (pcs->ppcs->is_ref == true && pcs->ppcs->ref_pic_wrapper != NULL) {
                 // update mi_rows and mi_cols for the reference pic wrapper (used in mfmv for other
                 // pictures)
                 EbReferenceObject *ref_object = pcs->ppcs->ref_pic_wrapper->object_ptr;
@@ -697,12 +698,6 @@ void *svt_aom_mode_decision_configuration_kernel(void *input_ptr) {
         // Init block selection
         // Set reference sg ep
         set_reference_sg_ep(pcs);
-#if !CLN_UNUSED_GM_SIGS
-        if (pcs->ppcs->gm_ctrls.use_ref_info) {
-            assert(pcs->slice_type != I_SLICE);
-            svt_aom_global_motion_estimation(pcs->ppcs, pcs->ppcs->enhanced_pic);
-        }
-#endif
         set_global_motion_field(pcs);
 
         svt_av1_qm_init(pcs->ppcs);
@@ -725,7 +720,7 @@ void *svt_aom_mode_decision_configuration_kernel(void *input_ptr) {
         }
         // Initial Rate Estimation of the syntax elements
         svt_aom_estimate_syntax_rate(md_rate_est_ctx,
-                                     pcs->slice_type == I_SLICE ? TRUE : FALSE,
+                                     pcs->slice_type == I_SLICE ? true : false,
                                      scs->seq_header.filter_intra_level,
                                      pcs->ppcs->frm_hdr.allow_screen_content_tools,
                                      pcs->ppcs->enable_restoration,
@@ -809,8 +804,8 @@ void *svt_aom_mode_decision_configuration_kernel(void *input_ptr) {
 
             svt_av1_init3smotion_compensation(&pcs->ss_cfg, pcs->ppcs->enhanced_pic->stride_y);
         }
-        CdefControls *cdef_ctrls = &pcs->ppcs->cdef_ctrls;
-        uint8_t       skip_perc  = pcs->ref_skip_percentage;
+        CdefSearchControls *cdef_ctrls = &pcs->ppcs->cdef_search_ctrls;
+        uint8_t             skip_perc  = pcs->ref_skip_percentage;
         if ((skip_perc > 75 && cdef_ctrls->use_skip_detector) ||
             (scs->vq_ctrls.sharpness_ctrls.cdef && pcs->ppcs->is_noise_level))
             pcs->ppcs->cdef_level = 0;
@@ -917,10 +912,9 @@ void *svt_aom_mode_decision_configuration_kernel(void *input_ptr) {
             pcs->ppcs->enable_restoration = 0;
         }
 
-#if FTR_LOSSLESS_SUPPORT // ---
         pcs->mimic_only_tx_4x4 = 0;
         if (frm_hdr->segmentation_params.segmentation_enabled) {
-            Bool has_lossless_segment = 0;
+            bool has_lossless_segment = 0;
             // Loop through each segment to determine if it is coded losslessly
             for (int segment_id = 0; segment_id < MAX_SEGMENTS; segment_id++) {
                 pcs->lossless[segment_id] = 0;
@@ -981,7 +975,6 @@ void *svt_aom_mode_decision_configuration_kernel(void *input_ptr) {
             pcs->pic_lpd0_lvl                           = 0;
             pcs->pic_lpd1_lvl                           = 0;
         }
-#endif
         // Post the results to the MD processes
         uint16_t tg_count = pcs->ppcs->tile_group_cols * pcs->ppcs->tile_group_rows;
         for (uint16_t tile_group_idx = 0; tile_group_idx < tg_count; tile_group_idx++) {

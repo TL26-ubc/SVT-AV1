@@ -466,13 +466,10 @@ static int find_affine_int(int np, const int *pts1, const int *pts2, BlockSize b
     wm->wmmat[0] = clamp(vx, -WARPEDMODEL_TRANS_CLAMP, WARPEDMODEL_TRANS_CLAMP - 1);
     wm->wmmat[1] = clamp(vy, -WARPEDMODEL_TRANS_CLAMP, WARPEDMODEL_TRANS_CLAMP - 1);
 
-#if !CLN_WMMAT
-    wm->wmmat[6] = wm->wmmat[7] = 0;
-#endif
     return 0;
 }
 
-Bool svt_find_projection(int np, int *pts1, int *pts2, BlockSize bsize, int mvy, int mvx,
+bool svt_find_projection(int np, int *pts1, int *pts2, BlockSize bsize, int mvy, int mvx,
                          EbWarpedMotionParams *wm_params, int mi_row, int mi_col) {
     if (find_affine_int(np, pts1, pts2, bsize, mvy, mvx, wm_params, mi_row, mi_col)) {
         return 1;

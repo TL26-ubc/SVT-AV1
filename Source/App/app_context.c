@@ -43,9 +43,9 @@ static EbErrorType allocate_frame_buffer(EbConfig *app_cfg, EbSvtIOFormat *input
     // Determine size of each plane
     const size_t luma_8bit_size = app_cfg->input_padded_width * app_cfg->input_padded_height *
         (1 << ten_bit_packed_mode);
-    const size_t chroma_width     = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
-    const size_t chroma_height    = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
-    const size_t chroma_8bit_size = chroma_width * chroma_height * (1 << ten_bit_packed_mode);
+    const uint32_t chroma_width     = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
+    const uint32_t chroma_height    = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
+    const uint32_t chroma_8bit_size = chroma_width * chroma_height * (1 << ten_bit_packed_mode);
 
     // Determine
     input_ptr->y_stride  = app_cfg->input_padded_width;
@@ -150,17 +150,17 @@ static EbErrorType allocate_output_recon_buffers(EbConfig *app_cfg) {
 }
 
 static EbErrorType preload_frames_info_ram(EbConfig *app_cfg) {
-    EbErrorType         return_error        = EB_ErrorNone;
-    int32_t             input_padded_width  = app_cfg->input_padded_width;
-    int32_t             input_padded_height = app_cfg->input_padded_height;
-    size_t              read_size;
-    const uint8_t       subsampling_x = (app_cfg->config.encoder_color_format == EB_YUV444 ? 0 : 1);
-    const uint8_t       subsampling_y = (app_cfg->config.encoder_color_format == EB_YUV444 ||
+    EbErrorType   return_error        = EB_ErrorNone;
+    int32_t       input_padded_width  = app_cfg->input_padded_width;
+    int32_t       input_padded_height = app_cfg->input_padded_height;
+    size_t        read_size;
+    const uint8_t subsampling_x = (app_cfg->config.encoder_color_format == EB_YUV444 ? 0 : 1);
+    const uint8_t subsampling_y = (app_cfg->config.encoder_color_format == EB_YUV444 ||
                                    app_cfg->config.encoder_color_format == EB_YUV422)
-              ? 0
-              : 1;
-    const size_t        chroma_width  = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
-    const size_t        chroma_height = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
+        ? 0
+        : 1;
+    const size_t  chroma_width  = (app_cfg->input_padded_width + subsampling_x) >> subsampling_x;
+    const size_t  chroma_height = (app_cfg->input_padded_height + subsampling_y) >> subsampling_y;
 
     read_size = input_padded_width * input_padded_height; //Luma
     read_size += 2 * chroma_width * chroma_height; // Add Chroma

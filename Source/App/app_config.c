@@ -118,12 +118,6 @@
 #define MAX_BIT_RATE_TOKEN "--mbr"
 #define MAX_QP_TOKEN "--max-qp"
 #define MIN_QP_TOKEN "--min-qp"
-#if !FIX_VBR_BIAS_PCT
-#if !SVT_AV1_CHECK_VERSION(2, 0, 0)
-/* DEPRECATED: to be removed in 2.0.0. */
-#define VBR_BIAS_PCT_TOKEN "--bias-pct"
-#endif
-#endif
 #define VBR_MIN_SECTION_PCT_TOKEN "--minsection-pct"
 #define VBR_MAX_SECTION_PCT_TOKEN "--maxsection-pct"
 #define UNDER_SHOOT_PCT_TOKEN "--undershoot-pct"
@@ -145,7 +139,6 @@
 #define THREAD_MGMNT "--lp"
 #define PIN_TOKEN "--pin"
 #define TARGET_SOCKET "--ss"
-#define RESTRICTED_MOTION_VECTOR "--rmv"
 
 //double dash
 #define PRESET_TOKEN "--preset"
@@ -160,9 +153,6 @@
 #define MFMV_ENABLE_NEW_TOKEN "--enable-mfmv"
 #define DG_ENABLE_NEW_TOKEN "--enable-dg"
 #define FAST_DECODE_TOKEN "--fast-decode"
-#if !FIX_HIGH_DYNAMIC_RANGE_INPUT
-#define HDR_INPUT_NEW_TOKEN "--enable-hdr"
-#endif
 #define ADAPTIVE_QP_ENABLE_NEW_TOKEN "--aq-mode"
 #define INPUT_FILE_LONG_TOKEN "--input"
 #define OUTPUT_BITSTREAM_LONG_TOKEN "--output"
@@ -195,20 +185,18 @@
 #define MAX_QM_LEVEL_TOKEN "--qm-max"
 
 #define STARTUP_MG_SIZE_TOKEN "--startup-mg-size"
-#if FTR_STARTUP_QP
 #define STARTUP_QP_OFFSET_TOKEN "--startup-qp-offset"
-#endif
 #define ROI_MAP_FILE_TOKEN "--roi-map-file"
 
 #define ENABLE_VARIANCE_BOOST_TOKEN "--enable-variance-boost"
 #define VARIANCE_BOOST_STRENGTH_TOKEN "--variance-boost-strength"
 #define VARIANCE_OCTILE_TOKEN "--variance-octile"
-#if FTR_LOSSLESS_SUPPORT
+#define TF_STRENGTH_FILTER_TOKEN "--tf-strength"
+#define SHARPNESS_TOKEN "--sharpness"
+#define VARIANCE_BOOST_CURVE_TOKEN "--variance-boost-curve"
+#define LUMINANCE_QP_BIAS_TOKEN "--luminance-qp-bias"
 #define LOSSLESS_TOKEN "--lossless"
-#endif
-#if FTR_STILL_PICTURE
 #define AVIF_TOKEN "--avif"
-#endif
 static EbErrorType validate_error(EbErrorType err, const char *token, const char *value) {
     switch (err) {
     case EB_ErrorNone: return EB_ErrorNone;
@@ -287,28 +275,28 @@ static EbErrorType str_to_str(const char *nptr, char **out, const char *token) {
 static HANDLE get_file_handle(FILE *fp) { return (HANDLE)_get_osfhandle(_fileno(fp)); }
 #endif
 
-static Bool fopen_and_lock(FILE **file, const char *name, Bool write) {
+static bool fopen_and_lock(FILE **file, const char *name, bool write) {
     if (!file || !name)
-        return FALSE;
+        return false;
 
     const char *mode = write ? "wb" : "rb";
     FOPEN(*file, name, mode);
     if (!*file)
-        return FALSE;
+        return false;
 
 #ifdef _WIN32
     HANDLE handle = get_file_handle(*file);
     if (handle == INVALID_HANDLE_VALUE)
-        return FALSE;
+        return false;
     if (LockFile(handle, 0, 0, MAXDWORD, MAXDWORD))
-        return TRUE;
+        return true;
 #else
     int fd = fileno(*file);
     if (flock(fd, LOCK_EX | LOCK_NB) == 0)
-        return TRUE;
+        return true;
 #endif
     fprintf(stderr, "ERROR: locking %s failed, is it used by other encoder?\n", name);
-    return FALSE;
+    return false;
 }
 
 static EbErrorType open_file(FILE **file, const char *token, const char *name, const char *mode) {
@@ -345,7 +333,7 @@ static EbErrorType set_cfg_input_file(EbConfig *cfg, const char *token, const ch
 
     if (!strcmp(value, "stdin") || !strcmp(value, "-")) {
         cfg->input_file         = stdin;
-        cfg->input_file_is_fifo = TRUE;
+        cfg->input_file_is_fifo = true;
     } else
         FOPEN(cfg->input_file, value, "rb");
 
@@ -745,12 +733,6 @@ ConfigEntry config_entry_global_options[] = {
      "Bitstream level, defined in A.3 of the av1 spec, default is 0 [0: autodetect from input, "
      "2.0-7.3]",
      set_level},
-#if !FIX_HIGH_DYNAMIC_RANGE_INPUT
-    {SINGLE_INPUT,
-     HDR_INPUT_NEW_TOKEN,
-     "Enable writing of HDR metadata in the bitstream, default is 0 [0-1]",
-     set_cfg_generic_token},
-#endif
     {SINGLE_INPUT,
      FRAME_RATE_TOKEN,
      "Input video frame rate, integer values only, inferred if y4m, default is 60 [1-240]",
@@ -784,10 +766,13 @@ ConfigEntry config_entry_global_options[] = {
     // Asm Type
     {SINGLE_INPUT,
      ASM_TYPE_TOKEN,
-     "Limit assembly instruction set, only applicable to x86, default is max [c, mmx, sse, sse2, "
-     "sse3, ssse3, sse4_1, sse4_2, avx, avx2, avx512, max]",
+#ifdef ARCH_AARCH64
+     "Limit assembly instruction set, default is max [c, neon, crc32, neon_dotprod, neon_i8mm, sve, sve2, max]",
+#else
+     "Limit assembly instruction set, only applicable to x86, default is max [c, mmx, sse, sse2, sse3, ssse3, "
+     "sse4_1, sse4_2, avx, avx2, avx512, max]",
+#endif
      set_cfg_generic_token},
-#if FIX_SVT_AV1_CHECK_VERSION
     {SINGLE_INPUT,
      THREAD_MGMNT,
      "Amount of parallelism to use. 0 means choose the level based on machine core count. Refer to Appendix A.1 "
@@ -800,20 +785,6 @@ ConfigEntry config_entry_global_options[] = {
      "Appendix "
      "A.1 of the user guide, default is 0 [0, core count of the machine]",
      set_cfg_generic_token},
-#else
-    {SINGLE_INPUT,
-     THREAD_MGMNT,
-     "Target (best effort) number of logical cores to be used. 0 means all. Refer to Appendix A.1 "
-     "of the user "
-     "guide, default is 0 [0, core count of the machine]",
-     set_cfg_generic_token},
-    {SINGLE_INPUT,
-     PIN_TOKEN,
-     "Pin the execution to the first --lp cores. Overwritten to 1 when `--ss` is set. Refer to "
-     "Appendix "
-     "A.1 of the user guide, default is 0 [0-1]",
-     set_cfg_generic_token},
-#endif
     {SINGLE_INPUT,
      TARGET_SOCKET,
      "Specifies which socket to run on, assumes a max of two sockets. Refer to Appendix A.1 of the "
@@ -938,15 +909,6 @@ ConfigEntry config_entry_rc[] = {
      "Recode loop level, refer to \"Recode loop level table\" in the user guide for more info [0: "
      "off, 4: preset based]",
      set_cfg_generic_token},
-#if !FIX_VBR_BIAS_PCT
-#if !SVT_AV1_CHECK_VERSION(2, 0, 0)
-    /* DEPRECATED: to be removed in 2.0.0. */
-    {SINGLE_INPUT,
-     VBR_BIAS_PCT_TOKEN,
-     "CBR/VBR bias, default is 50 [0: CBR-like, 1-99, 100: VBR-like] DEPRECATED: to be removed in 2.0.0",
-     set_cfg_generic_token},
-#endif
-#endif
     {SINGLE_INPUT,
      VBR_MIN_SECTION_PCT_TOKEN,
      "GOP min bitrate (expressed as a percentage of the target rate), default is 0 [0-100]",
@@ -962,6 +924,21 @@ ConfigEntry config_entry_rc[] = {
      ROI_MAP_FILE_TOKEN,
      "Enable Region Of Interest and specify a picture based QP Offset map file, default is off",
      set_cfg_roi_map_file},
+    // TF Strength
+    {SINGLE_INPUT,
+     TF_STRENGTH_FILTER_TOKEN,
+     "[PSY] Adjust temporal filtering strength, default is 1 [0-4]",
+     set_cfg_generic_token},
+    // Frame-level luminance-based QP bias
+    {SINGLE_INPUT,
+     LUMINANCE_QP_BIAS_TOKEN,
+     "Adjusts a frame's QP based on its average luma value, default is 0 [0-100]",
+     set_cfg_generic_token},
+    // Sharpness
+    {SINGLE_INPUT,
+     SHARPNESS_TOKEN,
+     "Bias towards decreased/increased sharpness, default is 0 [-7 to 7]",
+     set_cfg_generic_token},
     // Termination
     {SINGLE_INPUT, NULL, NULL, NULL}};
 
@@ -1026,13 +1003,11 @@ ConfigEntry config_entry_intra_refresh[] = {
      "is 0 [0: OFF, "
      "2: 3 temporal layers, 3: 4 temporal layers, 4: 5 temporal layers]",
      set_cfg_generic_token},
-#if FTR_STARTUP_QP
     {SINGLE_INPUT,
      STARTUP_QP_OFFSET_TOKEN,
      "Specify an offset to the input-qp of the startup GOP prior to the picture-qp derivation, default "
      "is 0 [-63,63]",
      set_cfg_generic_token},
-#endif
     // Termination
     {SINGLE_INPUT, NULL, NULL, NULL}};
 
@@ -1074,7 +1049,7 @@ ConfigEntry config_entry_specific[] = {
     // --- start: ALTREF_FILTERING_SUPPORT
     {SINGLE_INPUT,
      ENABLE_TF_TOKEN,
-     "Enable ALT-REF (temporally filtered) frames, default is 1 [0-1]",
+     "Enable ALT-REF (temporally filtered) frames, default is 1 [0-2]",
      set_cfg_generic_token},
 
     {SINGLE_INPUT,
@@ -1094,12 +1069,6 @@ ConfigEntry config_entry_specific[] = {
      SCREEN_CONTENT_TOKEN,
      "Set screen content detection level, default is 2 [0: off, 1: on, 2: content adaptive]",
      set_cfg_generic_token},
-    // Optional Features
-    {SINGLE_INPUT,
-     RESTRICTED_MOTION_VECTOR,
-     "Restrict motion vectors from reaching outside the picture boundary, default is 0 [0-1]",
-     set_cfg_generic_token},
-
     // Annex A parameters
     {SINGLE_INPUT,
      FILM_GRAIN_TOKEN,
@@ -1176,13 +1145,9 @@ ConfigEntry config_entry_specific[] = {
      RESIZE_FRAME_DENOMS,
      "Resize denominator in event, in a list separated by ',', only applicable for mode == 4",
      set_cfg_generic_token},
-// --- end: REFERENCE SCALING SUPPORT
-#if FTR_LOSSLESS_SUPPORT
+    // --- end: REFERENCE SCALING SUPPORT
     {SINGLE_INPUT, LOSSLESS_TOKEN, "Enable lossless coding, default is 0 [0-1]", set_cfg_generic_token},
-#endif
-#if FTR_STILL_PICTURE
     {SINGLE_INPUT, AVIF_TOKEN, "Enable still-picture coding, default is 0 [0-1]", set_cfg_generic_token},
-#endif
     // Termination
     {SINGLE_INPUT, NULL, NULL, NULL}};
 
@@ -1229,6 +1194,7 @@ ConfigEntry config_entry_variance_boost[] = {
     {SINGLE_INPUT, ENABLE_VARIANCE_BOOST_TOKEN, "Enable variance boost, default is 0 [0-1]", set_cfg_generic_token},
     {SINGLE_INPUT, VARIANCE_BOOST_STRENGTH_TOKEN, "Variance boost strength, default is 2 [1-4]", set_cfg_generic_token},
     {SINGLE_INPUT, VARIANCE_OCTILE_TOKEN, "Octile for variance boost, default is 6 [1-8]", set_cfg_generic_token},
+    {SINGLE_INPUT, VARIANCE_BOOST_CURVE_TOKEN, "Curve for variance boost, default is 0 [0-2]", set_cfg_generic_token},
     // Termination
     {SINGLE_INPUT, NULL, NULL, NULL}};
 
@@ -1267,9 +1233,6 @@ ConfigEntry config_entry[] = {
     {SINGLE_INPUT, ENCODER_COLOR_FORMAT, "EncoderColorFormat", set_cfg_generic_token},
     {SINGLE_INPUT, PROFILE_TOKEN, "Profile", set_cfg_generic_token},
     {SINGLE_INPUT, LEVEL_TOKEN, "Level", set_level},
-#if !FIX_HIGH_DYNAMIC_RANGE_INPUT
-    {SINGLE_INPUT, HDR_INPUT_NEW_TOKEN, "HighDynamicRangeInput", set_cfg_generic_token},
-#endif
     //   Frame Rate tokens
     {SINGLE_INPUT, FRAME_RATE_TOKEN, "FrameRate", set_frame_rate},
     {SINGLE_INPUT, FRAME_RATE_NUMERATOR_TOKEN, "FrameRateNumerator", set_cfg_generic_token},
@@ -1287,12 +1250,8 @@ ConfigEntry config_entry[] = {
     //   Asm Type
     {SINGLE_INPUT, ASM_TYPE_TOKEN, "Asm", set_cfg_generic_token},
 
-//   Thread Management
-#if FIX_SVT_AV1_CHECK_VERSION
+    //   Thread Management
     {SINGLE_INPUT, THREAD_MGMNT, "LevelOfParallelism", set_cfg_generic_token},
-#else
-    {SINGLE_INPUT, THREAD_MGMNT, "LogicalProcessors", set_cfg_generic_token},
-#endif
     {SINGLE_INPUT, PIN_TOKEN, "PinnedExecution", set_cfg_generic_token},
     {SINGLE_INPUT, TARGET_SOCKET, "TargetSocket", set_cfg_generic_token},
 
@@ -1332,12 +1291,6 @@ ConfigEntry config_entry[] = {
     {SINGLE_INPUT, BUFFER_INITIAL_SIZE_TOKEN, "BufInitialSz", set_cfg_generic_token},
     {SINGLE_INPUT, BUFFER_OPTIMAL_SIZE_TOKEN, "BufOptimalSz", set_cfg_generic_token},
     {SINGLE_INPUT, RECODE_LOOP_TOKEN, "RecodeLoop", set_cfg_generic_token},
-#if !FIX_VBR_BIAS_PCT
-#if !SVT_AV1_CHECK_VERSION(2, 0, 0)
-    /* DEPRECATED: to be removed in 2.0.0. */
-    {SINGLE_INPUT, VBR_BIAS_PCT_TOKEN, "VBRBiasPct", set_cfg_generic_token},
-#endif
-#endif
     {SINGLE_INPUT, VBR_MIN_SECTION_PCT_TOKEN, "MinSectionPct", set_cfg_generic_token},
     {SINGLE_INPUT, VBR_MAX_SECTION_PCT_TOKEN, "MaxSectionPct", set_cfg_generic_token},
 
@@ -1357,9 +1310,7 @@ ConfigEntry config_entry[] = {
     {SINGLE_INPUT, PRED_STRUCT_TOKEN, "PredStructure", set_cfg_generic_token},
     {SINGLE_INPUT, FORCE_KEY_FRAMES_TOKEN, "ForceKeyFrames", set_cfg_force_key_frames},
     {SINGLE_INPUT, STARTUP_MG_SIZE_TOKEN, "StartupMgSize", set_cfg_generic_token},
-#if FTR_STARTUP_QP
     {SINGLE_INPUT, STARTUP_QP_OFFSET_TOKEN, "StartupGopQpOffset", set_cfg_generic_token},
-#endif
     // AV1 Specific Options
     {SINGLE_INPUT, TILE_ROW_TOKEN, "TileRow", set_cfg_generic_token},
     {SINGLE_INPUT, TILE_COL_TOKEN, "TileCol", set_cfg_generic_token},
@@ -1375,7 +1326,6 @@ ConfigEntry config_entry[] = {
     {SINGLE_INPUT, ENABLE_TF_TOKEN, "EnableTf", set_cfg_generic_token},
     {SINGLE_INPUT, ENABLE_OVERLAYS, "EnableOverlays", set_cfg_generic_token},
     {SINGLE_INPUT, SCREEN_CONTENT_TOKEN, "ScreenContentMode", set_cfg_generic_token},
-    {SINGLE_INPUT, RESTRICTED_MOTION_VECTOR, "RestrictedMotionVector", set_cfg_generic_token},
     {SINGLE_INPUT, FILM_GRAIN_TOKEN, "FilmGrain", set_cfg_generic_token},
     {SINGLE_INPUT, FILM_GRAIN_DENOISE_APPLY_TOKEN, "FilmGrainDenoise", set_cfg_generic_token},
     {SINGLE_INPUT, FGS_TABLE_TOKEN, "FilmGrainTable", set_cfg_fgs_table_path},
@@ -1415,18 +1365,24 @@ ConfigEntry config_entry[] = {
     // ROI
     {SINGLE_INPUT, ROI_MAP_FILE_TOKEN, "RoiMapFile", set_cfg_roi_map_file},
 
+    // Sharpness
+    {SINGLE_INPUT, SHARPNESS_TOKEN, "Sharpness", set_cfg_generic_token},
+
     // Variance boost
     {SINGLE_INPUT, ENABLE_VARIANCE_BOOST_TOKEN, "EnableVarianceBoost", set_cfg_generic_token},
     {SINGLE_INPUT, VARIANCE_BOOST_STRENGTH_TOKEN, "VarianceBoostStrength", set_cfg_generic_token},
     {SINGLE_INPUT, VARIANCE_OCTILE_TOKEN, "VarianceOctile", set_cfg_generic_token},
+    {SINGLE_INPUT, VARIANCE_BOOST_CURVE_TOKEN, "VarianceBoostCurve", set_cfg_generic_token},
 
-#if FTR_LOSSLESS_SUPPORT
+    // TF Strength
+    {SINGLE_INPUT, TF_STRENGTH_FILTER_TOKEN, "TemporalFilteringStrength", set_cfg_generic_token},
+
+    // Frame-level luminance-based QP bias
+    {SINGLE_INPUT, LUMINANCE_QP_BIAS_TOKEN, "LuminanceQpBias", set_cfg_generic_token},
+
     // Lossless coding
     {SINGLE_INPUT, LOSSLESS_TOKEN, "Lossless", set_cfg_generic_token},
-#endif
-#if FTR_STILL_PICTURE
     {SINGLE_INPUT, AVIF_TOKEN, "Avif", set_cfg_generic_token},
-#endif
     // Termination
     {SINGLE_INPUT, NULL, NULL, NULL}};
 
@@ -1519,12 +1475,8 @@ EbErrorType enc_channel_ctor(EncChannel *c) {
     c->exit_cond_output = APP_ExitConditionError;
     c->exit_cond_recon  = APP_ExitConditionError;
     c->exit_cond_input  = APP_ExitConditionError;
-    c->active           = FALSE;
-#if FIX_P_APP_DATA
+    c->active           = false;
     return svt_av1_enc_init_handle(&c->app_cfg->svt_encoder_handle, &c->app_cfg->config);
-#else
-    return svt_av1_enc_init_handle(&c->app_cfg->svt_encoder_handle, c->app_cfg, &c->app_cfg->config);
-#endif
 }
 
 void enc_channel_dctor(EncChannel *c, uint32_t inst_cnt) {
@@ -1687,7 +1639,7 @@ static EbErrorType read_config_file(EbConfig *app_cfg, const char *config_path, 
 }
 
 /* get config->rc_stats_buffer from config->input_stat_file */
-Bool load_twopass_stats_in(EbConfig *cfg) {
+bool load_twopass_stats_in(EbConfig *cfg) {
     EbSvtAv1EncConfiguration *config = &cfg->config;
 #ifdef _WIN32
     int          fd = _fileno(cfg->input_stat_file);
@@ -1696,20 +1648,20 @@ Bool load_twopass_stats_in(EbConfig *cfg) {
 #else
     int         fd = fileno(cfg->input_stat_file);
     struct stat file_stat;
-    int         ret         = fstat(fd, &file_stat);
+    int         ret = fstat(fd, &file_stat);
 #endif
     if (ret) {
-        return FALSE;
+        return false;
     }
     config->rc_stats_buffer.buf = malloc(file_stat.st_size);
     if (config->rc_stats_buffer.buf) {
         config->rc_stats_buffer.sz = (uint64_t)file_stat.st_size;
         if (fread(config->rc_stats_buffer.buf, 1, file_stat.st_size, cfg->input_stat_file) !=
             (size_t)file_stat.st_size) {
-            return FALSE;
+            return false;
         }
         if (file_stat.st_size == 0) {
-            return FALSE;
+            return false;
         }
     }
     return config->rc_stats_buffer.buf != NULL;
@@ -1720,7 +1672,7 @@ EbErrorType handle_stats_file(EbConfig *app_cfg, EncPass enc_pass, const SvtAv1F
     case ENC_SINGLE_PASS: {
         const char *stats = app_cfg->stats ? app_cfg->stats : "svtav1_2pass.log";
         if (app_cfg->config.pass == 1) {
-            if (!fopen_and_lock(&app_cfg->output_stat_file, stats, TRUE)) {
+            if (!fopen_and_lock(&app_cfg->output_stat_file, stats, true)) {
                 fprintf(app_cfg->error_log_file,
                         "Error instance %u: can't open stats file %s for write \n",
                         channel_number + 1,
@@ -1730,7 +1682,7 @@ EbErrorType handle_stats_file(EbConfig *app_cfg, EncPass enc_pass, const SvtAv1F
         }
         // Final pass
         else if (app_cfg->config.pass == 2) {
-            if (!fopen_and_lock(&app_cfg->input_stat_file, stats, FALSE)) {
+            if (!fopen_and_lock(&app_cfg->input_stat_file, stats, false)) {
                 fprintf(app_cfg->error_log_file,
                         "Error instance %u: can't read stats file %s for read\n",
                         channel_number + 1,
@@ -1749,7 +1701,7 @@ EbErrorType handle_stats_file(EbConfig *app_cfg, EncPass enc_pass, const SvtAv1F
         // for combined two passes,
         // we only ouptut first pass stats when user explicitly set the --stats
         if (app_cfg->stats) {
-            if (!fopen_and_lock(&app_cfg->output_stat_file, app_cfg->stats, TRUE)) {
+            if (!fopen_and_lock(&app_cfg->output_stat_file, app_cfg->stats, true)) {
                 fprintf(app_cfg->error_log_file,
                         "Error instance %u: can't open stats file %s for write \n",
                         channel_number + 1,
@@ -1824,7 +1776,7 @@ static EbErrorType app_verify_config(EbConfig *app_cfg, uint32_t channel_number)
         return_error = EB_ErrorBadParameter;
     }
 
-    if (app_cfg->config.use_qp_file == TRUE && app_cfg->qp_file == NULL) {
+    if (app_cfg->config.use_qp_file == true && app_cfg->qp_file == NULL) {
         fprintf(app_cfg->error_log_file,
                 "Error instance %u: Could not find QP file, UseQpFile is set to 1\n",
                 channel_number + 1);
@@ -1937,7 +1889,7 @@ int get_version(int argc, char *argv[]) {
 #ifdef NDEBUG
     static int debug_build = 1;
 #else
-    static int  debug_build = 0;
+    static int debug_build = 0;
 #endif
     if (find_token(argc, argv, VERSION_TOKEN, NULL))
         return 0;
@@ -2250,7 +2202,7 @@ uint32_t get_number_of_channels(int32_t argc, char *const argv[]) {
     return 1;
 }
 
-static Bool check_two_pass_conflicts(int32_t argc, char *const argv[]) {
+static bool check_two_pass_conflicts(int32_t argc, char *const argv[]) {
     char        config_string[COMMAND_LINE_MAX_SIZE];
     const char *conflicts[] = {
         PASS_TOKEN,
@@ -2261,11 +2213,11 @@ static Bool check_two_pass_conflicts(int32_t argc, char *const argv[]) {
     while ((token = conflicts[i])) {
         if (find_token(argc, argv, token, config_string) == 0) {
             fprintf(stderr, "[SVT-Error]: --passes is not accepted in combination with %s\n", token);
-            return TRUE;
+            return true;
         }
         i++;
     }
-    return FALSE;
+    return false;
 }
 /*
 * Returns the number of passes, multi_pass_mode
@@ -2397,13 +2349,8 @@ uint32_t get_passes(int32_t argc, char *const argv[], EncPass enc_pass[MAX_ENC_P
         if (passes == 1)
             multi_pass_mode = SINGLE_PASS;
         else if (passes > 1) {
-#if CLN_SHIFT_M11
             // M11, M12, and M13 are mapped to M10, so treat M11, M12, and M13 the same as M10
             if (enc_mode > ENC_M9) {
-#else
-            // M12 and M13 are mapped to M11, so treat M12 and M13 the same as M11
-            if (enc_mode > ENC_M10) {
-#endif
                 fprintf(stderr, "[SVT-Error]:  Multipass VBR is not supported for preset %d.\n\n", enc_mode);
                 return 0;
             } else {
@@ -2432,7 +2379,7 @@ uint32_t get_passes(int32_t argc, char *const argv[], EncPass enc_pass[MAX_ENC_P
     return passes;
 }
 
-static Bool is_negative_number(const char *string) {
+static bool is_negative_number(const char *string) {
     char *end;
     return strtol(string, &end, 10) < 0 && *end == '\0';
 }
@@ -2469,7 +2416,7 @@ int32_t compute_frames_to_be_encoded(EbConfig *app_cfg) {
     return frame_count;
 }
 
-static Bool warn_legacy_token(const char *const token) {
+static bool warn_legacy_token(const char *const token) {
     static struct warn_set {
         const char *old_token;
         const char *new_token;
@@ -2477,9 +2424,6 @@ static Bool warn_legacy_token(const char *const token) {
         {"-adaptive-quantization", ADAPTIVE_QP_ENABLE_NEW_TOKEN},
         {"-bit-depth", INPUT_DEPTH_TOKEN},
         {"-enc-mode", PRESET_TOKEN},
-#if !FIX_HIGH_DYNAMIC_RANGE_INPUT
-        {"-hdr", HDR_INPUT_NEW_TOKEN},
-#endif
         {"-intra-period", KEYINT_TOKEN},
         {"-lad", LOOKAHEAD_NEW_TOKEN},
         {"-mfmv", MFMV_ENABLE_NEW_TOKEN},
@@ -2491,9 +2435,9 @@ static Bool warn_legacy_token(const char *const token) {
         if (strcmp(token, tok->old_token))
             continue;
         fprintf(stderr, "[SVT-Error]: %s has been removed, use %s instead\n", tok->old_token, tok->new_token);
-        return TRUE;
+        return true;
     }
-    return FALSE;
+    return false;
 }
 
 static void free_config_strings(unsigned nch, char *config_strings[MAX_CHANNEL_NUMBER]) {
@@ -2764,7 +2708,7 @@ EbErrorType read_command_line(int32_t argc, char *const argv[], EncChannel *chan
 
     for (index = 0; index < num_channels; ++index) {
         EncChannel *c = channels + index;
-        if (c->app_cfg->y4m_input == TRUE) {
+        if (c->app_cfg->y4m_input == true) {
             ret_y4m = read_y4m_header(c->app_cfg);
             if (ret_y4m == EB_ErrorBadParameter) {
                 fprintf(stderr, "Error found when reading the y4m file parameters.\n");

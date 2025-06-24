@@ -53,7 +53,7 @@ typedef struct ModeDecisionCandidate {
     CandClass      cand_class;
     PredictionMode pred_mode;
     uint8_t        skip_mode; // skip mode_info + coeff. as defined in section 6.10.10 of the av1 text
-    Bool           skip_mode_allowed;
+    bool           skip_mode_allowed;
     uint8_t        use_intrabc;
 
     // Intra Mode
@@ -237,10 +237,8 @@ struct CodingLoopContext_s;
 extern MvReferenceFrame svt_get_ref_frame_type(uint8_t list, uint8_t ref_idx);
 int                     svt_aom_get_sad_per_bit(int qidx, EbBitDepth is_hbd);
 
-int svt_av1_allow_palette(int allow_palette, BlockSize bsize);
-#if FTR_LOSSLESS_SUPPORT
+int  svt_av1_allow_palette(int allow_palette, BlockSize bsize);
 bool svt_av1_is_lossless_segment(PictureControlSet *pcs, int8_t segment_id);
-#endif
 #ifdef __cplusplus
 }
 #endif

@@ -32,7 +32,7 @@
 #ifdef SVT_ENABLE_USER_CALLBACKS
 #include "rl_feedback.h"
 #include "enc_callbacks.h"
-void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, Bool is_highbd);
+void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, bool is_highbd);
 #endif
 
 static void mem_put_varsize(uint8_t *const dst, const int sz, const int val) {
@@ -1080,7 +1080,7 @@ uint8_t av1_get_skip_context(const MacroBlockD *xd) {
  *   Encodes the skip coefficient flag
  *********************************************************************/
 static void encode_skip_coeff_av1(EcBlkStruct *blk_ptr, FRAME_CONTEXT *frame_context, AomWriter *ec_writer,
-                                  Bool skip_coeff_flag) {
+                                  bool skip_coeff_flag) {
     // TODO: need to code in syntax for segmentation map + skip
     uint8_t ctx = av1_get_skip_context(blk_ptr->av1xd);
     aom_write_symbol(ec_writer, skip_coeff_flag ? 1 : 0, frame_context->skip_cdfs[ctx], 2);
@@ -1190,7 +1190,7 @@ uint8_t av1_get_skip_mode_context(const MacroBlockD *xd) {
  *   Encodes the skip Mode flag
  *********************************************************************/
 static void encode_skip_mode_av1(const EcBlkStruct *blk_ptr, FRAME_CONTEXT *frame_context, AomWriter *ec_writer,
-                                 Bool skip_mode_flag) {
+                                 bool skip_mode_flag) {
     // TODO: not coded in syntax for skip mode/ref-frame/global-mv in segmentation map
     const uint8_t context_index = av1_get_skip_mode_context(blk_ptr->av1xd);
 
@@ -1314,7 +1314,7 @@ EbErrorType svt_aom_entropy_tile_info_ctor(EntropyTileInfo *eti, uint32_t buf_si
     EbErrorType return_error = EB_ErrorNone;
     eti->dctor               = entropy_tile_info_dctor;
     EB_NEW(eti->ec, svt_aom_entropy_coder_ctor, buf_size);
-    eti->entropy_coding_tile_done = FALSE;
+    eti->entropy_coding_tile_done = false;
     return return_error;
 }
 
@@ -2722,7 +2722,7 @@ static AOM_INLINE void write_color_config(const SequenceControlSet *const scs, s
             svt_aom_wb_write_literal(wb, scs->static_config.chroma_sample_position, 2);
         }
     }
-    Bool separate_uv_delta_q = (scs->static_config.chroma_u_ac_qindex_offset !=
+    bool separate_uv_delta_q = (scs->static_config.chroma_u_ac_qindex_offset !=
                                     scs->static_config.chroma_v_ac_qindex_offset ||
                                 scs->static_config.chroma_u_dc_qindex_offset !=
                                     scs->static_config.chroma_v_dc_qindex_offset);
@@ -3528,12 +3528,7 @@ static void write_uncompressed_header_obu(SequenceControlSet *scs /*Av1Comp *cpi
     }
 
     if (frm_hdr->all_lossless) {
-#if FTR_LOSSLESS_SUPPORT
         assert(av1_superres_unscaled(&(pcs->av1_cm->frm_size)));
-#else
-        SVT_ERROR("all_lossless\n");
-        //assert(av1_superres_unscaled(pcs));
-#endif
     } else {
         if (!frm_hdr->coded_lossless) {
             encode_loopfilter(pcs, wb);
@@ -3544,11 +3539,9 @@ static void write_uncompressed_header_obu(SequenceControlSet *scs /*Av1Comp *cpi
         if (scs->seq_header.enable_restoration)
             encode_restoration_mode(pcs, wb);
     }
-#if FTR_LOSSLESS_SUPPORT
     if (frm_hdr->coded_lossless)
         assert(1); // assert(frm_hdr->tx_mode == ONLY_4X4);
     else
-#endif
         svt_aom_wb_write_bit(wb, frm_hdr->tx_mode == TX_MODE_SELECT);
     //write_tx_mode(cm, &pcs->tx_mode, wb);
 
@@ -3654,12 +3647,7 @@ static uint32_t write_sequence_header_obu(SequenceControlSet *scs, uint8_t *cons
     svt_aom_wb_write_bit(&wb, scs->seq_header.reduced_still_picture_header);
 
     if (scs->seq_header.reduced_still_picture_header) {
-#if FTR_STILL_PICTURE
         write_bitstream_level(scs->level[0], &wb);
-#else
-        SVT_ERROR("reduced_still_picture_hdr not supported\n");
-        //write_bitstream_level(cm->seq_params.level[0], &wb);
-#endif
     } else {
         svt_aom_wb_write_bit(&wb, scs->seq_header.timing_info.timing_info_present); // timing info present flag
 
@@ -4527,24 +4515,15 @@ static void write_selected_tx_size(const MacroBlockD *xd, FRAME_CONTEXT *ec_ctx,
         aom_write_symbol(w, depth, ec_ctx->tx_size_cdf[tx_size_cat][tx_size_ctx], max_depths + 1);
     }
 }
-#if FTR_LOSSLESS_SUPPORT
 static EbErrorType av1_code_tx_size(PictureControlSet *pcs, int segment_id, FRAME_CONTEXT *ec_ctx, AomWriter *w,
                                     MacroBlockD *xd, const MbModeInfo *mbmi, TxSize tx_size, TxMode tx_mode,
                                     BlockSize bsize, uint8_t skip) {
-#else
-static EbErrorType av1_code_tx_size(FRAME_CONTEXT *ec_ctx, AomWriter *w, MacroBlockD *xd, const MbModeInfo *mbmi,
-                                    TxSize tx_size, TxMode tx_mode, BlockSize bsize, uint8_t skip) {
-#endif
     EbErrorType return_error = EB_ErrorNone;
     int         is_inter_tx  = is_inter_block(&mbmi->block_mi) || is_intrabc_block(&mbmi->block_mi);
     //int skip = mbmi->skip;
     //int segment_id = 0;// mbmi->segment_id;
-    if (tx_mode == TX_MODE_SELECT && block_signals_txsize(bsize) &&
-#if FTR_LOSSLESS_SUPPORT
-        !(is_inter_tx && skip) && !svt_av1_is_lossless_segment(pcs, segment_id)) {
-#else
-        !(is_inter_tx && skip) /*&& !xd->lossless[segment_id]*/) {
-#endif
+    if (tx_mode == TX_MODE_SELECT && block_signals_txsize(bsize) && !(is_inter_tx && skip) &&
+        !svt_av1_is_lossless_segment(pcs, segment_id)) {
         if (is_inter_tx) { // This implies skip flag is 0.
             const TxSize max_tx_size = get_vartx_max_txsize(/*xd,*/ bsize, 0);
             const int    txbh        = tx_size_high_unit[max_tx_size];
@@ -4606,7 +4585,6 @@ void set_mi_row_col(PictureControlSet *pcs, MacroBlockD *xd, TileInfo *tile, int
         if (mi_row & (xd->n8_w - 1))
             xd->is_sec_rect = 1;
 }
-#if FTR_LOSSLESS_SUPPORT
 static INLINE int svt_aom_get_segment_id(Av1Common *cm, const uint8_t *segment_ids, BlockSize bsize, int mi_row,
                                          int mi_col) {
     const int mi_offset = mi_row * cm->mi_cols + mi_col;
@@ -4622,7 +4600,6 @@ static INLINE int svt_aom_get_segment_id(Av1Common *cm, const uint8_t *segment_i
     assert(segment_id >= 0 && segment_id < MAX_SEGMENTS);
     return segment_id;
 }
-#endif
 static void code_tx_size(PictureControlSet *pcs, uint32_t blk_org_x, uint32_t blk_org_y, EcBlkStruct *blk_ptr,
                          const BlockGeom *blk_geom, NeighborArrayUnit *txfm_context_array, FRAME_CONTEXT *ec_ctx,
                          AomWriter *w, uint8_t skip) {
@@ -4643,9 +4620,8 @@ static void code_tx_size(PictureControlSet *pcs, uint32_t blk_org_x, uint32_t bl
     const MbModeInfo *const mbmi = &xd->mi[0]->mbmi;
     xd->above_txfm_context       = &txfm_context_array->top_array[txfm_context_above_index];
     xd->left_txfm_context        = &txfm_context_array->left_array[txfm_context_left_index];
-    TxSize tx_size = blk_geom->txsize[mbmi->block_mi.tx_depth]; // inherit tx_size from 1st transform block;
-#if FTR_LOSSLESS_SUPPORT
-    FrameHeader             *frm_hdr          = &pcs->ppcs->frm_hdr;
+    TxSize       tx_size = blk_geom->txsize[mbmi->block_mi.tx_depth]; // inherit tx_size from 1st transform block;
+    FrameHeader *frm_hdr = &pcs->ppcs->frm_hdr;
     SegmentationNeighborMap *segmentation_map = pcs->segmentation_neighbor_map;
     av1_code_tx_size(pcs,
                      frm_hdr->segmentation_params.segmentation_enabled
@@ -4659,27 +4635,7 @@ static void code_tx_size(PictureControlSet *pcs, uint32_t blk_org_x, uint32_t bl
                      tx_mode,
                      bsize,
                      skip);
-#else
-    av1_code_tx_size(ec_ctx, w, xd, mbmi, tx_size, tx_mode, bsize, skip);
-#endif
 }
-#if !FTR_LOSSLESS_SUPPORT
-static INLINE int svt_aom_get_segment_id(Av1Common *cm, const uint8_t *segment_ids, BlockSize bsize, int mi_row,
-                                         int mi_col) {
-    const int mi_offset = mi_row * cm->mi_cols + mi_col;
-    const int bw        = mi_size_wide[bsize];
-    const int bh        = mi_size_high[bsize];
-    const int xmis      = AOMMIN(cm->mi_cols - mi_col, bw);
-    const int ymis      = AOMMIN(cm->mi_rows - mi_row, bh);
-    int       x, y, segment_id = MAX_SEGMENTS;
-
-    for (y = 0; y < ymis; ++y)
-        for (x = 0; x < xmis; ++x) segment_id = AOMMIN(segment_id, segment_ids[mi_offset + y * cm->mi_cols + x]);
-
-    assert(segment_id >= 0 && segment_id < MAX_SEGMENTS);
-    return segment_id;
-}
-#endif
 int svt_av1_get_spatial_seg_prediction(PictureControlSet *pcs, MacroBlockD *xd, uint32_t blk_org_x, uint32_t blk_org_y,
                                        int *cdf_index) {
     int prev_ul = -1; // top left segment_id
@@ -4759,7 +4715,7 @@ void svt_av1_update_segmentation_map(PictureControlSet *pcs, BlockSize bsize, ui
         for (x = 0; x < xmis; ++x) segment_ids[mi_offset + y * cm->mi_cols + x] = segment_id;
 }
 void write_segment_id(PictureControlSet *pcs, FRAME_CONTEXT *frame_context, AomWriter *ecWriter, BlockSize bsize,
-                      uint32_t blk_org_x, uint32_t blk_org_y, EcBlkStruct *blk_ptr, Bool skip_coeff) {
+                      uint32_t blk_org_x, uint32_t blk_org_y, EcBlkStruct *blk_ptr, bool skip_coeff) {
     SegmentationParams *segmentation_params = &pcs->ppcs->frm_hdr.segmentation_params;
     if (!segmentation_params->segmentation_enabled)
         return;
@@ -4780,7 +4736,7 @@ void write_segment_id(PictureControlSet *pcs, FRAME_CONTEXT *frame_context, AomW
 }
 static void write_inter_segment_id(PictureControlSet *pcs, FRAME_CONTEXT *frame_context, AomWriter *ecWriter,
                                    const BlockGeom *blockGeom, uint32_t blk_org_x, uint32_t blk_org_y,
-                                   EcBlkStruct *blk_ptr, Bool skip, int pre_skip) {
+                                   EcBlkStruct *blk_ptr, bool skip, int pre_skip) {
     SegmentationParams *segmentation_params = &pcs->ppcs->frm_hdr.segmentation_params;
     if (!segmentation_params->segmentation_enabled)
         return;
@@ -4838,7 +4794,7 @@ static EbErrorType write_modes_b(PictureControlSet *pcs, EntropyCodingContext *e
     uint32_t           blk_org_y                   = ec_ctx->sb_origin_y + blk_geom->org_y;
     BlockSize          bsize                       = blk_geom->bsize;
     MbModeInfo        *mbmi                        = get_mbmi(pcs, blk_org_x, blk_org_y);
-    Bool               skip_coeff                  = mbmi->block_mi.skip;
+    bool               skip_coeff                  = mbmi->block_mi.skip;
     ec_ctx->mbmi                                   = mbmi;
 
     const uint8_t skip_mode = mbmi->block_mi.skip_mode;
@@ -5319,12 +5275,10 @@ static EbErrorType write_modes_b(PictureControlSet *pcs, EntropyCodingContext *e
             }
         }
     }
-#if FTR_SIGNAL_AVERAGE_QP
     svt_block_on_mutex(pcs->entropy_coding_pic_mutex);
     pcs->ppcs->tot_qindex += blk_ptr->qindex * blk_geom->bwidth * blk_geom->bheight;
     pcs->ppcs->valid_qindex_area += blk_geom->bwidth * blk_geom->bheight;
     svt_release_mutex(pcs->entropy_coding_pic_mutex);
-#endif
     // Update the neighbors
     ec_update_neighbors(pcs, ec_ctx, blk_org_x, blk_org_y, blk_ptr, tile_idx, bsize, coeff_ptr);
 
@@ -5358,7 +5312,7 @@ EB_EXTERN EbErrorType svt_aom_write_sb(EntropyCodingContext *ec_ctx, SuperBlock 
     SbGeom    *sb_geom                = &pcs->ppcs->sb_geom[tb_ptr->index];
     const bool check_blk_out_of_bound = !(sb_geom->is_complete_sb);
     do {
-        Bool             code_blk_cond = TRUE; // Code cu only if it is inside the picture
+        bool             code_blk_cond = true; // Code cu only if it is inside the picture
         EcBlkStruct     *blk_ptr       = &tb_ptr->final_blk_arr[final_blk_index];
         const BlockGeom *blk_geom      = get_blk_geom_mds(blk_index);
 

@@ -1232,7 +1232,7 @@ void svt_aom_get_av1_mv_pred_drl(ModeDecisionContext *ctx, BlkStruct *blk_ptr, M
 void svt_aom_update_mi_map_enc_dec(BlkStruct *blk_ptr, ModeDecisionContext *ctx, PictureControlSet *pcs) {
     // Update only the data in the top left block of the partition, because all other mi_blocks
     // point to the top left mi block of the partition
-    blk_ptr->av1xd->mi[0]->mbmi.block_mi.skip      = blk_ptr->block_has_coeff ? FALSE : TRUE;
+    blk_ptr->av1xd->mi[0]->mbmi.block_mi.skip      = blk_ptr->block_has_coeff ? false : true;
     blk_ptr->av1xd->mi[0]->mbmi.block_mi.skip_mode = (int8_t)blk_ptr->skip_mode;
 
     if (pcs->ppcs->frm_hdr.segmentation_params.segmentation_enabled) {
@@ -1342,7 +1342,7 @@ void svt_aom_update_mi_map(BlkStruct *blk_ptr, uint32_t blk_org_x, uint32_t blk_
 
     block_mi->bsize        = blk_geom->bsize;
     block_mi->mode         = blk_ptr->pred_mode;
-    block_mi->skip         = (blk_ptr->block_has_coeff) ? FALSE : TRUE;
+    block_mi->skip         = (blk_ptr->block_has_coeff) ? false : true;
     block_mi->partition    = from_shape_to_part[blk_geom->shape];
     block_mi->skip_mode    = (int8_t)blk_ptr->skip_mode;
     block_mi->uv_mode      = blk_ptr->intra_chroma_mode;
@@ -1687,14 +1687,14 @@ uint16_t wm_find_samples(BlkStruct *blk_ptr, const BlockGeom *blk_geom, uint16_t
                                       top_right_present);
 }
 
-Bool svt_aom_warped_motion_parameters(PictureControlSet *pcs, BlkStruct *blk_ptr, MvUnit *mv_unit,
+bool svt_aom_warped_motion_parameters(PictureControlSet *pcs, BlkStruct *blk_ptr, MvUnit *mv_unit,
                                       const BlockGeom *blk_geom, uint16_t blk_org_x, uint16_t blk_org_y,
                                       uint8_t ref_frame_type, EbWarpedMotionParams *wm_params, uint16_t *num_samples,
                                       uint8_t min_neighbour_perc, uint8_t corner_perc_bias, uint16_t lower_band_th,
-                                      uint16_t upper_band_th, Bool shut_approx) {
+                                      uint16_t upper_band_th, bool shut_approx) {
     MacroBlockD *xd       = blk_ptr->av1xd;
     BlockSize    bsize    = blk_geom->bsize;
-    Bool         apply_wm = FALSE;
+    bool         apply_wm = false;
 
     int     pts[SAMPLES_ARRAY_SIZE], pts_inref[SAMPLES_ARRAY_SIZE];
     int32_t mi_row = blk_org_y >> MI_SIZE_LOG2;
@@ -1905,31 +1905,6 @@ int svt_aom_is_dv_valid(const MV dv, const MacroBlockD *xd, int mi_row, int mi_c
         if (src_sb128_col > active_sb128_col + (active_sb_row - src_sb_row))
             return 0;
     }
-
-    return 1;
-}
-
-int svt_aom_is_inside_tile_boundary(TileInfo *tile, int16_t mvx, int16_t mvy, int mi_col, int mi_row, BlockSize bsize) {
-    const int bw             = block_size_wide[bsize];
-    const int bh             = block_size_high[bsize];
-    const int scale_px_to_mv = 8;
-    const int src_top_edge   = mi_row * MI_SIZE * scale_px_to_mv + mvy;
-    const int tile_top_edge  = tile->mi_row_start * MI_SIZE * scale_px_to_mv;
-    if (src_top_edge < tile_top_edge)
-        return 0;
-    const int src_left_edge  = mi_col * MI_SIZE * scale_px_to_mv + mvx;
-    const int tile_left_edge = tile->mi_col_start * MI_SIZE * scale_px_to_mv;
-    if (src_left_edge < tile_left_edge)
-        return 0;
-    // Is the bottom right inside the current tile?
-    const int src_bottom_edge  = (mi_row * MI_SIZE + bh) * scale_px_to_mv + mvy;
-    const int tile_bottom_edge = tile->mi_row_end * MI_SIZE * scale_px_to_mv;
-    if (src_bottom_edge > tile_bottom_edge)
-        return 0;
-    const int src_right_edge  = (mi_col * MI_SIZE + bw) * scale_px_to_mv + mvx;
-    const int tile_right_edge = tile->mi_col_end * MI_SIZE * scale_px_to_mv;
-    if (src_right_edge > tile_right_edge)
-        return 0;
 
     return 1;
 }
