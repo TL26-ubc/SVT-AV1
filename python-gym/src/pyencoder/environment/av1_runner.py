@@ -92,6 +92,7 @@ class Av1Runner:
 
         self.video_path = video_path
         self.bytes_keeper = {}
+        self.previous_training_bytes_keeper = {}  # Store previous training bytes
         self.all_bitstreams = io.BytesIO()  # Holds joined bitstream data
         self.sb_total_count = get_num_superblock(video_path)
         self.first_round = True  # Flag for the first round of encoding
@@ -144,6 +145,7 @@ class Av1Runner:
         Reset the callback state, clearing the bytes_keeper and all_bitstreams.
         This is typically called at the start of a new encoding session.
         """
+        self.previous_training_bytes_keeper = self.bytes_keeper.copy()
         self.bytes_keeper.clear()
         self.all_bitstreams.close()
         self.all_bitstreams = io.BytesIO()
@@ -274,3 +276,34 @@ class Av1Runner:
             current_size = len(self.bytes_keeper.get(picture_number, b""))
             return (first_round_size - current_size, current_size)
         assert False, f"Frame {picture_number} not found in first round byte usage"
+        
+    def save_bitstream_to_file(self, output_path: str, interrupt: bool = False):
+        """
+        Save the bitstream to a file.
+        If not interrupted, it will save current bitstream data to ivf file.
+        If interrupted, it will save the previous training bytes to ivf file.
+        
+        If the desierd bitestream is not complete, nothing will be saved and a warning will be given
+        Args:
+            output_path (str): The path to save the bitstream file. Must end with .ivf.
+            interrupt (bool): If True, save the previous training bytes instead of current.
+        Raises:
+            ValueError: If the output path does not end with .ivf.
+        """
+        if not output_path.endswith(".ivf"):
+            raise ValueError("Output path must end with .ivf")
+
+
+        # Save previous training bytes
+        bitstream_data = b"".join(
+            self.previous_training_bytes_keeper.values()
+        )
+
+
+        if not bitstream_data:
+            print("No bitstream data to save.")
+            return
+
+        with open(output_path, "wb") as f:
+            f.write(bitstream_data)
+        print(f"Bitstream saved to {output_path}")

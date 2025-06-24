@@ -131,6 +131,9 @@ if __name__ == "__main__":
         # Save final model
         final_model_path = base_output_path / f"final_{args.algorithm}_model"
         model.save(str(final_model_path))
+        gyn_env.save_bitstream_to_file(
+            str(base_output_path / "final_encoder_video.ivf")
+        )
         print(f"Training completed! Final model saved to: {final_model_path}")
 
     except KeyboardInterrupt:
@@ -140,4 +143,8 @@ if __name__ == "__main__":
             base_output_path / f"interrupted_{args.algorithm}_model"
         )
         model.save(str(interrupted_model_path))
+        gyn_env.save_bitstream_to_file(
+            str(base_output_path / "interrupted_encoder_video.ivf"),
+            interrupt=True
+        )
         print(f"Model saved to: {interrupted_model_path}")

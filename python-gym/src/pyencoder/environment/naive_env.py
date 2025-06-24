@@ -383,6 +383,10 @@ class Av1GymEnv(gym.Env):
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.render
     def render(self):
         pass
+    
+    def save_bitstream_to_file(self, output_path: str, interrupt: bool = False):
+        """Save the bitstream to a file"""
+        self.av1_runner.save_bitstream_to_file(output_path, interrupt=interrupt)
 
     def _get_initial_observation(self) -> np.ndarray:
         """Get initial observation for episode start"""
