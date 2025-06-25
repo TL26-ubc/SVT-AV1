@@ -482,73 +482,73 @@ class Av1GymEnv(gym.Env):
             )
             
             # Validate PSNR values
-            for psnr_val, psnr_name in [(y_psnr, "Y"), (cb_psnr, "Cb"), (cr_psnr, "Cr")]:
-                if math.isnan(psnr_val) or math.isinf(psnr_val):
-                    raise InvalidRewardError(
-                        f"Invalid {psnr_name} PSNR ({psnr_val}) for frame {self.current_frame}"
-                    )
+            # for psnr_val, psnr_name in [(y_psnr, "Y"), (cb_psnr, "Cb"), (cr_psnr, "Cr")]:
+            #     if math.isnan(psnr_val) or math.isinf(psnr_val):
+            #         raise InvalidRewardError(
+            #             f"Invalid {psnr_name} PSNR ({psnr_val}) for frame {self.current_frame}"
+            #         )
             
             # Get byte usage difference
-            byte_saved, current_usage = self.av1_runner.get_byte_usage_diff(
-                action_request["picture_number"]
-            )
+            # byte_saved, current_usage = self.av1_runner.get_byte_usage_diff(
+            #     action_request["picture_number"]
+            # )
             
             # Validate byte usage values
-            if math.isnan(byte_saved) or math.isinf(byte_saved):
-                raise InvalidRewardError(f"Invalid byte_saved ({byte_saved}) for frame {self.current_frame}")
-            if math.isnan(current_usage) or math.isinf(current_usage) or current_usage <= 0:
-                raise InvalidRewardError(f"Invalid current_usage ({current_usage}) for frame {self.current_frame}")
+            # if math.isnan(byte_saved) or math.isinf(byte_saved):
+            #     raise InvalidRewardError(f"Invalid byte_saved ({byte_saved}) for frame {self.current_frame}")
+            # if math.isnan(current_usage) or math.isinf(current_usage) or current_usage <= 0:
+            #     raise InvalidRewardError(f"Invalid current_usage ({current_usage}) for frame {self.current_frame}")
             
             # Calculate PSNR improvements
             y_psnr_improvement = y_psnr - self.y_psnr_list[self.current_frame]
-            cb_psnr_improvement = cb_psnr - self.cb_psnr_list[self.current_frame]
-            cr_psnr_improvement = cr_psnr - self.cr_psnr_list[self.current_frame]
+            # cb_psnr_improvement = cb_psnr - self.cb_psnr_list[self.current_frame]
+            # cr_psnr_improvement = cr_psnr - self.cr_psnr_list[self.current_frame]
             
             # Validate improvements
-            for improvement, name in [
-                (y_psnr_improvement, "Y PSNR improvement"),
-                (cb_psnr_improvement, "Cb PSNR improvement"), 
-                (cr_psnr_improvement, "Cr PSNR improvement")
-            ]:
-                if math.isnan(improvement) or math.isinf(improvement):
-                    raise InvalidRewardError(f"Invalid {name} ({improvement}) for frame {self.current_frame}")
+            # for improvement, name in [
+            #     (y_psnr_improvement, "Y PSNR improvement"),
+            #     (cb_psnr_improvement, "Cb PSNR improvement"), 
+            #     (cr_psnr_improvement, "Cr PSNR improvement")
+            # ]:
+            #     if math.isnan(improvement) or math.isinf(improvement):
+            #         raise InvalidRewardError(f"Invalid {name} ({improvement}) for frame {self.current_frame}")
             
             # Calculate reward components
             a = 1
-            b = c = 0.5
-            d = 2
+            # b = c = 0.5
+            # d = 2
             
-            byte_efficiency = byte_saved / current_usage
+            # byte_efficiency = byte_saved / current_usage
             
             # Validate byte efficiency
-            if math.isnan(byte_efficiency) or math.isinf(byte_efficiency):
-                raise InvalidRewardError(
-                    f"Invalid byte efficiency ({byte_efficiency}) for frame {self.current_frame}. "
-                    f"byte_saved: {byte_saved}, current_usage: {current_usage}"
-                )
+            # if math.isnan(byte_efficiency) or math.isinf(byte_efficiency):
+            #     raise InvalidRewardError(
+            #         f"Invalid byte efficiency ({byte_efficiency}) for frame {self.current_frame}. "
+            #         f"byte_saved: {byte_saved}, current_usage: {current_usage}"
+            #     )
             
             # Calculate final reward
             reward = (
                 y_psnr_improvement * a
-                + cb_psnr_improvement * b
-                + cr_psnr_improvement * c
-                + byte_efficiency * d
+                # + cb_psnr_improvement * b
+                # + cr_psnr_improvement * c
+                # + byte_efficiency * d
             )
             
             # Final reward validation
-            reward_details = {
-                "y_psnr": y_psnr,
-                "cb_psnr": cb_psnr,
-                "cr_psnr": cr_psnr,
-                "y_psnr_improvement": y_psnr_improvement,
-                "cb_psnr_improvement": cb_psnr_improvement,
-                "cr_psnr_improvement": cr_psnr_improvement,
-                "byte_saved": byte_saved,
-                "current_usage": current_usage,
-                "byte_efficiency": byte_efficiency
-            }
+            # reward_details = {
+            #     "y_psnr": y_psnr,
+            #     "cb_psnr": cb_psnr,
+            #     "cr_psnr": cr_psnr,
+            #     "y_psnr_improvement": y_psnr_improvement,
+            #     "cb_psnr_improvement": cb_psnr_improvement,
+            #     "cr_psnr_improvement": cr_psnr_improvement,
+            #     "byte_saved": byte_saved,
+            #     "current_usage": current_usage,
+            #     "byte_efficiency": byte_efficiency
+            # }
             
-            validate_reward(reward, self.current_frame, reward_details)
+            # validate_reward(reward, self.current_frame, reward_details)
             
             return reward
             

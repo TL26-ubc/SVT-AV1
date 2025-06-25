@@ -77,6 +77,7 @@ stats = parse_stats_file(filename)
 
 # create a folder named graphs if it does not exist
 import os
+import pandas as pd
 if not os.path.exists('graphs'):
     os.makedirs('graphs')
     
@@ -172,3 +173,27 @@ def plot_bitrate(data, title, filename):
     plt.grid()
     plt.savefig(f'graphs/{filename}_improvement.png')       
 plot_bitrate(stats, 'Bitrate per Run', 'bitrate')
+
+def plot_reward(reward_path='../Output/monitor.monitor.csv'):
+    # check if the reward CSV exists
+    import os
+    if not os.path.exists(reward_path):
+        reward_path = '../logs/monitor.monitor.csv'
+        if not os.path.exists(reward_path):
+            raise FileNotFoundError(f"Reward CSV file not found at {reward_path}")
+    
+    # Read the reward CSV, skipping the first line (header with #)
+    rewards_df = pd.read_csv(reward_path, comment='#')
+
+    # Plot the 'r' column (reward)
+    plt.figure(figsize=(10, 6))
+    plt.plot(rewards_df['r'], marker='o', label='Reward')
+    plt.title('Reward per Episode')
+    plt.xlabel('Episode Index')
+    plt.ylabel('Reward')
+    plt.legend()
+    plt.grid()
+    plt.savefig('graphs/reward_per_episode.png')
+    plt.close()
+plot_reward()
+    
