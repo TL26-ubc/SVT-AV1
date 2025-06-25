@@ -177,6 +177,14 @@ class Av1GymEnv(gym.Env):
             baseline_video_path=f"{str(output_dir)}/baseline_output.ivf"
         )
 
+        viz_output_dir = str(output_dir / "observation_analysis")
+        self.observation_max_values = (
+            self.video_reader.collect_baseline_observation_stats(
+                viz_output_dir
+            )
+        )
+        
+
     def save_baseline_frame_psnr(self, baseline_video_path: str | Path):
         """Calculate and save PSNR for baseline frames"""
         baseline_video_path = str(baseline_video_path)
@@ -391,8 +399,10 @@ class Av1GymEnv(gym.Env):
     def _get_initial_observation(self) -> np.ndarray:
         """Get initial observation for episode start"""
         try:
-            # Get first frame state
-            frame_state = self.video_reader.get_x_frame_state(frame_number=0)
+            frame_state = self.video_reader.get_x_frame_state_normalized(
+                frame_number=0
+            )
+                
             obs_array = np.array(frame_state, dtype=np.float32)
             
             # Validate the observation
@@ -409,11 +419,24 @@ class Av1GymEnv(gym.Env):
             
         except Exception as e:
             raise InvalidStateError(f"Failed to get initial observation: {e}")
+    
+    def get_observation_stats(self) -> dict:
+        if self.observation_max_values is None:
+            raise ValueError(
+                "Observation normalization is not enabled."
+            )
+            
+        return {
+            "max_values": self.observation_max_values,
+            "num_superblocks": self.num_superblocks,
+            "num_frames": self.num_frames
+        }
 
     def _get_current_observation(self) -> np.ndarray:
         """Get current observation based on current frame"""
         try:
-            frame_state = self.video_reader.get_x_frame_state(
+            
+            frame_state = self.video_reader.get_x_frame_state_normalized(
                 frame_number=self.current_frame
             )
             obs_array = np.array(frame_state, dtype=np.float32)

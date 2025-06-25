@@ -5,6 +5,14 @@ from typing import Optional, Tuple
 import cv2
 import numpy as np
 
+from typing import Optional, Tuple
+import os
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.colors import LinearSegmentedColormap
+import seaborn as sns
+
 
 class VideoComponent(enum.Enum):
     Y = "Y"
@@ -23,6 +31,391 @@ class VideoReader:
             raise ValueError(f"Cannot open video file: {path}")
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        self.observation_max_values = {
+            'y_variance': -float('inf'),
+            'h_motion_vector': -float('inf'), 
+            'v_motion_vector': -float('inf'),
+            'gradient_magnitude': -float('inf')
+        }
+
+        self.visualization_data = {
+            'y_variance': [],
+            'h_motion_vector': [],
+            'v_motion_vector': [],
+            'gradient_magnitude': []
+        }
+
+    def collect_baseline_observation_stats(
+        self, output_dir: str = "observation_analysis"
+    ) -> dict:
+       
+        max_values = {
+            'y_variance': -float('inf'),
+            'h_motion_vector': -float('inf'), 
+            'v_motion_vector': -float('inf'),
+            'gradient_magnitude': -float('inf')
+        }     
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        self.visualization_data = {
+            'y_variance': [],
+            'h_motion_vector': [],
+            'v_motion_vector': [],
+            'gradient_magnitude': []
+        }
+
+        num_frames = self.get_frame_count()
+        
+        if num_frames == 0:
+            raise ValueError("Video has no frames")
+        
+        valid_frames = 0
+        frame_indices = []
+        
+        for frame_number in range(num_frames):
+            try:
+                frame_state = self.get_x_frame_state(frame_number)
+                if frame_state == [[], [], [], []]:
+                    continue
+                    
+                y_var_list, h_mv_list, v_mv_list, beta_list = frame_state
+
+                self.visualization_data['y_variance'].append(y_var_list)
+                self.visualization_data['h_motion_vector'].append(h_mv_list)
+                self.visualization_data['v_motion_vector'].append(v_mv_list)
+                self.visualization_data['gradient_magnitude'].append(beta_list)
+                
+                if y_var_list:
+                    max_values['y_variance'] = max(
+                        max_values['y_variance'], 
+                        max(y_var_list)
+                    )
+               
+                if h_mv_list:
+                    max_abs_h = max(abs(v) for v in h_mv_list)
+                    max_values['h_motion_vector'] = max(
+                        max_values['h_motion_vector'], max_abs_h
+                    )
+                if v_mv_list:
+                    max_abs_v = max(abs(v) for v in v_mv_list)
+                    max_values['v_motion_vector'] = max(
+                        max_values['v_motion_vector'],
+                        max_abs_v
+                    )
+                if beta_list:
+                    max_values['gradient_magnitude'] = max(
+                        max_values['gradient_magnitude'], 
+                        max(beta_list)
+                    )
+                frame_indices.append(frame_number)
+                valid_frames += 1
+                
+            except Exception as e:
+                print(f"Warning: Failed to process frame {frame_number}: {e}")
+                continue
+        
+        if valid_frames == 0:
+            raise ValueError("No valid frames found for collecting statistics")
+        
+        self.observation_max_values = max_values
+        
+        print(
+            f"Baseline observation statistics collected from "
+            f"{valid_frames}/{num_frames} valid frames:"
+        )
+        for key, value in max_values.items():
+            print(f"  {key}: {value}")
+        
+        self._generate_visualization_plots(frame_indices, output_dir)
+        return max_values
+
+    def get_x_frame_state_normalized(self, frame_number) -> list[list[float]]:
+       
+        frame_state = self.get_x_frame_state(frame_number)
+        if frame_state == [[], [], [], []]:
+            return frame_state  
+             
+        y_var_list, h_mv_list, v_mv_list, beta_list = frame_state
+        
+        def normalize_variance_list(values, max_val):
+            if max_val <= 0:
+                return [0.0] * len(values)
+            return [v / max_val for v in values]
+        
+        def normalize_motion_vector_list(values, max_abs_val):
+            if max_abs_val <= 0:
+                return [0.0] * len(values)
+            return [v / max_abs_val for v in values]
+        
+        normalized_y_var = normalize_variance_list(
+            y_var_list,
+            self.observation_max_values['y_variance']
+        )
+        normalized_h_mv = normalize_motion_vector_list(
+            h_mv_list,
+            self.observation_max_values['h_motion_vector']
+        ) 
+        normalized_v_mv = normalize_motion_vector_list(
+            v_mv_list,
+            self.observation_max_values['v_motion_vector']
+        )
+        normalized_beta = normalize_variance_list(
+            beta_list,
+            self.observation_max_values['gradient_magnitude']
+        )
+        
+        return [
+            normalized_y_var,
+            normalized_h_mv,
+            normalized_v_mv,
+            normalized_beta,
+        ]
+    
+    def _generate_visualization_plots(self, frame_indices: list, output_dir: str):
+        """生成观测值变化的可视化图表"""
+        
+        # 1. 时间序列图：显示每个特征的统计值变化
+        self._plot_time_series_statistics(frame_indices, output_dir)
+        
+        # 2. 热力图：显示每个superblock的值变化
+        self._plot_superblock_heatmaps(frame_indices, output_dir)
+        
+        # 3. 分布图：显示值的分布情况
+        self._plot_value_distributions(output_dir)
+        
+        # 4. 相关性分析
+        self._plot_feature_correlations(output_dir)
+        
+        print(f"Visualization plots saved to {output_dir}/")
+
+    def _plot_time_series_statistics(self, frame_indices: list, output_dir: str):
+        """绘制时间序列统计图"""
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        fig.suptitle('Observation Features Statistics Over Time', fontsize=16)
+        
+        feature_names = [
+            'y_variance',
+            'h_motion_vector',
+            'v_motion_vector',
+            'gradient_magnitude'
+        ]
+        feature_titles = [
+            'Y-Component Variance',
+            'Horizontal Motion Vector',
+            'Vertical Motion Vector',
+            'Gradient Magnitude'
+        ]
+        
+        for idx, (feature, title) in enumerate(
+            zip(feature_names, feature_titles)
+        ):
+            row, col = idx // 2, idx % 2
+            ax = axes[row, col]
+            
+            data = self.visualization_data[feature]
+            if not data:
+                continue
+                
+            # 计算每帧的统计值
+            means = [np.mean(frame_data) for frame_data in data]
+            maxs = [np.max(frame_data) for frame_data in data]
+            mins = [np.min(frame_data) for frame_data in data]
+            stds = [np.std(frame_data) for frame_data in data]
+            
+            # 绘制统计线
+            ax.plot(frame_indices, means, label='Mean', linewidth=2, alpha=0.8)
+            ax.plot(frame_indices, maxs, label='Max', linewidth=1, alpha=0.7)
+            ax.plot(frame_indices, mins, label='Min', linewidth=1, alpha=0.7)
+            ax.fill_between(frame_indices, 
+                           [m - s for m, s in zip(means, stds)], 
+                           [m + s for m, s in zip(means, stds)], 
+                           alpha=0.3, label='±1 Std')
+            
+            ax.set_title(title)
+            ax.set_xlabel('Frame Number')
+            ax.set_ylabel('Value')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(f"{output_dir}/time_series_statistics.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+    def _plot_superblock_heatmaps(self, frame_indices: list, output_dir: str):
+        """绘制superblock热力图"""
+        
+        num_frames = len(frame_indices)
+        num_superblocks = len(self.visualization_data['y_variance'][0]) if self.visualization_data['y_variance'] else 0
+        
+        if num_superblocks == 0:
+            return
+        
+        # 计算superblock的空间排列
+        num_blocks_h = (self.height + SB_SIZE - 1) // SB_SIZE
+        num_blocks_w = (self.width + SB_SIZE - 1) // SB_SIZE
+        
+        feature_names = ['y_variance', 'h_motion_vector', 'v_motion_vector', 'gradient_magnitude']
+        feature_titles = ['Y-Component Variance', 'Horizontal Motion Vector', 'Vertical Motion Vector', 'Gradient Magnitude']
+        
+        for feature, title in zip(feature_names, feature_titles):
+            if not self.visualization_data[feature]:
+                continue
+                
+            # 创建热力图数据：每个superblock在所有帧上的平均值
+            heatmap_data = np.zeros((num_blocks_h, num_blocks_w))
+            
+            # 计算每个superblock的平均值
+            sb_averages = []
+            for sb_idx in range(num_superblocks):
+                values = [frame_data[sb_idx] for frame_data in self.visualization_data[feature] if sb_idx < len(frame_data)]
+                if values:
+                    sb_averages.append(np.mean(values))
+                else:
+                    sb_averages.append(0)
+            
+            # 将1D数据重新排列为2D网格
+            for i, avg_val in enumerate(sb_averages):
+                row = i // num_blocks_w
+                col = i % num_blocks_w
+                if row < num_blocks_h:
+                    heatmap_data[row, col] = avg_val
+            
+            # 绘制热力图
+            plt.figure(figsize=(12, 8))
+            
+            # 使用不同的颜色映射
+            if 'motion' in feature:
+                cmap = 'RdBu_r'  # 红蓝色映射，适合正负值
+                center = 0
+            else:
+                cmap = 'viridis'  # 普通色映射
+                center = None
+            
+            sns.heatmap(heatmap_data, 
+                       annot=False, 
+                       cmap=cmap, 
+                       center=center,
+                       cbar_kws={'label': 'Average Value'})
+            
+            plt.title(f'{title} - Average Values Across All Frames\n(Superblock Spatial Layout)')
+            plt.xlabel('Superblock Column')
+            plt.ylabel('Superblock Row')
+            plt.tight_layout()
+            plt.savefig(f"{output_dir}/heatmap_{feature}.png", dpi=300, bbox_inches='tight')
+            plt.close()
+
+    def _plot_value_distributions(self, output_dir: str):
+        """绘制值分布图"""
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        fig.suptitle('Distribution of Observation Features', fontsize=16)
+        
+        feature_names = ['y_variance', 'h_motion_vector', 'v_motion_vector', 'gradient_magnitude']
+        feature_titles = ['Y-Component Variance', 'Horizontal Motion Vector', 'Vertical Motion Vector', 'Gradient Magnitude']
+        
+        for idx, (feature, title) in enumerate(zip(feature_names, feature_titles)):
+            row, col = idx // 2, idx % 2
+            ax = axes[row, col]
+            
+            data = self.visualization_data[feature]
+            if not data:
+                continue
+            
+            # 将所有值展平
+            all_values = [val for frame_data in data for val in frame_data]
+            
+            if all_values:
+                # 绘制直方图和密度图
+                ax.hist(all_values, bins=50, alpha=0.7, density=True, edgecolor='black')
+                
+                # 添加统计信息
+                mean_val = np.mean(all_values)
+                std_val = np.std(all_values)
+                median_val = np.median(all_values)
+                
+                ax.axvline(mean_val, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_val:.3f}')
+                ax.axvline(median_val, color='green', linestyle='--', linewidth=2, label=f'Median: {median_val:.3f}')
+                
+                ax.set_title(f'{title}\n(μ={mean_val:.3f}, σ={std_val:.3f})')
+                ax.set_xlabel('Value')
+                ax.set_ylabel('Density')
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(f"{output_dir}/value_distributions.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
+    def _plot_feature_correlations(self, output_dir: str):
+        """绘制特征相关性分析"""
+        # 准备数据
+        correlation_data = {}
+        feature_names = ['y_variance', 'h_motion_vector', 'v_motion_vector', 'gradient_magnitude']
+        
+        # 计算每帧每个特征的平均值
+        for feature in feature_names:
+            data = self.visualization_data[feature]
+            if data:
+                correlation_data[feature] = [np.mean(frame_data) for frame_data in data]
+        
+        if len(correlation_data) < 2:
+            return
+        
+        # 创建DataFrame用于相关性分析
+        import pandas as pd
+        df = pd.DataFrame(correlation_data)
+        
+        # 计算相关性矩阵
+        correlation_matrix = df.corr()
+        
+        # 绘制相关性热力图
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(correlation_matrix, 
+                   annot=True, 
+                   cmap='coolwarm', 
+                   center=0,
+                   square=True,
+                   fmt='.3f',
+                   cbar_kws={'label': 'Correlation Coefficient'})
+        
+        plt.title('Feature Correlation Matrix\n(Frame-wise Average Values)')
+        plt.tight_layout()
+        plt.savefig(f"{output_dir}/feature_correlations.png", dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        # 绘制散点图矩阵
+        if len(correlation_data) >= 2:
+            fig, axes = plt.subplots(len(feature_names), len(feature_names), figsize=(16, 16))
+            fig.suptitle('Feature Scatter Plot Matrix', fontsize=16)
+            
+            for i, feature1 in enumerate(feature_names):
+                for j, feature2 in enumerate(feature_names):
+                    ax = axes[i, j]
+                    
+                    if i == j:
+                        # 对角线：显示分布
+                        if feature1 in correlation_data:
+                            ax.hist(correlation_data[feature1], bins=20, alpha=0.7)
+                            ax.set_title(feature1.replace('_', ' ').title())
+                    else:
+                        # 非对角线：显示散点图
+                        if feature1 in correlation_data and feature2 in correlation_data:
+                            ax.scatter(correlation_data[feature2], correlation_data[feature1], alpha=0.6, s=10)
+                            
+                            # 计算并显示相关系数
+                            corr = correlation_matrix.loc[feature1, feature2]
+                            ax.text(0.05, 0.95, f'r={corr:.3f}', transform=ax.transAxes, 
+                                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+                    
+                    if i == len(feature_names) - 1:
+                        ax.set_xlabel(feature2.replace('_', ' ').title())
+                    if j == 0:
+                        ax.set_ylabel(feature1.replace('_', ' ').title())
+            
+            plt.tight_layout()
+            plt.savefig(f"{output_dir}/scatter_plot_matrix.png", dpi=300, bbox_inches='tight')
+            plt.close()
 
     def read(self) -> Optional[np.ndarray]:
         ret, frame = self.cap.read()
@@ -113,7 +506,10 @@ class VideoReader:
         return [y_comp_list, h_mv_list, v_mv_list, beta_list]
 
     def ycrcb_psnr(
-        self, frame_number: int, other_frame: tuple[np.ndarray, np.ndarray, np.ndarray], baseline_heighest_psnr
+        self,
+        frame_number: int,
+        other_frame: tuple[np.ndarray, np.ndarray, np.ndarray],
+        baseline_heighest_psnr
     ):
         """
         frame number
@@ -122,11 +518,14 @@ class VideoReader:
         """
         target_components = self.read_ycrcb_components(frame_number)
         if target_components is None:
-            raise ValueError(f"Unable to read frame {frame_number} from the video.")
+            raise ValueError(
+                f"Unable to read frame {frame_number} from the video."
+            )
 
         if target_components.shape != other_frame.shape:
             raise ValueError(
-                "Dimension mismatch between video frame and reference frame components."
+                "Dimension mismatch between video frame and "
+                "reference frame components."
             )
 
         # VideoReader.render_single_component(other_frame[0], VideoComponent.Y)

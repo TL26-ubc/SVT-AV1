@@ -51,6 +51,13 @@ def prase_arg():
         "--save_freq", type=int, default=10000, help="Model save frequency"
     )
 
+    parser.add_argument(
+        "--disable_observation_normalization", 
+        action="store_true", 
+        help="Disable observation state normalization"
+    )
+
+
     args = parser.parse_args()
 
     return args
@@ -72,7 +79,6 @@ if __name__ == "__main__":
         lambda_rd=args.lambda_rd,
     )
     env = Monitor(gyn_env, str(base_output_path / "monitor"))
-    
     if args.n_steps == -1:
         # Automatically determine n_steps based on video length
         video_length = gyn_env.num_frames
