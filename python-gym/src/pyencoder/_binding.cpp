@@ -23,6 +23,9 @@ extern "C" {
 namespace py = pybind11;
 using namespace pybridge;
 
+int init_callbacks();
+void deinit_callbacks();
+
 // run(argv: List[str]) -> None
 static py::object run(py::list py_argv)
 {
@@ -48,6 +51,7 @@ static py::object run(py::list py_argv)
         py::gil_scoped_release release;
         rc = app_main(argc, argv.data());
         py::gil_scoped_acquire acquire;
+        deinit_callbacks();
     }
 
     if (rc != 0) {
@@ -62,6 +66,8 @@ static py::object run(py::list py_argv)
 static py::object register_callbacks(py::object py_get_deltaq_offset = py::none(),
                                      py::object py_picture_feedback  = py::none())
 {
+    init_callbacks();
+
     // Store the user callables and hook up the C trampolines
     pybridge_set_cb(CallbackEnum::GetDeltaQOffset, py_get_deltaq_offset);
     pybridge_set_cb(CallbackEnum::RecvPictureFeedback, py_picture_feedback);
@@ -89,4 +95,22 @@ PYBIND11_MODULE(av1_wrapper, m)
           py::arg("get_deltaq_offset") = py::none(),
           py::arg("picture_feedback")  = py::none(),
           "Attach callbacks to the SVT‑AV1 encoder.");
+}
+
+int init_callbacks()
+{
+    for (int i = 0; i < static_cast<int>(CallbackEnum::Count); ++i) {
+        g_callbacks[i] = new Callback{py::none(), nullptr, 0};
+    }
+    g_callbacks[0]->n_args = 1; // GetDeltaQOffset
+    g_callbacks[1]->n_args = 3; // RecvPictureFeedback
+    return 0;
+}
+
+void deinit_callbacks()
+{
+    for (int i = 0; i < static_cast<int>(CallbackEnum::Count); ++i) {
+        delete g_callbacks[i];
+        g_callbacks[i] = nullptr;
+    }
 }

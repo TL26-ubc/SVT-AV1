@@ -16,7 +16,7 @@ void svt_report_picture_feedback(uint8_t *bitstream, uint32_t bitstream_size, ui
         return;
 
     // Call the user callback with the picture feedback data
-    plugin_cbs.user_picture_feedback(bitstream, bitstream_size, picture_number, plugin_cbs.user);
+    plugin_cbs.user_picture_feedback(bitstream, bitstream_size, picture_number);
 }
 
 #endif // SVT_ENABLE_USER_CALLBACKS

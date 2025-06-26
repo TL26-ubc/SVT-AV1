@@ -39,8 +39,7 @@ include_directories(${PROJECT_SOURCE_DIR}/Source/API/
     ${PROJECT_SOURCE_DIR}/Source/Lib/ASM_SSE4_1/
     ${PROJECT_SOURCE_DIR}/Source/Lib/ASM_AVX2/
     ${PROJECT_SOURCE_DIR}/Source/Lib/ASM_AVX512/
-    ${PROJECT_SOURCE_DIR}/third_party/fastfeat/
-    ${PROJECT_SOURCE_DIR}/third_party/cpuinfo/include/)
+    ${PROJECT_SOURCE_DIR}/third_party/fastfeat/)
 elseif(NOT COMPILE_C_ONLY AND HAVE_ARM_PLATFORM)
 include_directories(${PROJECT_SOURCE_DIR}/Source/API/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Globals/
@@ -51,16 +50,14 @@ include_directories(${PROJECT_SOURCE_DIR}/Source/API/
     ${PROJECT_SOURCE_DIR}/Source/Lib/ASM_NEON_I8MM/
     ${PROJECT_SOURCE_DIR}/Source/Lib/ASM_SVE/
     ${PROJECT_SOURCE_DIR}/Source/Lib/ASM_SVE2/
-    ${PROJECT_SOURCE_DIR}/third_party/fastfeat/
-    ${PROJECT_SOURCE_DIR}/third_party/cpuinfo/include/)
+    ${PROJECT_SOURCE_DIR}/third_party/fastfeat/)
 else ()
 # Include Encoder Subdirectories
 include_directories(${PROJECT_SOURCE_DIR}/Source/API/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Globals/
     ${PROJECT_SOURCE_DIR}/Source/Lib/Codec/
     ${PROJECT_SOURCE_DIR}/Source/Lib/C_DEFAULT/
-    ${PROJECT_SOURCE_DIR}/third_party/fastfeat/
-    ${PROJECT_SOURCE_DIR}/third_party/cpuinfo/include/)
+    ${PROJECT_SOURCE_DIR}/third_party/fastfeat/)
 endif ()
 
 set(all_files
@@ -295,13 +292,4 @@ set(all_files
         )
 
 add_library(CODEC OBJECT ${all_files})
-# find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-# # Link Python libraries to the object library
-# target_link_libraries(CODEC PRIVATE ${Python3_LIBRARIES})
-
-# # If you need to include Python headers
-# target_include_directories(CODEC PRIVATE ${Python3_INCLUDE_DIRS})
-
-set(CMAKE_C_VISIBILITY_PRESET default)
-set(CMAKE_CXX_VISIBILITY_PRESET default)
-set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)
+target_link_libraries(CODEC PUBLIC cpuinfo::cpuinfo)
