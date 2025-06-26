@@ -133,19 +133,47 @@ class Av1GymEnv(gym.Env):
             * self.num_superblocks
         )
 
-        # Observation space = previous frame summary
-        # Observation space: 4 features per superblock (from get_frame_state)
+        # Enhanced observation space with history
+        # Features per superblock: current + 2 previous frames + global info
+        self.history_length = 3  # Current + 2 previous frames
+        
+        # Per-superblock features (4 features * 3 frames = 12 features per block)
+        self.features_per_block = 4 * self.history_length
+        
+        # Global features: frame-level statistics and history
+        self.global_features = 16  # Global video and encoding statistics
+        
+        total_features = self.features_per_block * self.num_superblocks + self.global_features
+        
         self.observation_space = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(4, self.num_superblocks),
-            # 4 features:
-            # 0: Y-component variance of all superblocks in the frame
-            # 1: Horizontal motion vector of all superblocks in the frame
-            # 2: Vertical motion vector of all superblocks in the frame
-            # 3: Beta (example metric) of all superblocks in the frame
+            shape=(total_features,),
+            # Enhanced features:
+            # Per superblock (12 features * num_superblocks):
+            #   Current frame: Y-variance, H-motion, V-motion, gradient
+            #   Frame t-1: Y-variance, H-motion, V-motion, gradient  
+            #   Frame t-2: Y-variance, H-motion, V-motion, gradient
+            # Global features (16 features):
+            #   - Frame position in video (normalized)
+            #   - Previous 3 frame rewards
+            #   - Previous 3 average QP decisions
+            #   - Scene complexity metrics
+            #   - Motion activity level
+            #   - Temporal consistency
+            #   - Rate control info
             dtype=np.float32,
         )
+        
+        # History storage for enhanced observations
+        self.frame_history_obs = []  # Store frame observations
+        self.reward_history = []     # Store recent rewards  
+        self.qp_history = []         # Store recent QP decisions
+        self.scene_stats = {         # Global scene statistics
+            'avg_motion': 0.0,
+            'complexity': 0.0,
+            'temporal_activity': 0.0
+        }
 
         # RL/encoder communication
         self.queue_timeout = queue_timeout
@@ -262,9 +290,18 @@ class Av1GymEnv(gym.Env):
 
         # Reset episode state
         self.current_frame = 0
-        self.current_episode_reward = 0.0
         self.terminated = False
         self.frame_history.clear()
+        
+        # Reset enhanced observation history
+        self.frame_history_obs.clear()
+        self.reward_history.clear()
+        self.qp_history.clear()
+        self.scene_stats = {
+            'avg_motion': 0.0,
+            'complexity': 0.0,
+            'temporal_activity': 0.0
+        }
 
         # Get initial observation (frame 0 state)
         initial_obs = self._get_initial_observation()
@@ -330,9 +367,41 @@ class Av1GymEnv(gym.Env):
                 {"no_feedback": True},
             )
 
-        # Calculate reward
+        # Calculate reward (return per-frame reward directly, let PPO handle advantages)
         reward = self._calculate_reward(feedback, action_request, qp_offsets)
-        self.current_episode_reward += reward
+        
+        # Update history for enhanced observations
+        self.reward_history.append(reward)
+        self.qp_history.append(qp_offsets.copy())
+        
+        # Update scene statistics  
+        if len(self.frame_history_obs) > 0:
+            current_frame_obs = self.frame_history_obs[-1]
+            if current_frame_obs.shape == (4, self.num_superblocks):
+                # Update motion and complexity statistics
+                motion_activity = np.mean(np.abs(current_frame_obs[1:3, :]))  # Average motion
+                variance_activity = np.mean(current_frame_obs[0, :])  # Average variance
+                
+                # Update rolling averages
+                alpha = 0.1  # Learning rate for rolling average
+                self.scene_stats['avg_motion'] = (1 - alpha) * self.scene_stats['avg_motion'] + alpha * motion_activity
+                self.scene_stats['complexity'] = (1 - alpha) * self.scene_stats['complexity'] + alpha * variance_activity
+                
+                # Temporal activity based on frame differences
+                if len(self.frame_history_obs) >= 2:
+                    prev_frame = self.frame_history_obs[-2]
+                    if prev_frame.shape == current_frame_obs.shape:
+                        temporal_diff = np.mean(np.abs(current_frame_obs - prev_frame))
+                        self.scene_stats['temporal_activity'] = (1 - alpha) * self.scene_stats['temporal_activity'] + alpha * temporal_diff
+        
+        # Limit history size to prevent memory issues
+        max_history = 100
+        if len(self.frame_history_obs) > max_history:
+            self.frame_history_obs = self.frame_history_obs[-max_history:]
+        if len(self.reward_history) > max_history:
+            self.reward_history = self.reward_history[-max_history:]
+        if len(self.qp_history) > max_history:
+            self.qp_history = self.qp_history[-max_history:]
 
         # Update episode state
         self.current_frame += 1
@@ -397,25 +466,19 @@ class Av1GymEnv(gym.Env):
         self.av1_runner.save_bitstream_to_file(output_path, interrupt=interrupt)
 
     def _get_initial_observation(self) -> np.ndarray:
-        """Get initial observation for episode start"""
+        """Get initial enhanced observation for episode start"""
         try:
-            frame_state = self.video_reader.get_x_frame_state_normalized(
-                frame_number=0
-            )
-                
-            obs_array = np.array(frame_state, dtype=np.float32)
+            # Get current frame observation
+            frame_state = self.video_reader.get_x_frame_state_normalized(frame_number=0)
+            current_obs = np.array(frame_state, dtype=np.float32)
             
-            # Validate the observation
-            validate_array(obs_array, "Initial observation (frame 0)")
+            # Store in history for future use
+            self.frame_history_obs.append(current_obs)
             
-            # Check shape consistency
-            expected_shape = (4, self.num_superblocks)
-            if obs_array.shape != expected_shape:
-                raise InvalidStateError(
-                    f"Initial observation shape {obs_array.shape} != expected {expected_shape}"
-                )
+            # Build enhanced observation with history
+            enhanced_obs = self._build_enhanced_observation(current_obs)
             
-            return obs_array
+            return enhanced_obs
             
         except Exception as e:
             raise InvalidStateError(f"Failed to get initial observation: {e}")
@@ -433,29 +496,125 @@ class Av1GymEnv(gym.Env):
         }
 
     def _get_current_observation(self) -> np.ndarray:
-        """Get current observation based on current frame"""
+        """Get current enhanced observation based on current frame"""
         try:
-            
+            # Get current frame observation
             frame_state = self.video_reader.get_x_frame_state_normalized(
                 frame_number=self.current_frame
             )
-            obs_array = np.array(frame_state, dtype=np.float32)
+            current_obs = np.array(frame_state, dtype=np.float32)
             
-            # Validate the observation
-            validate_array(obs_array, f"Current observation (frame {self.current_frame})")
+            # Store in history for future use  
+            self.frame_history_obs.append(current_obs)
             
-            # Check shape consistency
-            expected_shape = (4, self.num_superblocks)
-            if obs_array.shape != expected_shape:
-                raise InvalidStateError(
-                    f"Current observation shape {obs_array.shape} != expected {expected_shape} "
-                    f"for frame {self.current_frame}"
-                )
+            # Build enhanced observation with history
+            enhanced_obs = self._build_enhanced_observation(current_obs)
             
-            return obs_array
+            return enhanced_obs
             
         except Exception as e:
             raise InvalidStateError(f"Failed to get current observation for frame {self.current_frame}: {e}")
+            
+    def _build_enhanced_observation(self, current_obs: np.ndarray) -> np.ndarray:
+        """Build enhanced observation with temporal history and global features"""
+        try:
+            # Prepare per-superblock features with history
+            per_block_features = []
+            
+            # Get history frames (current + up to 2 previous)
+            history_frames = self.frame_history_obs[-self.history_length:]
+            
+            # Pad with zeros if we don't have enough history yet
+            while len(history_frames) < self.history_length:
+                zero_frame = np.zeros_like(current_obs)
+                history_frames.insert(0, zero_frame)
+            
+            # Flatten per-superblock features across time
+            for sb_idx in range(self.num_superblocks):
+                sb_features = []
+                for frame_obs in history_frames:
+                    # Extract 4 features for this superblock from this frame
+                    if frame_obs.shape == (4, self.num_superblocks):
+                        sb_features.extend(frame_obs[:, sb_idx])
+                    else:
+                        # Handle empty frames
+                        sb_features.extend([0.0, 0.0, 0.0, 0.0])
+                per_block_features.extend(sb_features)
+            
+            # Build global features
+            global_features = self._build_global_features()
+            
+            # Combine all features
+            enhanced_obs = np.array(per_block_features + global_features, dtype=np.float32)
+            
+            # Validate final observation
+            validate_array(enhanced_obs, f"Enhanced observation (frame {self.current_frame})")
+            
+            return enhanced_obs
+            
+        except Exception as e:
+            raise InvalidStateError(f"Failed to build enhanced observation: {e}")
+    
+    def _build_global_features(self) -> list:
+        """Build global/context features for the observation"""
+        global_features = []
+        
+        # 1. Frame position in video (normalized)
+        global_features.append(self.current_frame / max(1, self.num_frames - 1))
+        
+        # 2-4. Previous 3 frame rewards (padded with 0 if not available)
+        recent_rewards = self.reward_history[-3:] if self.reward_history else []
+        while len(recent_rewards) < 3:
+            recent_rewards.insert(0, 0.0)
+        global_features.extend(recent_rewards)
+        
+        # 5-7. Previous 3 average QP decisions (padded with 0 if not available)
+        recent_qps = []
+        if self.qp_history:
+            for qp_frame in self.qp_history[-3:]:
+                avg_qp = np.mean(qp_frame) if len(qp_frame) > 0 else 0.0
+                recent_qps.append(avg_qp)
+        while len(recent_qps) < 3:
+            recent_qps.insert(0, 0.0)
+        global_features.extend(recent_qps)
+        
+        # 8-10. Scene complexity metrics
+        global_features.append(self.scene_stats['complexity'])
+        global_features.append(self.scene_stats['avg_motion'])
+        global_features.append(self.scene_stats['temporal_activity'])
+        
+        # 11-13. Motion activity indicators (based on current frame if available)
+        if len(self.frame_history_obs) > 0:
+            current_frame_obs = self.frame_history_obs[-1]
+            if current_frame_obs.shape == (4, self.num_superblocks):
+                # Motion statistics from current frame
+                h_motion_std = np.std(current_frame_obs[1, :])  # H-motion variability
+                v_motion_std = np.std(current_frame_obs[2, :])  # V-motion variability  
+                variance_mean = np.mean(current_frame_obs[0, :])  # Average Y-variance
+            else:
+                h_motion_std = v_motion_std = variance_mean = 0.0
+        else:
+            h_motion_std = v_motion_std = variance_mean = 0.0
+            
+        global_features.extend([h_motion_std, v_motion_std, variance_mean])
+        
+        # 14-16. Rate control and encoding context
+        if len(self.reward_history) > 1:
+            reward_trend = self.reward_history[-1] - self.reward_history[-2]
+        else:
+            reward_trend = 0.0
+        
+        bitrate_pressure = min(1.0, self.current_frame / max(1, self.num_frames)) # Encoding progress
+        encoding_difficulty = np.mean([abs(r) for r in self.reward_history[-5:]]) if self.reward_history else 0.0
+        
+        global_features.extend([reward_trend, bitrate_pressure, encoding_difficulty])
+        
+        # Ensure we have exactly 16 global features
+        while len(global_features) < self.global_features:
+            global_features.append(0.0)
+        global_features = global_features[:self.global_features]
+        
+        return global_features
 
     def _action_to_qp_offsets(self, action: np.ndarray) -> np.ndarray:
         """Convert discrete action to QP offsets"""

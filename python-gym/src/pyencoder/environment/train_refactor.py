@@ -227,8 +227,8 @@ if __name__ == "__main__":
         # Log final metrics to wandb
         if not args.disable_wandb:
             wandb.log({
-                "training/final_reward": getattr(gyn_env, 'final_reward', 0),
                 "training/total_timesteps": total_timesteps,
+                "training/completed": True,
             })
 
     except KeyboardInterrupt:
