@@ -56,6 +56,12 @@ def prase_arg():
         action="store_true", 
         help="Disable observation state normalization"
     )
+    
+    parser.add_argument(
+        "--state_representation", 
+        default="naive",
+        help="Type of state representation"
+    )
 
 
     args = parser.parse_args()
@@ -77,6 +83,7 @@ if __name__ == "__main__":
         video_path=args.file,
         output_dir=base_output_path,
         lambda_rd=args.lambda_rd,
+        state_representation=args.state_representation,
     )
     env = Monitor(gyn_env, str(base_output_path / "monitor"))
     if args.n_steps == -1:

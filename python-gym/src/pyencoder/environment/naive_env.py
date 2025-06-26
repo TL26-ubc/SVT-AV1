@@ -114,6 +114,7 @@ class Av1GymEnv(gym.Env):
         *,
         lambda_rd: float = 0.1,
         queue_timeout=10,  # timeout
+        state_representation: str = "naive",
     ):
         super().__init__()
         self.video_path = Path(video_path)
@@ -172,17 +173,6 @@ class Av1GymEnv(gym.Env):
             "cb": -114514.0,
             "cr": -114514.0,
         }
-
-        self.save_baseline_frame_psnr(
-            baseline_video_path=f"{str(output_dir)}/baseline_output.ivf"
-        )
-
-        viz_output_dir = str(output_dir / "observation_analysis")
-        self.observation_max_values = (
-            self.video_reader.collect_baseline_observation_stats(
-                viz_output_dir
-            )
-        )
         
 
     def save_baseline_frame_psnr(self, baseline_video_path: str | Path):
@@ -408,13 +398,6 @@ class Av1GymEnv(gym.Env):
             # Validate the observation
             validate_array(obs_array, "Initial observation (frame 0)")
             
-            # Check shape consistency
-            expected_shape = (4, self.num_superblocks)
-            if obs_array.shape != expected_shape:
-                raise InvalidStateError(
-                    f"Initial observation shape {obs_array.shape} != expected {expected_shape}"
-                )
-            
             return obs_array
             
         except Exception as e:
@@ -443,14 +426,6 @@ class Av1GymEnv(gym.Env):
             
             # Validate the observation
             validate_array(obs_array, f"Current observation (frame {self.current_frame})")
-            
-            # Check shape consistency
-            expected_shape = (4, self.num_superblocks)
-            if obs_array.shape != expected_shape:
-                raise InvalidStateError(
-                    f"Current observation shape {obs_array.shape} != expected {expected_shape} "
-                    f"for frame {self.current_frame}"
-                )
             
             return obs_array
             
