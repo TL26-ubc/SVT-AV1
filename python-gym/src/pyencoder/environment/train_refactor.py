@@ -1,9 +1,50 @@
 import argparse
 from pathlib import Path
 
+import wandb
 from pyencoder.environment.naive_env import Av1GymEnv
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.callbacks import BaseCallback
+
+
+class WandbCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+        self._last_logged_episodes = 0
+        self.step_count = 0
+        
+    def _on_step(self) -> bool:
+        self.step_count += 1
+        
+        # Log basic training metrics every 100 steps
+        if self.step_count % 100 == 0:
+            wandb.log({
+                "training/timesteps": self.num_timesteps,
+                "training/step_count": self.step_count,
+            }, step=self.num_timesteps)
+        
+        # Log episode metrics when available
+        if hasattr(self.model, 'ep_info_buffer') and len(self.model.ep_info_buffer) > 0:
+            if len(self.model.ep_info_buffer) > self._last_logged_episodes:
+                # Get new episodes since last log
+                new_episodes = list(self.model.ep_info_buffer)[self._last_logged_episodes:]
+                for info in new_episodes:
+                    wandb.log({
+                        "episode/reward": info.get("r", 0),
+                        "episode/length": info.get("l", 0),
+                        "episode/time": info.get("t", 0),
+                    }, step=self.num_timesteps)
+                self._last_logged_episodes = len(self.model.ep_info_buffer)
+        
+        # Log current policy loss if available
+        if hasattr(self.model, 'logger') and self.model.logger is not None:
+            if hasattr(self.model.logger, 'name_to_value'):
+                for key, value in self.model.logger.name_to_value.items():
+                    if isinstance(value, (int, float)):
+                        wandb.log({f"training/{key}": value}, step=self.num_timesteps)
+        
+        return True
 
 
 def prase_arg():
@@ -56,6 +97,17 @@ def prase_arg():
         action="store_true", 
         help="Disable observation state normalization"
     )
+    
+    # Wandb parameters
+    parser.add_argument(
+        "--wandb_project", type=str, default="av1-rl-training", help="Wandb project name"
+    )
+    parser.add_argument(
+        "--wandb_run_name", type=str, default=None, help="Wandb run name"
+    )
+    parser.add_argument(
+        "--disable_wandb", action="store_true", help="Disable wandb logging"
+    )
 
 
     args = parser.parse_args()
@@ -70,6 +122,23 @@ def prase_arg():
 if __name__ == "__main__":
 
     args = prase_arg()
+    
+    # Initialize wandb
+    if not args.disable_wandb:
+        wandb.init(
+            project=args.wandb_project,
+            name=args.wandb_run_name or f"{args.algorithm}_{args.file.split('/')[-1]}",
+            config={
+                "algorithm": args.algorithm,
+                "learning_rate": args.learning_rate,
+                "batch_size": args.batch_size,
+                "n_steps": args.n_steps,
+                "lambda_rd": args.lambda_rd,
+                "max_frames": args.max_frames,
+                "total_iteration": args.total_iteration,
+                "video_file": args.file,
+            }
+        )
 
     # create envirnment
     base_output_path = Path(args.output_dir)
@@ -126,11 +195,24 @@ if __name__ == "__main__":
         
     total_timesteps = args.total_iteration * gyn_env.num_frames
 
+    # Setup callbacks
+    callbacks = []
+    if not args.disable_wandb:
+        callbacks.append(WandbCallback())
+    
+    # Log initial training info
+    if not args.disable_wandb:
+        wandb.log({
+            "training/total_timesteps_planned": total_timesteps,
+            "training/video_frames": gyn_env.num_frames,
+            "training/n_steps": args.n_steps,
+        })
+    
     # training
     try:
         model.learn(
             total_timesteps=total_timesteps,
-            # callback=callbacks,
+            callback=callbacks if callbacks else None,
             tb_log_name=f"{args.algorithm}_run",
         )
 
@@ -141,6 +223,13 @@ if __name__ == "__main__":
             str(base_output_path / "final_encoder_video.ivf")
         )
         print(f"Training completed! Final model saved to: {final_model_path}")
+        
+        # Log final metrics to wandb
+        if not args.disable_wandb:
+            wandb.log({
+                "training/total_timesteps": total_timesteps,
+                "training/completed": True,
+            })
 
     except KeyboardInterrupt:
         print("Training interrupted by user")
@@ -154,3 +243,8 @@ if __name__ == "__main__":
             interrupt=True
         )
         print(f"Model saved to: {interrupted_model_path}")
+    
+    finally:
+        # Finish wandb run
+        if not args.disable_wandb:
+            wandb.finish()

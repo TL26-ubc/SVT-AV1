@@ -121,14 +121,7 @@ class VideoReader:
         
         self.observation_max_values = max_values
         
-        # print(
-        #     f"Baseline observation statistics collected from "
-        #     f"{valid_frames}/{num_frames} valid frames:"
-        # )
-        # for key, value in max_values.items():
-        #     print(f"  {key}: {value}")
         
-        # self._generate_visualization_plots(frame_indices, output_dir)
         return max_values
 
     def get_x_frame_state_normalized(self, frame_number) -> list[list[float]]:
@@ -172,8 +165,6 @@ class VideoReader:
             normalized_v_mv,
             normalized_beta,
         ]
-    
-
 
     def read(self) -> Optional[np.ndarray]:
         ret, frame = self.cap.read()
