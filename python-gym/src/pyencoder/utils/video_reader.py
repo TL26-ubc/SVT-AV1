@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
 import seaborn as sns
+from pyencoder.states.__templete import State_templete
 
 
 class VideoComponent(enum.Enum):
@@ -24,13 +25,16 @@ SB_SIZE = 64
 
 
 class VideoReader:
-    def __init__(self, path: str):
+    def __init__(self, path: str, state_wrapper: State_templete = None):
         self.path = path
         self.cap = cv2.VideoCapture(path)
         if not self.cap.isOpened():
             raise ValueError(f"Cannot open video file: {path}")
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        assert state_wrapper is not None, "State wrapper must be provided."
+        self.state_wrapper = state_wrapper
         
     def get_x_frame_state_normalized(self, frame_number) -> list[list[float]]:
        

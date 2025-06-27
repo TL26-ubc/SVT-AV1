@@ -1,43 +1,30 @@
 from .__templete import State_templete
 from numpy import ndarray
 from typing import Any, Dict, List, Optional
+import cv2
+import gymnasium as gym
 
-class NaiveState(State_templete):
+class State(State_templete):
     """
     A naive implementation of the State_templete class.
     This class provides a simple way to handle states without complex processing.
     """
 
-    def __init__(self, frame: Optional[ndarray] = None, width: Optional[int] = None, height: Optional[int] = None,
-                 num_sb: Optional[int] = None, SB_SIZE: int = 64, **kwargs: Any):
+    def __init__(self, source_video_path: str, SB_SIZE: int = 64,
+                 **kwargs: Any):
         """
         Initialize the NaiveState with flexible arguments.
         Only one of frame, (width and height), or num_sb should be provided.
         """
         self.SB_SIZE = SB_SIZE
-        if frame is not None:
-            h, w = frame.shape[:2]
-        elif width is not None and height is not None:
-            h, w = height, width
-        elif num_sb is not None:
-            self.num_sb = num_sb
-            return
-        else:
-            raise ValueError("One of frame, (width and height), or num_sb must be provided.")
-
+        self.source_video_path = source_video_path
+        video = cv2.VideoCapture(source_video_path)
+        if not video.isOpened():
+            raise ValueError(f"Cannot open video file: {source_video_path}")
+        h = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        w = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+        video.release()
         self.num_sb = ((h + self.SB_SIZE - 1) // self.SB_SIZE) * ((w + self.SB_SIZE - 1) // self.SB_SIZE)
-
-    @classmethod
-    def from_frame(cls, frame: ndarray, SB_SIZE: int = 64, **kwargs: Any):
-        return cls(frame=frame, SB_SIZE=SB_SIZE, **kwargs)
-
-    @classmethod
-    def from_shape(cls, width: int, height: int, SB_SIZE: int = 64, **kwargs: Any):
-        return cls(width=width, height=height, SB_SIZE=SB_SIZE, **kwargs)
-
-    @classmethod
-    def from_num_sb(cls, num_sb: int, SB_SIZE: int = 64, **kwargs: Any):
-        return cls(num_sb=num_sb, SB_SIZE=SB_SIZE, **kwargs)
 
     @staticmethod
     def get_observation(frame: Optional[ndarray], 
@@ -65,3 +52,17 @@ class NaiveState(State_templete):
         Return an integer as the length of the 1D numpy array.
         """
         return 4 * self.num_sb
+    
+    def get_observation_space(self) -> gym.spaces.Space:
+        """
+        Get the observation space of the state.
+        
+        Returns:
+            gym.spaces.Space: A gymnasium Space object representing the observation space.
+        """
+        return gym.spaces.Box(
+            low=-float('inf'),
+            high=float('inf'),
+            shape=(self.get_observation_length(),),
+            dtype='float32'
+        )

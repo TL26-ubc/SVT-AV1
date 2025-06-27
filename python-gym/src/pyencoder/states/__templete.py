@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from numpy import ndarray
+import gymnasium as gym
 
 class State_templete(ABC):
     """
@@ -8,8 +9,8 @@ class State_templete(ABC):
     """
     
     @abstractmethod
-    def __init__(self, frame: Optional[ndarray] = None, width: Optional[int] = None, height: Optional[int] = None,
-                 num_sb: Optional[int] = None, SB_SIZE: int = 64, **kwargs: Any):
+    def __init__(self, source_video_path: Optional[str] = None, SB_SIZE: int = 64,
+                 **kwargs: Any):
         """
         Initialize the state with any necessary parameters.
         
@@ -42,5 +43,14 @@ class State_templete(ABC):
         Get the shape of the observation.
         
         Return an integer as the length of the 1D numpy array.
+        """
+        pass
+    
+    @abstractmethod
+    def get_observation_space(self) -> gym.spaces.Space:
+        """
+        Get the observation space of the state.
+        
+        Return a gymnasium Space object representing the observation space.
         """
         pass

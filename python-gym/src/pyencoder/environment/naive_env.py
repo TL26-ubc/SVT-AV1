@@ -11,96 +11,12 @@ from pyencoder.environment.av1_runner import Av1Runner
 from pyencoder.utils.video_reader import VideoReader
 from sympy import false
 import math
+import importlib
+from pyencoder.states.__templete import State_templete
 
 # Constants
 QP_MIN, QP_MAX = -3, 3  # delta QP range which will be action
 SB_SIZE = 64  # superblock size
-
-
-# @dataclass()
-# class Av1GymInfo:
-#     actions: np.ndarray
-#     reward: float
-
-class InvalidStateError(Exception):
-    pass
-
-
-class InvalidRewardError(Exception):
-    pass
-
-
-def validate_array(arr: np.ndarray, name: str) -> None:
-    """Validate numpy array for NaN, inf, and other invalid values"""
-    if arr is None:
-        raise ValueError(f"{name} is None")
-
-    if not isinstance(arr, np.ndarray):
-        raise TypeError(f"{name} must be numpy array, got {type(arr)}")
-
-    if arr.size == 0:
-        raise ValueError(f"{name} is empty")
-
-    # Check for NaN values
-    nan_mask = np.isnan(arr)
-    if np.any(nan_mask):
-        nan_count = np.sum(nan_mask)
-        nan_indices = np.where(nan_mask)
-        raise InvalidStateError(
-            (
-                (
-                    f"{name} contains {nan_count} NaN values at indices: {nan_indices}. "
-                    f"Array shape: {arr.shape}, dtype: {arr.dtype}\n"
-                    f"Array sample: {arr.flat[:min(10, arr.size)]}"
-                )
-            )
-        )
-
-    # Check for infinite values
-    inf_mask = np.isinf(arr)
-    if np.any(inf_mask):
-        inf_count = np.sum(inf_mask)
-        inf_indices = np.where(inf_mask)
-        raise InvalidStateError(
-            f"{name} contains {inf_count} infinite values at indices: {inf_indices}. "
-            f"Array shape: {arr.shape}, dtype: {arr.dtype}\n"
-            f"Array sample: {arr.flat[:min(10, arr.size)]}"
-        )
-
-    # Check for extremely large values that might cause numerical issues
-    max_val = np.max(np.abs(arr))
-    if max_val > 1e6:
-        print(f"Warning: {name} contains very large values (max abs: {max_val:.2e})")
-
-
-def validate_reward(
-    reward: float,
-    frame_number: int,
-    details: dict = None
-) -> None:
-    """Validate reward value"""
-    if reward is None:
-        raise InvalidRewardError(f"Reward is None for frame {frame_number}")
-    
-    if not isinstance(reward, (int, float, np.number)):
-        raise InvalidRewardError(
-            f"Reward must be numeric, got {type(reward)} for frame {frame_number}"
-        )
-    
-    if math.isnan(reward):
-        raise InvalidRewardError(
-            f"Reward is NaN for frame {frame_number}. Details: {details}"
-        )
-    
-    if math.isinf(reward):
-        raise InvalidRewardError(
-            f"Reward is infinite ({reward}) for frame {frame_number}. Details: {details}"
-        )
-    
-    # Check for extremely large rewards that might indicate calculation errors
-    if abs(reward) > 1000:
-        print(f"Warning: Very large reward ({reward:.2f}) for frame {frame_number}")
-
 
 # Extending gymnasium's Env class
 # https://gymnasium.farama.org/api/env/#gymnasium.Env
@@ -120,33 +36,36 @@ class Av1GymEnv(gym.Env):
         self.video_path = Path(video_path)
         self.output_dir = Path(output_dir)
         self.av1_runner = Av1Runner(video_path=video_path)
-        self.video_reader = VideoReader(path=video_path)
+        
+        # Import the state representation module dynamically
+        module_name = f"pyencoder.states.{state_representation}"
+        state_module = importlib.import_module(module_name)
+        State_class = getattr(state_module, "State")
+        if not issubclass(State_class, State_templete):
+            raise TypeError(
+                f"{State_class.__name__} must inherit from State_templete"
+            )
+        self.state_wrapper = State_class(
+            source_video_path=str(self.video_path),
+            SB_SIZE=SB_SIZE
+        )
+        
+        # Initialize the VideoReader
+        self.video_reader = VideoReader(path=video_path, state_wrapper=self.state_wrapper)
 
         self.lambda_rd = lambda_rd
         self._episode_done = threading.Event()
 
         self.num_superblocks = self.video_reader.get_num_superblock()
         self.num_frames = self.video_reader.get_frame_count()
+        
         # Action space = QP offset grid
         self.action_space = gym.spaces.MultiDiscrete(
             # num \in [QP_MAX, QP_MIN], there are num_superblocks of them
             [QP_MAX - QP_MIN + 1]
             * self.num_superblocks
         )
-
-        # Observation space = previous frame summary
-        # Observation space: 4 features per superblock (from get_frame_state)
-        self.observation_space = gym.spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(4, self.num_superblocks),
-            # 4 features:
-            # 0: Y-component variance of all superblocks in the frame
-            # 1: Horizontal motion vector of all superblocks in the frame
-            # 2: Vertical motion vector of all superblocks in the frame
-            # 3: Beta (example metric) of all superblocks in the frame
-            dtype=np.float32,
-        )
+        self.observation_space = self.state_wrapper.get_observation_space()
 
         # RL/encoder communication
         self.queue_timeout = queue_timeout
@@ -554,3 +473,82 @@ class Av1GymEnv(gym.Env):
         # Maximum frames reached
         if self.current_frame >= self.num_frames:
             self.terminated = True
+
+class InvalidStateError(Exception):
+    pass
+
+
+class InvalidRewardError(Exception):
+    pass
+
+
+def validate_array(arr: np.ndarray, name: str) -> None:
+    """Validate numpy array for NaN, inf, and other invalid values"""
+    if arr is None:
+        raise ValueError(f"{name} is None")
+
+    if not isinstance(arr, np.ndarray):
+        raise TypeError(f"{name} must be numpy array, got {type(arr)}")
+
+    if arr.size == 0:
+        raise ValueError(f"{name} is empty")
+
+    # Check for NaN values
+    nan_mask = np.isnan(arr)
+    if np.any(nan_mask):
+        nan_count = np.sum(nan_mask)
+        nan_indices = np.where(nan_mask)
+        raise InvalidStateError(
+            (
+                (
+                    f"{name} contains {nan_count} NaN values at indices: {nan_indices}. "
+                    f"Array shape: {arr.shape}, dtype: {arr.dtype}\n"
+                    f"Array sample: {arr.flat[:min(10, arr.size)]}"
+                )
+            )
+        )
+
+    # Check for infinite values
+    inf_mask = np.isinf(arr)
+    if np.any(inf_mask):
+        inf_count = np.sum(inf_mask)
+        inf_indices = np.where(inf_mask)
+        raise InvalidStateError(
+            f"{name} contains {inf_count} infinite values at indices: {inf_indices}. "
+            f"Array shape: {arr.shape}, dtype: {arr.dtype}\n"
+            f"Array sample: {arr.flat[:min(10, arr.size)]}"
+        )
+
+    # Check for extremely large values that might cause numerical issues
+    max_val = np.max(np.abs(arr))
+    if max_val > 1e6:
+        print(f"Warning: {name} contains very large values (max abs: {max_val:.2e})")
+
+
+def validate_reward(
+    reward: float,
+    frame_number: int,
+    details: dict = None
+) -> None:
+    """Validate reward value"""
+    if reward is None:
+        raise InvalidRewardError(f"Reward is None for frame {frame_number}")
+    
+    if not isinstance(reward, (int, float, np.number)):
+        raise InvalidRewardError(
+            f"Reward must be numeric, got {type(reward)} for frame {frame_number}"
+        )
+    
+    if math.isnan(reward):
+        raise InvalidRewardError(
+            f"Reward is NaN for frame {frame_number}. Details: {details}"
+        )
+    
+    if math.isinf(reward):
+        raise InvalidRewardError(
+            f"Reward is infinite ({reward}) for frame {frame_number}. Details: {details}"
+        )
+    
+    # Check for extremely large rewards that might indicate calculation errors
+    if abs(reward) > 1000:
+        print(f"Warning: Very large reward ({reward:.2f}) for frame {frame_number}")
