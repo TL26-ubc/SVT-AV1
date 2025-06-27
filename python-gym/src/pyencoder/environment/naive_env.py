@@ -11,8 +11,8 @@ from pyencoder.environment.av1_runner import Av1Runner
 from pyencoder.utils.video_reader import VideoReader
 from sympy import false
 import math
-import importlib
 from pyencoder.states.__templete import State_templete
+
 
 # Constants
 QP_MIN, QP_MAX = -3, 3  # delta QP range which will be action
@@ -31,6 +31,7 @@ class Av1GymEnv(gym.Env):
         lambda_rd: float = 0.1,
         queue_timeout=10,  # timeout
         state_representation: str = "naive",
+
     ):
         super().__init__()
         self.video_path = Path(video_path)
@@ -58,14 +59,16 @@ class Av1GymEnv(gym.Env):
 
         self.num_superblocks = self.video_reader.get_num_superblock()
         self.num_frames = self.video_reader.get_frame_count()
-        
+
         # Action space = QP offset grid
         self.action_space = gym.spaces.MultiDiscrete(
             # num \in [QP_MAX, QP_MIN], there are num_superblocks of them
             [QP_MAX - QP_MIN + 1]
             * self.num_superblocks
         )
+
         self.observation_space = self.state_wrapper.get_observation_space()
+
 
         # RL/encoder communication
         self.queue_timeout = queue_timeout
@@ -98,7 +101,6 @@ class Av1GymEnv(gym.Env):
             baseline_video_path=f"{str(output_dir)}/baseline_output.ivf"
         )
         
-
     def save_baseline_frame_psnr(self, baseline_video_path: str | Path):
         """Calculate and save PSNR for baseline frames"""
         baseline_video_path = str(baseline_video_path)

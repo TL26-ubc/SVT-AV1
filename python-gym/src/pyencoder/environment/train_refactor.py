@@ -63,9 +63,7 @@ def prase_arg():
         help="Type of state representation"
     )
 
-
     args = parser.parse_args()
-
     return args
 
     # Create trainer and run pipeline
@@ -84,6 +82,7 @@ if __name__ == "__main__":
         output_dir=base_output_path,
         lambda_rd=args.lambda_rd,
         state_representation=args.state_representation,
+
     )
     env = Monitor(gyn_env, str(base_output_path / "monitor"))
     if args.n_steps == -1:
