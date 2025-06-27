@@ -19,15 +19,28 @@ class State_templete(ABC):
         """
         pass
 
-    @staticmethod
     @abstractmethod
-    def get_observation(frame: Optional[ndarray], 
+    def initialize(self, 
+                      video_reader,
+                      SB_SIZE: int = 64
+                          ):
+        """
+        Initialize the state for operations needed.
+        Parameters:
+            video_reader (VideoReader): The video reader instance to extract state information.
+            SB_SIZE (int): Size of the state buffer, default is 64.
+        """
+        pass
+
+    @abstractmethod
+    def get_observation(self, 
+                        frame: ndarray, 
                         SB_SIZE: int = 64,
                         **kwargs) -> ndarray:
         """
         Get the current observation of the state.
         Parameters:
-            frame (Optional[ndarray]): The current frame or observation.
+            frame ndarray: The current frame.
             SB_SIZE (int): Size of the state buffer, default is 64.
             **kwargs: Additional keyword arguments for processing the frame.
         

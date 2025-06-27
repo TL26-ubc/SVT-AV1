@@ -93,6 +93,11 @@ class Av1GymEnv(gym.Env):
             "cr": -114514.0,
         }
         
+        # Save baseline frame PSNRs
+        self.save_baseline_frame_psnr(
+            baseline_video_path=f"{str(output_dir)}/baseline_output.ivf"
+        )
+        
 
     def save_baseline_frame_psnr(self, baseline_video_path: str | Path):
         """Calculate and save PSNR for baseline frames"""
@@ -311,13 +316,11 @@ class Av1GymEnv(gym.Env):
             frame_state = self.video_reader.get_x_frame_state_normalized(
                 frame_number=0
             )
-                
-            obs_array = np.array(frame_state, dtype=np.float32)
             
             # Validate the observation
-            validate_array(obs_array, "Initial observation (frame 0)")
+            validate_array(frame_state, "Initial observation (frame 0)")
             
-            return obs_array
+            return frame_state
             
         except Exception as e:
             raise InvalidStateError(f"Failed to get initial observation: {e}")
@@ -341,12 +344,11 @@ class Av1GymEnv(gym.Env):
             frame_state = self.video_reader.get_x_frame_state_normalized(
                 frame_number=self.current_frame
             )
-            obs_array = np.array(frame_state, dtype=np.float32)
             
             # Validate the observation
-            validate_array(obs_array, f"Current observation (frame {self.current_frame})")
+            validate_array(frame_state, f"Current observation (frame {self.current_frame})")
             
-            return obs_array
+            return frame_state
             
         except Exception as e:
             raise InvalidStateError(f"Failed to get current observation for frame {self.current_frame}: {e}")

@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 
 import cv2
 import numpy as np
+from numpy import ndarray
 
 from typing import Optional, Tuple
 import os
@@ -35,50 +36,18 @@ class VideoReader:
         
         assert state_wrapper is not None, "State wrapper must be provided."
         self.state_wrapper = state_wrapper
+        state_wrapper.initialize(
+            video_reader=self,
+            SB_SIZE=SB_SIZE
+        )
         
-    def get_x_frame_state_normalized(self, frame_number) -> list[list[float]]:
+    def get_x_frame_state_normalized(self, frame_number) -> ndarray:
        
-        frame_state = self.get_x_frame_state(frame_number)
-        if frame_state == [[], [], [], []]:
-            return frame_state  
-             
-        y_var_list, h_mv_list, v_mv_list, beta_list = frame_state
-        
-        def normalize_variance_list(values, max_val):
-            if max_val <= 0:
-                return [0.0] * len(values)
-            return [v / max_val for v in values]
-        
-        def normalize_motion_vector_list(values, max_abs_val):
-            if max_abs_val <= 0:
-                return [0.0] * len(values)
-            return [v / max_abs_val for v in values]
-        
-        normalized_y_var = normalize_variance_list(
-            y_var_list,
-            self.observation_max_values['y_variance']
-        )
-        normalized_h_mv = normalize_motion_vector_list(
-            h_mv_list,
-            self.observation_max_values['h_motion_vector']
-        ) 
-        normalized_v_mv = normalize_motion_vector_list(
-            v_mv_list,
-            self.observation_max_values['v_motion_vector']
-        )
-        normalized_beta = normalize_variance_list(
-            beta_list,
-            self.observation_max_values['gradient_magnitude']
-        )
-        
-        return [
-            normalized_y_var,
-            normalized_h_mv,
-            normalized_v_mv,
-            normalized_beta,
-        ]
-    
-
+        """
+        Get the state of the x-th frame, normalized.
+        """
+        frame = self.read_frame(frame_number=frame_number)
+        return self.state_wrapper.get_observation(frame, SB_SIZE=SB_SIZE)
 
     def read(self) -> Optional[np.ndarray]:
         ret, frame = self.cap.read()
@@ -121,52 +90,6 @@ class VideoReader:
         num_blocks_h = (self.height + SB_SIZE - 1) // SB_SIZE
         num_blocks_w = (self.width + SB_SIZE - 1) // SB_SIZE
         return num_blocks_h * num_blocks_w
-
-    def get_x_frame_state(self, frame_number) -> list[list[float]]:
-        """
-        Extracts the state of a video frame based on superblock information.
-
-        Args:
-            frame (np.ndarray): The video frame.
-            block_size (int): Size of the blocks to be processed. Should be 64 in SVT-AV1.
-
-        Returns:
-            a list of lists containing superblock information:
-                0 Y-component variance of all superblocks in the frame
-                1 Horizontal and
-                2 vertical difference of all superblocks in the frame
-                3 Gradient magnitude of all superblocks in the frame
-        """
-        frame = self.read_frame(frame_number)
-        if frame is None:
-            # no further processing is needed, just return empty lists
-            return [[], [], [], []]
-
-        h, w = frame.shape[:2]
-        y_comp_list = []
-        h_mv_list = []
-        v_mv_list = []
-        beta_list = []
-
-        for y in range(0, h, SB_SIZE):
-            for x in range(0, w, SB_SIZE):  # follow encoder order, x changes first
-                y_end = min(y + SB_SIZE, h)
-                x_end = min(x + SB_SIZE, w)
-                sb = frame[y:y_end, x:x_end]
-                if sb.size == 0:
-                    continue
-
-                sb_y_var = np.var(sb[:, :, 0])  # Y-component variance
-                sb_x_mv = np.mean(sb[:, :, 1])  # Horizontal motion vector
-                sb_y_mv = np.mean(sb[:, :, 2])  # Vertical motion vector
-                beta = np.mean(np.abs(sb))  # Example metric
-
-                y_comp_list.append(sb_y_var)
-                h_mv_list.append(sb_x_mv)
-                v_mv_list.append(sb_y_mv)
-                beta_list.append(beta)
-
-        return [y_comp_list, h_mv_list, v_mv_list, beta_list]
 
     def ycrcb_psnr(
         self,
