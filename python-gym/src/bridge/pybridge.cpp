@@ -11,7 +11,7 @@ using namespace pybridge;
 get_deltaq_offset_cb_t     get_deltaq_offset_cb     = nullptr;
 recv_picture_feedback_cb_t recv_picture_feedback_cb = nullptr;
 
-extern "C" void get_deltaq_offset_trampoline(int *offset_array, uint32_t sb_count, int32_t picture_number) {
+extern "C" void get_deltaq_offset_trampoline(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count, int32_t frame_type, int32_t picture_number) {
     Callback &cb = *g_callbacks[static_cast<int>(CallbackEnum::GetDeltaQOffset)];
     if (cb.py_func.is_none())
         return;
@@ -20,7 +20,20 @@ extern "C" void get_deltaq_offset_trampoline(int *offset_array, uint32_t sb_coun
 
     py::function fcn = pyutils::validate_callable(cb.py_func, cb.n_args);
 
-    py::object ret = fcn.operator()(picture_number);
+    // Convert sb_infos to dictionary
+    py::list sb_info_list = pyutils::to_pylist(sb_info_array, sb_count, [](const SuperBlockInfo &sb) {
+        return py::dict(
+            py::arg("sb_org_x") = sb.sb_org_x,
+            py::arg("sb_org_y") = sb.sb_org_y,
+            py::arg("sb_height") = sb.sb_height,
+            py::arg("sb_width") = sb.sb_width,
+            py::arg("sb_qindex") = sb.sb_qindex,
+            py::arg("sb_x_mv") = sb.sb_x_mv,
+            py::arg("sb_y_mv") = sb.sb_y_mv
+        );
+    });
+
+    py::object ret = fcn.operator()(sb_info_list, frame_type, picture_number);
 
     if (!py::isinstance<py::list>(ret)) {
         throw py::type_error("Expected return value of type list however was " +

@@ -114,5 +114,5 @@ class State(State_templete):
             low=-float('inf'),
             high=float('inf'),
             shape=(self.get_observation_length(),),
-            dtype='float32'
+            dtype=np.float32
         )

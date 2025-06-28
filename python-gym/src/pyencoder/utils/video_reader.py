@@ -1,6 +1,6 @@
 import csv
 import enum
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple, TypeAlias, cast
 
 import cv2
 import numpy as np
@@ -12,50 +12,28 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
+from pyencoder.environment.constants import SB_SIZE
 import seaborn as sns
 from pyencoder.states.__templete import State_templete
-
 
 class VideoComponent(enum.Enum):
     Y = "Y"
     Cb = "Cb"
     Cr = "Cr"
 
-
-SB_SIZE = 64
-
-
 class VideoReader:
-    def __init__(self, path: str, state_wrapper: State_templete = None):
+    def __init__(self, path: str):
         self.path = path
         self.cap = cv2.VideoCapture(path)
         if not self.cap.isOpened():
             raise ValueError(f"Cannot open video file: {path}")
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        
-        assert state_wrapper is not None, "State wrapper must be provided."
-        self.state_wrapper = state_wrapper
-        state_wrapper.initialize(
-            video_reader=self,
-            SB_SIZE=SB_SIZE
-        )
-        
-    def get_x_frame_state_normalized(self, frame_number) -> ndarray:
-       
-        """
-        Get the state of the x-th frame, normalized.
-        """
-        frame = self.read_frame(frame_number=frame_number)
-        return self.state_wrapper.get_observation(frame, SB_SIZE=SB_SIZE)
 
-    def read(self) -> Optional[np.ndarray]:
+    def read_frame(self, frame_number) -> Optional[np.ndarray]: # (H, W, 3)
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
         ret, frame = self.cap.read()
         return frame if ret else None
-
-    def read_frame(self, frame_number):
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-        return self.read()
 
     def release(self):
         self.cap.release()
@@ -63,14 +41,12 @@ class VideoReader:
     def get_resolution(self) -> Tuple[int, int]:
         return self.width, self.height
 
-    def read_ycrcb_components(
-        self, frame_number: int
-    ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-        frame = self.read_frame(frame_number=frame_number)
-        if frame is None:
+    def read_ycrcb_components(self, frame_number: int) -> Optional[np.ndarray]: # (H, W, 3)
+        rgb_frame = self.read_frame(frame_number=frame_number)
+        if rgb_frame is None:
             return None
-        ycrcb = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
-        return ycrcb  # Return in standard order
+        ycrcb_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2YCrCb)
+        return ycrcb_frame
 
     def get_frame_count(self) -> int:
         return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -85,7 +61,7 @@ class VideoReader:
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-    # sb infor
+    # sb info
     def get_num_superblock(self):
         num_blocks_h = (self.height + SB_SIZE - 1) // SB_SIZE
         num_blocks_w = (self.width + SB_SIZE - 1) // SB_SIZE
@@ -94,7 +70,7 @@ class VideoReader:
     def ycrcb_psnr(
         self,
         frame_number: int,
-        other_frame: tuple[np.ndarray, np.ndarray, np.ndarray],
+        other_frame: np.ndarray, # (H, W, 3)
         baseline_heighest_psnr
     ):
         """
@@ -104,20 +80,14 @@ class VideoReader:
         """
         target_components = self.read_ycrcb_components(frame_number)
         if target_components is None:
-            raise ValueError(
-                f"Unable to read frame {frame_number} from the video."
-            )
+            raise ValueError(f"Unable to read frame {frame_number} from the video.")
 
         if target_components.shape != other_frame.shape:
-            raise ValueError(
-                "Dimension mismatch between video frame and "
-                "reference frame components."
-            )
+            raise ValueError("Dimension mismatch between video frame and reference frame components.")
 
-        # VideoReader.render_single_component(other_frame[0], VideoComponent.Y)
-        y_psnr = VideoReader.compute_psnr(target_components[0], other_frame[0], baseline_heighest_psnr["y"])
-        cb_psnr = VideoReader.compute_psnr(target_components[1], other_frame[1], baseline_heighest_psnr['cb'])
-        cr_psnr = VideoReader.compute_psnr(target_components[2], other_frame[2], baseline_heighest_psnr['cr'])
+        y_psnr = VideoReader.compute_psnr(target_components[:, :, 0], other_frame[:, :, 0], baseline_heighest_psnr["y"])
+        cb_psnr = VideoReader.compute_psnr(target_components[:, :, 1], other_frame[:, :, 1], baseline_heighest_psnr['cb'])
+        cr_psnr = VideoReader.compute_psnr(target_components[:, :, 2], other_frame[:, :, 2], baseline_heighest_psnr['cr'])
 
         # render the image for debug 
         # target_bgr = cv2.cvtColor(target_components, cv2.COLOR_YCrCb2BGR)
@@ -145,12 +115,8 @@ class VideoReader:
         cv2.destroyAllWindows()
 
     @staticmethod
-    def compute_psnr(target, reference, baseline_heighest_psnr: float = 100.0):
-        mse = np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2)
-        if mse == 0:
-            # cannot return inf, as it will cause issues in rl training
-            return baseline_heighest_psnr
-        return 10 * np.log10((255.0**2) / mse)
+    def compute_psnr(target: np.ndarray, reference: np.ndarray, baseline_heighest_psnr: float = 100.0):
+        return min(cv2.PSNR(target, reference), baseline_heighest_psnr)
 
 
 # simple test

@@ -1,6 +1,4 @@
-import queue
 import threading
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 import av
@@ -9,15 +7,10 @@ import gymnasium as gym
 import numpy as np
 from pyencoder.environment.av1_runner import Av1Runner
 from pyencoder.utils.video_reader import VideoReader
-from sympy import false
+from pyencoder.environment.constants import SB_SIZE, QP_MIN, QP_MAX
 import math
 from pyencoder.states.__templete import State_templete
 import importlib
-
-
-# Constants
-QP_MIN, QP_MAX = -3, 3  # delta QP range which will be action
-SB_SIZE = 64  # superblock size
 
 # Extending gymnasium's Env class
 # https://gymnasium.farama.org/api/env/#gymnasium.Env
@@ -37,7 +30,10 @@ class Av1GymEnv(gym.Env):
         super().__init__()
         self.video_path = Path(video_path)
         self.output_dir = Path(output_dir)
-        self.av1_runner = Av1Runner(video_path=video_path)
+        self.av1_runner = Av1Runner(video_path)
+
+        # Initialize the VideoReader
+        self.video_reader = VideoReader(path=video_path)
         
         # Import the state representation module dynamically
         module_name = f"pyencoder.states.{state_representation}"
@@ -51,9 +47,11 @@ class Av1GymEnv(gym.Env):
             source_video_path=str(self.video_path),
             SB_SIZE=SB_SIZE
         )
-        
+    
         # Initialize the VideoReader
-        self.video_reader = VideoReader(path=video_path, state_wrapper=self.state_wrapper)
+        self.video_reader = VideoReader(path=video_path)
+
+        self.state_wrapper.initialize(video_reader=self.video_reader, SB_SIZE=SB_SIZE)
 
         self.lambda_rd = lambda_rd
         self._episode_done = threading.Event()
@@ -69,7 +67,6 @@ class Av1GymEnv(gym.Env):
         )
 
         self.observation_space = self.state_wrapper.get_observation_space()
-
 
         # RL/encoder communication
         self.queue_timeout = queue_timeout
@@ -316,9 +313,8 @@ class Av1GymEnv(gym.Env):
     def _get_initial_observation(self) -> np.ndarray:
         """Get initial observation for episode start"""
         try:
-            frame_state = self.video_reader.get_x_frame_state_normalized(
-                frame_number=0
-            )
+            frame = self.video_reader.read_frame(frame_number=0)
+            frame_state = self.state_wrapper.get_observation(frame, SB_SIZE=SB_SIZE)
             
             # Validate the observation
             validate_array(frame_state, "Initial observation (frame 0)")
@@ -343,10 +339,8 @@ class Av1GymEnv(gym.Env):
     def _get_current_observation(self) -> np.ndarray:
         """Get current observation based on current frame"""
         try:
-            
-            frame_state = self.video_reader.get_x_frame_state_normalized(
-                frame_number=self.current_frame
-            )
+            frame = self.video_reader.read_frame(frame_number=0)
+            frame_state = self.state_wrapper.get_observation(frame, SB_SIZE=SB_SIZE)
             
             # Validate the observation
             validate_array(frame_state, f"Current observation (frame {self.current_frame})")

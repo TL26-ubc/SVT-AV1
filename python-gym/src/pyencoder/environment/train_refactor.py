@@ -91,44 +91,43 @@ if __name__ == "__main__":
         args.n_steps = video_length if video_length > 0 else 1000  # Fallback to 1000 if length is unknown
 
     model = None
-    if args.algorithm == "ppo":
-        model = PPO(
-            "MlpPolicy",
-            env,
-            learning_rate=args.learning_rate,
-            n_steps=args.n_steps,
-            batch_size=args.batch_size,
-            n_epochs=10,
-            gamma=0.99,
-            gae_lambda=0.95,
-            clip_range=0.2,
-            ent_coef=0.01,
-            vf_coef=0.5,
-            max_grad_norm=0.5,
-            verbose=1,
-            # tensorboard_log=str(base_output_path / "tensorboard"),
-        )
-    elif args.algorithm == "dqn":
-        # Note: DQN doesn't directly support MultiDiscrete action spaces
-        # You might need to flatten the action space or use a wrapper
-        model = DQN(
-            "MlpPolicy",
-            env,
-            learning_rate=args.learning_rate,
-            buffer_size=100000,
-            learning_starts=1000,
-            batch_size=args.batch_size,
-            tau=1.0,
-            gamma=0.99,
-            train_freq=4,
-            gradient_steps=1,
-            target_update_interval=1000,
-            exploration_fraction=0.1,
-            exploration_initial_eps=1.0,
-            exploration_final_eps=0.02,
-            verbose=1,
-            # tensorboard_log=str(base_output_path / "tensorboard"),
-        )
+    match args.algorithm.lower():
+        case "ppo":
+            model = PPO(
+                "MlpPolicy",
+                env,
+                learning_rate=args.learning_rate,
+                n_steps=args.n_steps,
+                batch_size=args.batch_size,
+                n_epochs=10,
+                gamma=0.99,
+                gae_lambda=0.95,
+                clip_range=0.2,
+                ent_coef=0.01,
+                vf_coef=0.5,
+                max_grad_norm=0.5,
+                verbose=1,
+            )
+        case "dqn":
+            model = DQN(
+                "MlpPolicy",
+                env,
+                learning_rate=args.learning_rate,
+                buffer_size=100000,
+                learning_starts=1000,
+                batch_size=args.batch_size,
+                tau=1.0,
+                gamma=0.99,
+                train_freq=4,
+                gradient_steps=1,
+                target_update_interval=1000,
+                exploration_fraction=0.1,
+                exploration_initial_eps=1.0,
+                exploration_final_eps=0.02,
+                verbose=1,
+            )
+        case other:
+            raise ValueError(f"Unsupported algorithm '{other}'. Choose either 'ppo' or 'dqn'.")
         
     total_timesteps = args.total_iteration * gyn_env.num_frames
 

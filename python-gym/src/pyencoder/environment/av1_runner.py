@@ -2,6 +2,7 @@ import io
 import queue
 import time
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 import av
 import cv2
@@ -10,7 +11,6 @@ import numpy as np
 
 global the_only_object
 the_only_object = None
-
 
 def picture_feedback_trampoline(bitstream: bytes, size: int, picture_number: int):
     """
@@ -23,8 +23,7 @@ def picture_feedback_trampoline(bitstream: bytes, size: int, picture_number: int
     """
     the_only_object.picture_feedback(bitstream, size, picture_number)
 
-
-def get_deltaq_offset_trampoline(picture_number: int) -> list[int]:
+def get_deltaq_offset_trampoline(sbs: list[pyencoder.SuperBlockInfo], frame_type: int, picture_number: int) -> list[int]:
     """
     Callback to get QP offsets for superblocks in a frame.
 
@@ -35,45 +34,51 @@ def get_deltaq_offset_trampoline(picture_number: int) -> list[int]:
     """
     return the_only_object.get_deltaq_offset(picture_number)
 
-def get_num_superblock(
-    frame_or_video: np.ndarray | cv2.VideoCapture | str,
-    block_size: int = 64
-) -> int:
+def superblocks_from_dims(width: int, height: int, block_size: int = 64) -> int:
     """
-    Get the number of superblocks in a video frame or video.
+    Return the number of super-blocks (block_size × block_size tiles)
+    that cover a frame of size (width × height).
 
-    Args:
-        frame_or_video (np.ndarray or cv2.VideoCapture): The video frame or video capture object.
-        block_size (int): Size of the blocks to be processed. Should be 64 in SVT-AV1.
-
-    Returns:
-        int: Number of superblocks in the frame or in the first frame of the video.
+    Uses ceiling division so partially-covered edges count as full blocks.
     """
-    if isinstance(frame_or_video, np.ndarray):
-        h, w = frame_or_video.shape[:2]
-    elif isinstance(frame_or_video, cv2.VideoCapture):
-        pos = frame_or_video.get(cv2.CAP_PROP_POS_FRAMES)
-        ret, frame = frame_or_video.read()
-        if not ret:
-            raise ValueError("Could not read frame from video.")
-        h, w = frame.shape[:2]
-        frame_or_video.set(cv2.CAP_PROP_POS_FRAMES, pos)
-    elif isinstance(frame_or_video, str):
-        video_cv2 = cv2.VideoCapture(frame_or_video)
-        if not video_cv2.isOpened():
-            raise ValueError(f"Could not open video file: {frame_or_video}")
-        pos = video_cv2.get(cv2.CAP_PROP_POS_FRAMES)
-        ret, frame = video_cv2.read()
-        if not ret:
-            raise ValueError("Could not read frame from video.")
-        h, w = frame.shape[:2]
-        video_cv2.set(cv2.CAP_PROP_POS_FRAMES, pos)
-        video_cv2.release()
-    else:
-        raise TypeError("Input must be a numpy.ndarray or cv2.VideoCapture.")
-    num_blocks_h = (h + block_size - 1) // block_size
-    num_blocks_w = (w + block_size - 1) // block_size
-    return num_blocks_h * num_blocks_w
+    if block_size <= 0:
+        raise ValueError("block_size must be positive")
+
+    blocks_w = (width  + block_size - 1) // block_size
+    blocks_h = (height + block_size - 1) // block_size
+    return blocks_w * blocks_h
+
+
+def frame_dims_from_capture(cap: cv2.VideoCapture) -> tuple[int, int]:
+    """
+    Grab the first frame from an *open* cv2.VideoCapture and
+    return (width, height).  Restores the original frame pointer.
+    """
+    if not cap.isOpened():
+        raise ValueError("cv2.VideoCapture is not opened")
+
+    pos = cap.get(cv2.CAP_PROP_POS_FRAMES)
+    ok, frame = cap.read()
+    cap.set(cv2.CAP_PROP_POS_FRAMES, pos)  # restore
+
+    if not ok:
+        raise ValueError("Could not read a frame from capture")
+
+    height, width = frame.shape[:2]
+    return width, height
+
+def frame_dims_from_file(path: str | Path) -> tuple[int, int]:
+    """
+    Open the video at *path*, read its first frame, and return (width, height).
+    Closes the capture automatically.
+    """
+    cap = cv2.VideoCapture(str(path))
+    try:
+        if not cap.isOpened():
+            raise FileNotFoundError(f"Could not open video file: {path}")
+        return frame_dims_from_capture(cap)
+    finally:
+        cap.release()
 
 class Av1Runner:
     """
@@ -94,7 +99,10 @@ class Av1Runner:
         self.bytes_keeper = {}
         self.previous_training_bytes_keeper = {}  # Store previous training bytes
         self.all_bitstreams = io.BytesIO()  # Holds joined bitstream data
-        self.sb_total_count = get_num_superblock(video_path)
+
+        w, h = frame_dims_from_file(video_path)
+        self.sb_total_count = superblocks_from_dims(w, h)
+
         self.first_round = True  # Flag for the first round of encoding
         self.first_round_byte_usage = {}  # Store byte usage for the first round
 
@@ -106,23 +114,22 @@ class Av1Runner:
     def run_SVT_AV1_encoder(self, output_path: str = None):
         self.reset_parameter()
         self.register_callback()
-        if output_path is not None:
-            pyencoder.run(
-                input=self.video_path,
-                pred_struct=1,
-                rc=2,
-                tbr=100,
-                enable_stat_report=True,
-                b=output_path,
-            )
-        else:
-            pyencoder.run(
-                input=self.video_path,
-                pred_struct=1,
-                rc=2,
-                tbr=100,
-                enable_stat_report=True,
-            )
+
+        args = {
+            "input": self.video_path,
+            "pred_struct": 1,
+            "rc": 2,
+            "tbr": 100,
+            "enable_stat_report": True,
+        }
+
+        # Add the output path only when provided
+        if output_path:
+            args["b"] = output_path
+
+        # run the encoder
+        pyencoder.run(**args)
+
 
         if self.first_round:
             self.first_round = False

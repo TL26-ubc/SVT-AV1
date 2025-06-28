@@ -1068,13 +1068,12 @@ typedef struct SuperBlockInfo {
     uint8_t      sb_qindex;
     signed short sb_x_mv;
     signed short sb_y_mv;
-    double       beta;
 } SuperBlockInfo;
 
 #ifdef SVT_ENABLE_USER_CALLBACKS
 
 typedef struct PluginCallbacks {
-    void (*user_get_deltaq_offset)(int *offset_array, uint32_t sb_count, int32_t picture_number);
+    void (*user_get_deltaq_offset)(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count, int32_t frame_type, int32_t picture_number);
 
     void (*user_picture_feedback)(uint8_t *bitstream, uint32_t bitstream_size, uint32_t picture_number);
 } PluginCallbacks;
