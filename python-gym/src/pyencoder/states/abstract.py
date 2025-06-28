@@ -1,15 +1,16 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from numpy import ndarray
+from pyencoder.utils.video_reader import VideoReader
 import gymnasium as gym
 
-class State_templete(ABC):
+class AbstractState(ABC):
     """
     Abstract base class for states in the PyEncoder framework.
     """
     
     @abstractmethod
-    def __init__(self, source_video_path: Optional[str] = None, SB_SIZE: int = 64,
+    def __init__(self, video_reader: VideoReader, sb_size: int = 64,
                  **kwargs: Any):
         """
         Initialize the state with any necessary parameters.
@@ -20,22 +21,8 @@ class State_templete(ABC):
         pass
 
     @abstractmethod
-    def initialize(self, 
-                      video_reader,
-                      SB_SIZE: int = 64
-                          ):
-        """
-        Initialize the state for operations needed.
-        Parameters:
-            video_reader (VideoReader): The video reader instance to extract state information.
-            SB_SIZE (int): Size of the state buffer, default is 64.
-        """
-        pass
-
-    @abstractmethod
     def get_observation(self, 
-                        frame: ndarray, 
-                        SB_SIZE: int = 64,
+                        frame: ndarray,
                         **kwargs) -> ndarray:
         """
         Get the current observation of the state.

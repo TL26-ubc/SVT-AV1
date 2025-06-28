@@ -1,4 +1,4 @@
-from .__templete import State_templete
+from .abstract import AbstractState
 from numpy import ndarray
 from typing import Any, Dict, List, Optional
 import cv2
@@ -7,39 +7,20 @@ from pyencoder.utils.video_reader import VideoReader
 import numpy as np
 
 # WARNING!! DO NOT CHANGE THE NAME OF THIS CLASS
-class State(State_templete):
+class NaiveState(AbstractState):
     """
     A naive implementation of the State_templete class.
     This class provides a simple way to handle states without complex processing.
     """
 
-    def __init__(self, source_video_path: str, SB_SIZE: int = 64,
+    def __init__(self, video_reader: VideoReader, sb_size: int = 64,
                  **kwargs: Any):
         """
         Initialize the NaiveState with flexible arguments.
         Only one of frame, (width and height), or num_sb should be provided.
         """
-        self.SB_SIZE = SB_SIZE
-        self.source_video_path = source_video_path
-        video = cv2.VideoCapture(source_video_path)
-        if not video.isOpened():
-            raise ValueError(f"Cannot open video file: {source_video_path}")
-        h = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        w = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
-        video.release()
-        self.num_sb = ((h + self.SB_SIZE - 1) // self.SB_SIZE) * ((w + self.SB_SIZE - 1) // self.SB_SIZE)
-
-    def initialize(self, 
-                      video_reader: VideoReader,
-                      SB_SIZE: int = 64
-                          ):
-        """
-        Initialize the state for operations needed.
-        Get the maximum state values for normalization.
-        Parameters:
-            video_reader (VideoReader): The video reader instance to extract state information.
-            SB_SIZE (int): Size of the state buffer, default is 64.
-        """
+        self.sb_size = sb_size
+        self.num_sb = video_reader.get_num_superblock()
         frame_count = video_reader.get_frame_count()
         array_length = self.get_observation_length()
         self.max_values = np.full(array_length, -np.inf, dtype=np.float32)
@@ -47,12 +28,11 @@ class State(State_templete):
             frame = video_reader.read_frame(frame_number=i)
             if frame is None or len(frame) == 0:
                 continue
-            obs = self.get_observation(frame, SB_SIZE=SB_SIZE)
+            obs = self.get_observation(frame, SB_SIZE=sb_size)
             self.max_values = np.maximum(self.max_values, obs)
 
     def get_observation(self,
-                        frame: ndarray, 
-                        SB_SIZE: int = 64,
+                        frame: ndarray,
                         **kwargs) -> ndarray:
         """
         Get the current observation of the state. Promise to normalize the observation.
@@ -71,10 +51,10 @@ class State(State_templete):
         v_mv_list = []
         beta_list = []
 
-        for y in range(0, h, SB_SIZE):
-            for x in range(0, w, SB_SIZE):  # follow encoder order, x changes first
-                y_end = min(y + SB_SIZE, h)
-                x_end = min(x + SB_SIZE, w)
+        for y in range(0, h, self.sb_size):
+            for x in range(0, w, self.sb_size):  # follow encoder order, x changes first
+                y_end = min(y + self.sb_size, h)
+                x_end = min(x + self.sb_size, w)
                 sb = frame[y:y_end, x:x_end]
                 if sb.size == 0:
                     continue

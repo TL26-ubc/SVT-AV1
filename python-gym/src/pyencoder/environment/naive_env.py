@@ -9,8 +9,8 @@ from pyencoder.environment.av1_runner import Av1Runner
 from pyencoder.utils.video_reader import VideoReader
 from pyencoder.environment.constants import SB_SIZE, QP_MIN, QP_MAX
 import math
-from pyencoder.states.__templete import State_templete
-import importlib
+from pyencoder.states.abstract import AbstractState
+from pyencoder.states.naive import NaiveState
 
 # Extending gymnasium's Env class
 # https://gymnasium.farama.org/api/env/#gymnasium.Env
@@ -23,9 +23,8 @@ class Av1GymEnv(gym.Env):
         output_dir: str | Path,
         *,
         lambda_rd: float = 0.1,
-        queue_timeout=10,  # timeout
-        state_representation: str = "naive",
-
+        queue_timeout=10,
+        state: type[AbstractState] = NaiveState,
     ):
         super().__init__()
         self.video_path = Path(video_path)
@@ -35,23 +34,7 @@ class Av1GymEnv(gym.Env):
         # Initialize the VideoReader
         self.video_reader = VideoReader(path=video_path)
         
-        # Import the state representation module dynamically
-        module_name = f"pyencoder.states.{state_representation}"
-        state_module = importlib.import_module(module_name)
-        State_class = getattr(state_module, "State")
-        if not issubclass(State_class, State_templete):
-            raise TypeError(
-                f"{State_class.__name__} must inherit from State_templete"
-            )
-        self.state_wrapper = State_class(
-            source_video_path=str(self.video_path),
-            SB_SIZE=SB_SIZE
-        )
-    
-        # Initialize the VideoReader
-        self.video_reader = VideoReader(path=video_path)
-
-        self.state_wrapper.initialize(video_reader=self.video_reader, SB_SIZE=SB_SIZE)
+        self.state_wrapper = state(video_reader=self.video_reader, sb_size=SB_SIZE)
 
         self.lambda_rd = lambda_rd
         self._episode_done = threading.Event()

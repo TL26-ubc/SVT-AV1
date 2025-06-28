@@ -14,7 +14,6 @@ import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
 from pyencoder.environment.constants import SB_SIZE
 import seaborn as sns
-from pyencoder.states.__templete import State_templete
 
 class VideoComponent(enum.Enum):
     Y = "Y"
@@ -119,23 +118,23 @@ class VideoReader:
         return min(cv2.PSNR(target, reference), baseline_heighest_psnr)
 
 
-# simple test
-if __name__ == "__main__":
-    reader = VideoReader("/home/tom/tmp/playground/akiyo_qcif.y4m")
+# # simple test
+# if __name__ == "__main__":
+#     reader = VideoReader("/home/tom/tmp/playground/akiyo_qcif.y4m")
 
-    reader.get_resolution()
-    reader.get_frame_count()
-    y, cb, cr = reader.read_ycrcb_components(1)
+#     reader.get_resolution()
+#     reader.get_frame_count()
+#     y, cb, cr = reader.read_ycrcb_components(1)
 
-    # Flatten arrays and write to CSV
-    with open("frame1_ycrcb.csv", "w", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["Component", "Row", "Col", "Value"])
-        for comp_name, comp_array in zip(["Y", "Cb", "Cr"], [y, cb, cr]):
-            for row in range(comp_array.shape[0]):
-                for col in range(comp_array.shape[1]):
-                    writer.writerow([comp_name, row, col, int(comp_array[row, col])])
+#     # Flatten arrays and write to CSV
+#     with open("frame1_ycrcb.csv", "w", newline="") as csvfile:
+#         writer = csv.writer(csvfile)
+#         writer.writerow(["Component", "Row", "Col", "Value"])
+#         for comp_name, comp_array in zip(["Y", "Cb", "Cr"], [y, cb, cr]):
+#             for row in range(comp_array.shape[0]):
+#                 for col in range(comp_array.shape[1]):
+#                     writer.writerow([comp_name, row, col, int(comp_array[row, col])])
 
-    # reader.render_single_component(y, VideoComponent.Y)
+#     # reader.render_single_component(y, VideoComponent.Y)
 
-    VideoReader.render_components(y, cb, cr)
+#     VideoReader.render_components(y, cb, cr)

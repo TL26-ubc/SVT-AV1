@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from pyencoder.environment.naive_env import Av1GymEnv
+from pyencoder.states.naive import NaiveState
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.monitor import Monitor
 
@@ -56,12 +57,6 @@ def prase_arg():
         action="store_true", 
         help="Disable observation state normalization"
     )
-    
-    parser.add_argument(
-        "--state_representation", 
-        default="naive",
-        help="Type of state representation"
-    )
 
     args = parser.parse_args()
     return args
@@ -81,9 +76,9 @@ if __name__ == "__main__":
         video_path=args.file,
         output_dir=base_output_path,
         lambda_rd=args.lambda_rd,
-        state_representation=args.state_representation,
-
+        state=NaiveState,
     )
+    
     env = Monitor(gyn_env, str(base_output_path / "monitor"))
     if args.n_steps == -1:
         # Automatically determine n_steps based on video length
