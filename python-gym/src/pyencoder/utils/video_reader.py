@@ -6,14 +6,12 @@ import cv2
 import numpy as np
 from numpy import ndarray
 
-from typing import Optional, Tuple
 import os
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
 from pyencoder.environment.constants import SB_SIZE
-import seaborn as sns
 
 class VideoComponent(enum.Enum):
     Y = "Y"
@@ -115,7 +113,8 @@ class VideoReader:
 
     @staticmethod
     def compute_psnr(target: np.ndarray, reference: np.ndarray, baseline_heighest_psnr: float = 100.0):
-        return min(cv2.PSNR(target, reference), baseline_heighest_psnr)
+        psnr = cv2.PSNR(target, reference)
+        return psnr if np.isfinite(psnr) else baseline_heighest_psnr
 
 
 # # simple test

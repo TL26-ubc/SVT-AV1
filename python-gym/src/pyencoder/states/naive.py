@@ -50,9 +50,9 @@ class NaiveState(AbstractState):
                     continue
 
                 sb_y_var = np.var(sb[:, :, 0])  # Y-component variance
-                sb_x_mv = np.mean(sb[:, :, 1])  # Horizontal motion vector
-                sb_y_mv = np.mean(sb[:, :, 2])  # Vertical motion vector
-                beta = np.mean(np.abs(sb))  # Example metric
+                # sb_x_mv = np.mean(sb[:, :, 1])  # Horizontal mean value
+                # sb_y_mv = np.mean(sb[:, :, 2])  # Vertical mean value
+                # beta = np.mean(np.abs(sb))  # Example metric
 
                 y_comp_list.append(sb_y_var)
                 h_mv_list.append(sbs[sb_idx]['sb_x_mv'])

@@ -274,7 +274,7 @@ class Av1GymEnv(gym.Env):
         """Save the bitstream to a file"""
         self.av1_runner.save_bitstream_to_file(output_path, interrupt=interrupt)
 
-    def _get_next_observation(self) -> tuple[np.ndarray]:
+    def _get_next_observation(self) -> np.ndarray:
         """Get current observation based on current frame"""
         try:
             observation = self.av1_runner.wait_for_next_observation()
