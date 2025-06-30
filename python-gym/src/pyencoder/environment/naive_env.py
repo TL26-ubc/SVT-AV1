@@ -252,6 +252,10 @@ class Av1GymEnv(gym.Env):
             "bitstream_size": feedback.get("bitstream_size", 0),
             "episode_frames": self.current_frame,
         }
+        
+        # Add PSNR values to info if available
+        if hasattr(self, 'current_frame_psnr'):
+            info.update(self.current_frame_psnr)
 
         return next_obs, reward, self.terminated, False, info
 
@@ -322,6 +326,13 @@ class Av1GymEnv(gym.Env):
             y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(
                 self.current_frame, encoded_frame_data, self.baseline_heighest_psnr
             )
+            
+            # Store PSNR values for logging
+            self.current_frame_psnr = {
+                'y_psnr': y_psnr,
+                'cb_psnr': cb_psnr,
+                'cr_psnr': cr_psnr
+            }
             
             # Validate PSNR values
             # for psnr_val, psnr_name in [(y_psnr, "Y"), (cb_psnr, "Cb"), (cr_psnr, "Cr")]:
