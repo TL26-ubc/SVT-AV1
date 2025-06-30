@@ -2,6 +2,7 @@ import csv
 import enum
 from typing import Literal, Optional, Tuple, TypeAlias, cast
 
+import av
 import cv2
 import numpy as np
 from numpy import ndarray
@@ -21,32 +22,72 @@ class VideoComponent(enum.Enum):
 class VideoReader:
     def __init__(self, path: str):
         self.path = path
-        self.cap = cv2.VideoCapture(path)
-        if not self.cap.isOpened():
+        self.container = av.open(path)
+        self.video_stream = self.container.streams.video[0]
+        if self.video_stream is None:
             raise ValueError(f"Cannot open video file: {path}")
-        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.width = self.video_stream.width
+        self.height = self.video_stream.height
+        self._frame_count = None
+        self._frames_cache = {}  # Cache frames for random access
+
+    def _ensure_frame_count(self):
+        """Ensure frame count is calculated"""
+        if self._frame_count is None:
+            if self.video_stream.frames > 0:
+                self._frame_count = self.video_stream.frames
+            else:
+                # Manual count if metadata unreliable
+                count = 0
+                for _ in self.container.decode(video=0):
+                    count += 1
+                self._frame_count = count
+                self.container.seek(0)
+
+    def _get_frame_at_index(self, frame_number):
+        """Get PyAV frame at specific index"""
+        if frame_number in self._frames_cache:
+            return self._frames_cache[frame_number]
+        
+        # Reset container and iterate to target frame
+        self.container.seek(0)
+        current_index = 0
+        for frame in self.container.decode(video=0):
+            if current_index == frame_number:
+                self._frames_cache[frame_number] = frame
+                return frame
+            current_index += 1
+        return None
 
     def read_frame(self, frame_number) -> Optional[np.ndarray]: # (H, W, 3)
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-        ret, frame = self.cap.read()
-        return frame if ret else None
+        av_frame = self._get_frame_at_index(frame_number)
+        if av_frame is None:
+            return None
+        
+        # Convert to RGB then to BGR to match cv2 format
+        rgb_array = av_frame.to_ndarray(format='rgb24')
+        bgr_array = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
+        return bgr_array
 
     def release(self):
-        self.cap.release()
+        self.container.close()
+        self._frames_cache.clear()
 
     def get_resolution(self) -> Tuple[int, int]:
         return self.width, self.height
 
     def read_ycrcb_components(self, frame_number: int) -> Optional[np.ndarray]: # (3/2 * H, W)
-        rgb_frame = self.read_frame(frame_number=frame_number)
-        if rgb_frame is None:
+        av_frame = self._get_frame_at_index(frame_number)
+        if av_frame is None:
             return None
-        ycrcb_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2YUV_I420)
+        
+        # Direct YUV420p conversion like in the reference code
+        ycrcb_frame = av_frame.to_ndarray(format='yuv420p')
         return ycrcb_frame
 
     def get_frame_count(self) -> int:
-        return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self._ensure_frame_count()
+        return self._frame_count
 
     def render_frame_number(self, frame_number: int):
         frame = self.read_frame(frame_number=frame_number)
@@ -91,30 +132,7 @@ class VideoReader:
                                            other_frame[self.height + self.height // 4:self.height + self.height // 2, :],
                                            baseline_heighest_psnr['cr'])
 
-        # render the image for debug 
-        # target_bgr = cv2.cvtColor(target_components, cv2.COLOR_YCrCb2BGR)
-        # other_bgr = cv2.cvtColor(other_frame, cv2.COLOR_YCrCb2BGR)
-        # cv2.imwrite(f"target_{frame_number}.png", target_bgr)
-        # cv2.imwrite(f"other_frame_{frame_number}.png", other_bgr)
         return y_psnr, cb_psnr, cr_psnr
-
-    # @staticmethod
-    # def render_single_component(
-    #     component_array: np.ndarray, component_type: VideoComponent
-    # ):
-    #     cv2.imshow(str(component_type.value), component_array)
-    #     cv2.waitKey(0)
-    #     cv2.destroyAllWindows()
-
-    # @staticmethod
-    # def render_components(y: np.ndarray, cb: np.ndarray, cr: np.ndarray):
-    #     # OpenCV uses Y, Cr, Cb order
-    #     ycrcb_image = cv2.merge((y, cr, cb))
-
-    #     bgr_image = cv2.cvtColor(ycrcb_image, cv2.COLOR_YCrCb2BGR)
-    #     cv2.imshow("BGR", bgr_image)
-    #     cv2.waitKey(0)
-    #     cv2.destroyAllWindows()
 
     @staticmethod
     def compute_psnr(target: np.ndarray, reference: np.ndarray, baseline_heighest_psnr: float = 100.0):
