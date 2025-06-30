@@ -1,25 +1,19 @@
 from pyencoder import SuperBlockInfo
 from .abstract import AbstractState
-from numpy import ndarray
 from typing import Any, Dict, List, Optional
 from pyencoder.environment.av1_runner import Observation
 import gymnasium as gym
 from pyencoder.utils.video_reader import VideoReader
 import numpy as np
 
-# WARNING!! DO NOT CHANGE THE NAME OF THIS CLASS
 class NaiveState(AbstractState):
-    """
-    A naive implementation of the State_templete class.
-    This class provides a simple way to handle states without complex processing.
-    """
-
-    def __init__(self, video_reader: VideoReader, baseline_observations: list[Observation], sb_size: int = 64,
-                 **kwargs: Any):
-        """
-        Initialize the NaiveState with flexible arguments.
-        Only one of frame, (width and height), or num_sb should be provided.
-        """
+    def __init__(
+        self, 
+        video_reader: VideoReader, 
+        baseline_observations: list[Observation], 
+        sb_size: int = 64,
+        **kwargs: Any
+    ):
         self.sb_size = sb_size
         self.num_sb = video_reader.get_num_superblock()
         self.frame_count = video_reader.get_frame_count()
@@ -32,23 +26,14 @@ class NaiveState(AbstractState):
             obs = self.get_observation(frame, raw_obs.superblocks, raw_obs.frame_type, raw_obs.picture_number)
             self.max_values = np.maximum(self.max_values, obs)
 
-    def get_observation(self,
-                        frame: ndarray,
-                        sbs: list[SuperBlockInfo], 
-                        frame_type: int,
-                        picture_number: int,
-                        **kwargs) -> ndarray:
-        """
-        Get the current observation of the state. Promise to normalize the observation.
-        
-        Parameters:
-            frame ndarray: The current frame.
-            SB_SIZE (int): Size of the state buffer, default is 64.
-            **kwargs: Additional keyword arguments for processing the frame.
-        
-        Returns:
-            ndarray: A 1D numpy array with any size, handling inf or nan values if present.
-        """
+    def get_observation(
+        self,
+        frame: np.ndarray,
+        sbs: list[SuperBlockInfo], 
+        frame_type: int,
+        picture_number: int,
+        **kwargs
+    ) -> np.ndarray:
         h, w = frame.shape[:2]
         y_comp_list = []
         h_mv_list = []

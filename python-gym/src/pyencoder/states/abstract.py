@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Any
-from numpy import ndarray
 from pyencoder import SuperBlockInfo
 from pyencoder.utils.video_reader import VideoReader
 import gymnasium as gym
 from pyencoder.environment.av1_runner import Observation
+import numpy as np
 
 
 class AbstractState(ABC):
@@ -24,17 +24,21 @@ class AbstractState(ABC):
         pass
 
     @abstractmethod
-    def get_observation(self, 
-                        frame: ndarray,
-                        sbs: list[SuperBlockInfo], 
-                        frame_type: int,
-                        picture_number: int,
-                        **kwargs) -> ndarray:
+    def get_observation(
+        self, 
+        frame: np.ndarray,
+        superblocks: list[SuperBlockInfo], 
+        frame_type: int,
+        picture_number: int,
+        **kwargs
+    ) -> np.ndarray:
         """
         Get the current observation of the state.
         Parameters:
             frame ndarray: The current frame.
-            SB_SIZE (int): Size of the state buffer, default is 64.
+            superblocks: A list of superblock info, including locations and motion vectors.
+            frame_type: An int representing the type of frame.
+            picture_number: The current frame's number in the sequence.
             **kwargs: Additional keyword arguments for processing the frame.
         
         Return a 1D numpy array with any size
