@@ -117,8 +117,7 @@ class Av1GymEnv(gym.Env):
 
         for frame_number, frame in enumerate(container.decode(stream)):
             # Convert frame to YCbCr and get numpy arrays for Y, Cb, Cr
-            ycbcr = frame.to_ndarray(format="rgb24")
-            ycbcr = cv2.cvtColor(ycbcr, cv2.COLOR_RGB2YCrCb)
+            ycbcr = frame.to_ndarray(format="yuv420p") # (3/2 * H, W)
 
             # Get YCbCr PSNR for the current frame
             y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(frame_number, ycbcr, self.baseline_heighest_psnr)            

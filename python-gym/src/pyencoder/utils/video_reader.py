@@ -38,11 +38,11 @@ class VideoReader:
     def get_resolution(self) -> Tuple[int, int]:
         return self.width, self.height
 
-    def read_ycrcb_components(self, frame_number: int) -> Optional[np.ndarray]: # (H, W, 3)
+    def read_ycrcb_components(self, frame_number: int) -> Optional[np.ndarray]: # (3/2 * H, W)
         rgb_frame = self.read_frame(frame_number=frame_number)
         if rgb_frame is None:
             return None
-        ycrcb_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2YCrCb)
+        ycrcb_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2YUV_I420)
         return ycrcb_frame
 
     def get_frame_count(self) -> int:
@@ -67,7 +67,7 @@ class VideoReader:
     def ycrcb_psnr(
         self,
         frame_number: int,
-        other_frame: np.ndarray, # (H, W, 3)
+        other_frame: np.ndarray, # (3/2 * H, W)
         baseline_heighest_psnr
     ):
         """
@@ -82,9 +82,14 @@ class VideoReader:
         if target_components.shape != other_frame.shape:
             raise ValueError("Dimension mismatch between video frame and reference frame components.")
 
-        y_psnr = VideoReader.compute_psnr(target_components[:, :, 0], other_frame[:, :, 0], baseline_heighest_psnr["y"])
-        cb_psnr = VideoReader.compute_psnr(target_components[:, :, 1], other_frame[:, :, 1], baseline_heighest_psnr['cb'])
-        cr_psnr = VideoReader.compute_psnr(target_components[:, :, 2], other_frame[:, :, 2], baseline_heighest_psnr['cr'])
+        y_psnr = VideoReader.compute_psnr(target_components[0:self.height, :], other_frame[0:self.height, :], 
+                                           baseline_heighest_psnr["y"])
+        cb_psnr = VideoReader.compute_psnr(target_components[self.height:self.height + self.height // 4, :], 
+                                           other_frame[self.height:self.height + self.height // 4, :],
+                                           baseline_heighest_psnr['cb'])
+        cr_psnr = VideoReader.compute_psnr(target_components[self.height + self.height // 4:self.height + self.height // 2, :],
+                                           other_frame[self.height + self.height // 4:self.height + self.height // 2, :],
+                                           baseline_heighest_psnr['cr'])
 
         # render the image for debug 
         # target_bgr = cv2.cvtColor(target_components, cv2.COLOR_YCrCb2BGR)
@@ -93,23 +98,23 @@ class VideoReader:
         # cv2.imwrite(f"other_frame_{frame_number}.png", other_bgr)
         return y_psnr, cb_psnr, cr_psnr
 
-    @staticmethod
-    def render_single_component(
-        component_array: np.ndarray, component_type: VideoComponent
-    ):
-        cv2.imshow(str(component_type.value), component_array)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+    # @staticmethod
+    # def render_single_component(
+    #     component_array: np.ndarray, component_type: VideoComponent
+    # ):
+    #     cv2.imshow(str(component_type.value), component_array)
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
 
-    @staticmethod
-    def render_components(y: np.ndarray, cb: np.ndarray, cr: np.ndarray):
-        # OpenCV uses Y, Cr, Cb order
-        ycrcb_image = cv2.merge((y, cr, cb))
+    # @staticmethod
+    # def render_components(y: np.ndarray, cb: np.ndarray, cr: np.ndarray):
+    #     # OpenCV uses Y, Cr, Cb order
+    #     ycrcb_image = cv2.merge((y, cr, cb))
 
-        bgr_image = cv2.cvtColor(ycrcb_image, cv2.COLOR_YCrCb2BGR)
-        cv2.imshow("BGR", bgr_image)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+    #     bgr_image = cv2.cvtColor(ycrcb_image, cv2.COLOR_YCrCb2BGR)
+    #     cv2.imshow("BGR", bgr_image)
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
 
     @staticmethod
     def compute_psnr(target: np.ndarray, reference: np.ndarray, baseline_heighest_psnr: float = 100.0):

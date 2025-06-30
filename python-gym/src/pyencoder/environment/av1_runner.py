@@ -165,8 +165,7 @@ class Av1Runner:
             last_frame = frame
 
         assert last_frame != None
-        img_array = last_frame.to_ndarray(format="rgb24")
-        ycrcb_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2YCrCb)
+        ycrcb_array = last_frame.to_ndarray(format="yuv420p") # (3/2 * H, W)
 
         # if the last frame is a keyframe, we can write the bitstream to the file
         if last_frame.key_frame:
