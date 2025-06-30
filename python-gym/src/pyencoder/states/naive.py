@@ -1,7 +1,8 @@
+from pyencoder import SuperBlockInfo
 from .abstract import AbstractState
 from numpy import ndarray
 from typing import Any, Dict, List, Optional
-import cv2
+from pyencoder.environment.av1_runner import Observation
 import gymnasium as gym
 from pyencoder.utils.video_reader import VideoReader
 import numpy as np
@@ -13,7 +14,7 @@ class NaiveState(AbstractState):
     This class provides a simple way to handle states without complex processing.
     """
 
-    def __init__(self, video_reader: VideoReader, sb_size: int = 64,
+    def __init__(self, video_reader: VideoReader, baseline_observations: list[Observation], sb_size: int = 64,
                  **kwargs: Any):
         """
         Initialize the NaiveState with flexible arguments.
@@ -21,18 +22,21 @@ class NaiveState(AbstractState):
         """
         self.sb_size = sb_size
         self.num_sb = video_reader.get_num_superblock()
-        frame_count = video_reader.get_frame_count()
+        self.frame_count = video_reader.get_frame_count()
         array_length = self.get_observation_length()
         self.max_values = np.full(array_length, -np.inf, dtype=np.float32)
-        for i in range(frame_count):
-            frame = video_reader.read_frame(frame_number=i)
+        for raw_obs in baseline_observations:
+            frame = video_reader.read_frame(frame_number=raw_obs.picture_number)
             if frame is None or len(frame) == 0:
                 continue
-            obs = self.get_observation(frame, SB_SIZE=sb_size)
+            obs = self.get_observation(frame, raw_obs.superblocks, raw_obs.frame_type, raw_obs.picture_number)
             self.max_values = np.maximum(self.max_values, obs)
 
     def get_observation(self,
                         frame: ndarray,
+                        sbs: list[SuperBlockInfo], 
+                        frame_type: int,
+                        picture_number: int,
                         **kwargs) -> ndarray:
         """
         Get the current observation of the state. Promise to normalize the observation.
@@ -49,8 +53,9 @@ class NaiveState(AbstractState):
         y_comp_list = []
         h_mv_list = []
         v_mv_list = []
-        beta_list = []
+        qindex_list = []
 
+        sb_idx = 0
         for y in range(0, h, self.sb_size):
             for x in range(0, w, self.sb_size):  # follow encoder order, x changes first
                 y_end = min(y + self.sb_size, h)
@@ -65,11 +70,12 @@ class NaiveState(AbstractState):
                 beta = np.mean(np.abs(sb))  # Example metric
 
                 y_comp_list.append(sb_y_var)
-                h_mv_list.append(sb_x_mv)
-                v_mv_list.append(sb_y_mv)
-                beta_list.append(beta)
+                h_mv_list.append(sbs[sb_idx]['sb_x_mv'])
+                v_mv_list.append(sbs[sb_idx]['sb_y_mv'])
+                qindex_list.append(sbs[sb_idx]['sb_qindex'])
+                sb_idx += 1
 
-        obs = np.array([y_comp_list, h_mv_list, v_mv_list, beta_list], dtype=np.float32).flatten()
+        obs = np.array([y_comp_list, h_mv_list, v_mv_list, qindex_list], dtype=np.float32).flatten()
         # check for inf or nan values and handle them
         # if illegal, replace with self.max_values at the corresponding index
         obs = np.where(np.isfinite(obs), obs, self.max_values)

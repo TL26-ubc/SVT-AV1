@@ -33,8 +33,6 @@ class Av1GymEnv(gym.Env):
 
         # Initialize the VideoReader
         self.video_reader = VideoReader(path=video_path)
-        
-        self.state_wrapper = state(video_reader=self.video_reader, sb_size=SB_SIZE)
 
         self.lambda_rd = lambda_rd
         self._episode_done = threading.Event()
@@ -48,8 +46,6 @@ class Av1GymEnv(gym.Env):
             [QP_MAX - QP_MIN + 1]
             * self.num_superblocks
         )
-
-        self.observation_space = self.state_wrapper.get_observation_space()
 
         # RL/encoder communication
         self.queue_timeout = queue_timeout
@@ -65,9 +61,25 @@ class Av1GymEnv(gym.Env):
         self.encoder_thread = None
 
         # run the first round of encoding, save the baseline video at specified output path
-        self.av1_runner.run_SVT_AV1_encoder(
+        self.av1_runner.run(
             output_path=f"{str(output_dir)}/baseline_output.ivf"
         )
+
+        # Get baseline observations
+        baseline_obs = []
+        for _ in range(self.num_frames):
+            obs = self.av1_runner.wait_for_next_observation()
+            baseline_obs.append(obs)
+            self.av1_runner.send_action_response(skip=True)
+            _ = self.av1_runner.wait_for_feedback()
+
+        # ensure thread has finished
+        self.av1_runner.join()
+
+        self.state_wrapper = state(video_reader=self.video_reader, baseline_observations=baseline_obs, sb_size=SB_SIZE)
+
+        self.observation_space = self.state_wrapper.get_observation_space()
+
         self.y_psnr_list = []
         self.cb_psnr_list = []
         self.cr_psnr_list = []
@@ -153,9 +165,9 @@ class Av1GymEnv(gym.Env):
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
     ) -> Tuple[dict, dict]:
-        super().reset(seed=seed)
-
         print("Resetting environment...")
+
+        super().reset(seed=seed)
 
         # Reset episode state
         self.current_frame = 0
@@ -163,11 +175,11 @@ class Av1GymEnv(gym.Env):
         self.terminated = False
         self.frame_history.clear()
 
-        # Get initial observation (frame 0 state)
-        initial_obs = self._get_initial_observation()
-
         # Start encoder in separate thread
-        self._start_encoder_thread()
+        self.av1_runner.run()
+
+        # Get initial observation
+        initial_obs = self._get_next_observation()
 
         info = {
             "frame_number": self.current_frame,
@@ -179,7 +191,6 @@ class Av1GymEnv(gym.Env):
         return initial_obs, info
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
-        """Execute one step in the environment"""
         if self.terminated:
             raise RuntimeError("Episode has ended. Call reset() before step().")
 
@@ -194,41 +205,15 @@ class Av1GymEnv(gym.Env):
         
         # Convert action to QP offsets
         qp_offsets = self._action_to_qp_offsets(action)
-
-        # Wait for encoder to request action for this frame
-        action_request = self.av1_runner.wait_for_action_request(
-            timeout=self.queue_timeout
-        )
-
-        if action_request is None:
-            print("No action request received - episode terminated")
-            self.terminated = True
-            dummy_obs = np.zeros(
-                self.observation_space.shape, dtype=np.float32
-            )
-            return dummy_obs, 0.0, True, False, {"timeout": True}
-        
-        frame_number = action_request["picture_number"]
         
         # Send action response to encoder
-        self.av1_runner.send_action_response(qp_offsets.tolist())
+        self.av1_runner.send_action_response(action=qp_offsets.tolist())
         
         # Wait for encoding feedback
-        feedback = self.av1_runner.wait_for_feedback(timeout=self.queue_timeout)
-        
-        if feedback is None:
-            print("No feedback received - episode terminated")
-            self.terminated = True
-            return (
-                self._get_current_observation(),
-                0.0,
-                True,
-                False,
-                {"no_feedback": True},
-            )
+        feedback = self.av1_runner.wait_for_feedback()
 
         # Calculate reward
-        reward = self._calculate_reward(feedback, action_request, qp_offsets)
+        reward = self._calculate_reward(feedback, qp_offsets)
         self.current_episode_reward += reward
 
         # Update episode state
@@ -245,18 +230,17 @@ class Av1GymEnv(gym.Env):
         else:
             # Get next observation with validation
             try:
-                next_obs = self._get_current_observation()
+                next_obs = self._get_next_observation()
             except Exception as e:
                 print(f"Failed to get observation for frame {self.current_frame}: {e}")
                 # Force termination and return dummy observation
                 self.terminated = True
                 next_obs = np.zeros(self.observation_space.shape, dtype=np.float32)
-    
         
         # Store frame data
         self.frame_history.append(
             {
-                "frame_number": frame_number,
+                "frame_number": self.current_frame,
                 "qp_offsets": qp_offsets,
                 "reward": reward,
                 "feedback": feedback,
@@ -264,25 +248,22 @@ class Av1GymEnv(gym.Env):
         )
 
         info = {
-            "frame_number": frame_number,
+            "frame_number": self.current_frame,
             "reward": reward,
             "bitstream_size": feedback.get("bitstream_size", 0),
             "episode_frames": self.current_frame,
         }
 
-        # (f"Step completed - Frame: {frame_number}, Reward: {reward:.4f}")
-
         return next_obs, reward, self.terminated, False, info
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.close
     def close(self):
-
         print("Closing environment...")
 
         if self.encoder_thread and self.encoder_thread.is_alive():
             self._episode_done.set()
             self.encoder_thread.join(timeout=2.0)
-
+        
         print("Environment closed")
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.render
@@ -293,37 +274,23 @@ class Av1GymEnv(gym.Env):
         """Save the bitstream to a file"""
         self.av1_runner.save_bitstream_to_file(output_path, interrupt=interrupt)
 
-    def _get_initial_observation(self) -> np.ndarray:
-        """Get initial observation for episode start"""
-        try:
-            frame = self.video_reader.read_frame(frame_number=0)
-            frame_state = self.state_wrapper.get_observation(frame, SB_SIZE=SB_SIZE)
-            
-            # Validate the observation
-            validate_array(frame_state, "Initial observation (frame 0)")
-            
-            return frame_state
-            
-        except Exception as e:
-            raise InvalidStateError(f"Failed to get initial observation: {e}")
-    
-    def get_observation_stats(self) -> dict:
-        if self.observation_max_values is None:
-            raise ValueError(
-                "Observation normalization is not enabled."
-            )
-            
-        return {
-            "max_values": self.observation_max_values,
-            "num_superblocks": self.num_superblocks,
-            "num_frames": self.num_frames
-        }
-
-    def _get_current_observation(self) -> np.ndarray:
+    def _get_next_observation(self) -> tuple[np.ndarray]:
         """Get current observation based on current frame"""
         try:
-            frame = self.video_reader.read_frame(frame_number=0)
-            frame_state = self.state_wrapper.get_observation(frame, SB_SIZE=SB_SIZE)
+            observation = self.av1_runner.wait_for_next_observation()
+            current_frame = self.video_reader.read_frame(frame_number=observation.picture_number)
+
+            # Assert frame numbers match
+            assert (
+                observation.picture_number == self.current_frame
+            ), f"observation frame {observation.picture_number} != current_frame {self.current_frame}"
+
+            frame_state = self.state_wrapper.get_observation(
+                current_frame, 
+                observation.superblocks, 
+                observation.frame_type, 
+                observation.picture_number
+            )
             
             # Validate the observation
             validate_array(frame_state, f"Current observation (frame {self.current_frame})")
@@ -345,7 +312,7 @@ class Av1GymEnv(gym.Env):
         return qp_offsets
 
     def _calculate_reward(
-        self, feedback: Dict, action_request: Dict, qp_offsets: np.ndarray
+        self, feedback: Dict, qp_offsets: np.ndarray
     ) -> float:
         """Calculate reward based on encoding feedback"""
         try:
@@ -430,25 +397,6 @@ class Av1GymEnv(gym.Env):
             
         except Exception as e:
             raise InvalidRewardError(f"Failed to calculate reward for frame {self.current_frame}: {e}")
-
-    def _start_encoder_thread(self):
-        """Start encoder in separate thread"""
-        if self.encoder_thread and self.encoder_thread.is_alive():
-            # print("Waiting for previous encoder thread to terminate...")
-            self.encoder_thread.join(timeout=20.0)
-
-        self.encoder_thread = threading.Thread(
-            target=self._run_encoder, daemon=True, name="EncoderThread"
-        )
-        self.encoder_thread.start()
-        # Give the encoder thread a brief head start before returning to main thread
-        threading.Event().wait(0.05)  # Wait 50ms (adjust as needed)
-
-    def _run_encoder(self):
-        """Run encoder in separate thread"""
-        print("Starting encoder thread...")
-        self.av1_runner.run_SVT_AV1_encoder()
-        print(f"Encoder thread completed (thread id: {threading.get_ident()})")
 
     def _check_termination_conditions(self):
         """Check if episode should terminate"""

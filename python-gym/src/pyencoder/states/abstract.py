@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 from numpy import ndarray
+from pyencoder import SuperBlockInfo
 from pyencoder.utils.video_reader import VideoReader
 import gymnasium as gym
+from pyencoder.environment.av1_runner import Observation
+
 
 class AbstractState(ABC):
     """
@@ -10,7 +13,7 @@ class AbstractState(ABC):
     """
     
     @abstractmethod
-    def __init__(self, video_reader: VideoReader, sb_size: int = 64,
+    def __init__(self, video_reader: VideoReader, baseline_observations: list[Observation], sb_size: int = 64,
                  **kwargs: Any):
         """
         Initialize the state with any necessary parameters.
@@ -23,6 +26,9 @@ class AbstractState(ABC):
     @abstractmethod
     def get_observation(self, 
                         frame: ndarray,
+                        sbs: list[SuperBlockInfo], 
+                        frame_type: int,
+                        picture_number: int,
                         **kwargs) -> ndarray:
         """
         Get the current observation of the state.

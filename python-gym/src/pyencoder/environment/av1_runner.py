@@ -1,84 +1,34 @@
 import io
-import queue
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict
+from queue import Queue
 from pathlib import Path
+from pyencoder import SuperBlockInfo
+import threading
+from dataclasses import dataclass
 
 import av
 import cv2
 import pyencoder
-import numpy as np
+
+@dataclass
+class Observation:
+    superblocks: list[SuperBlockInfo]
+    frame_type: int
+    picture_number: int
+
+@dataclass
+class Action:
+    skip: bool
+    offsets: list[int]
 
 global the_only_object
 the_only_object = None
 
 def picture_feedback_trampoline(bitstream: bytes, size: int, picture_number: int):
-    """
-    Callback for receiving encoded picture data from the C encoder.
-
-    Args:
-        bitstream (bytes): The encoded bitstream for the picture.
-        size (int): The size of the bitstream.
-        picture_number (int): The frame number of the picture.
-    """
     the_only_object.picture_feedback(bitstream, size, picture_number)
 
-def get_deltaq_offset_trampoline(sbs: list[pyencoder.SuperBlockInfo], frame_type: int, picture_number: int) -> list[int]:
-    """
-    Callback to get QP offsets for superblocks in a frame.
-
-    Args:
-        picture_number (int): Current picture/frame number.
-    Returns:
-        list[int]: The filled offset list.
-    """
-    return the_only_object.get_deltaq_offset(picture_number)
-
-def superblocks_from_dims(width: int, height: int, block_size: int = 64) -> int:
-    """
-    Return the number of super-blocks (block_size × block_size tiles)
-    that cover a frame of size (width × height).
-
-    Uses ceiling division so partially-covered edges count as full blocks.
-    """
-    if block_size <= 0:
-        raise ValueError("block_size must be positive")
-
-    blocks_w = (width  + block_size - 1) // block_size
-    blocks_h = (height + block_size - 1) // block_size
-    return blocks_w * blocks_h
-
-
-def frame_dims_from_capture(cap: cv2.VideoCapture) -> tuple[int, int]:
-    """
-    Grab the first frame from an *open* cv2.VideoCapture and
-    return (width, height).  Restores the original frame pointer.
-    """
-    if not cap.isOpened():
-        raise ValueError("cv2.VideoCapture is not opened")
-
-    pos = cap.get(cv2.CAP_PROP_POS_FRAMES)
-    ok, frame = cap.read()
-    cap.set(cv2.CAP_PROP_POS_FRAMES, pos)  # restore
-
-    if not ok:
-        raise ValueError("Could not read a frame from capture")
-
-    height, width = frame.shape[:2]
-    return width, height
-
-def frame_dims_from_file(path: str | Path) -> tuple[int, int]:
-    """
-    Open the video at *path*, read its first frame, and return (width, height).
-    Closes the capture automatically.
-    """
-    cap = cv2.VideoCapture(str(path))
-    try:
-        if not cap.isOpened():
-            raise FileNotFoundError(f"Could not open video file: {path}")
-        return frame_dims_from_capture(cap)
-    finally:
-        cap.release()
+def get_deltaq_offset_trampoline(sbs: list[SuperBlockInfo], frame_type: int, picture_number: int) -> list[int]:
+    return the_only_object.get_deltaq_offset(sbs, frame_type, picture_number)
 
 class Av1Runner:
     """
@@ -107,13 +57,35 @@ class Av1Runner:
         self.first_round_byte_usage = {}  # Store byte usage for the first round
 
         # Synchronization
-        self.action_request_queue = queue.Queue(maxsize=1)  # Encoder requests action
-        self.action_response_queue = queue.Queue(maxsize=1)  # RL provides action
-        self.feedback_queue = queue.Queue(maxsize=10)  # Encoder provides feedback to RL
+        self.observation_queue: Queue[Observation] = Queue(maxsize=1) # Encoder provides observation
+        self.action_queue: Queue[Action] = Queue(maxsize=1) # RL provides action
+        self.feedback_queue: Queue = Queue(maxsize=10) # Encoder provides feedback to RL
+        self.encoder_thread: threading.Thread = None # Encoding thread
 
-    def run_SVT_AV1_encoder(self, output_path: str = None):
-        self.reset_parameter()
-        self.register_callback()
+    def run(self, output_path: str = None, block: bool = False):
+        """
+        Start the encoder in a new thread.
+        If block is True, wait for the encoder to finish.
+        """
+        if self.encoder_thread and self.encoder_thread.is_alive():
+            print("Waiting for previous encoder thread to terminate...")
+            self.encoder_thread.join(timeout=20.0)
+
+        self.encoder_thread = threading.Thread(
+            target=self._run_encoder,
+            args=(output_path,),
+            daemon=True,
+            name="EncoderThread"
+        )
+        self.encoder_thread.start()
+
+        if block:
+            self.encoder_thread.join()
+
+    def _run_encoder(self, output_path: str = None):
+        print("Starting encoder thread...")
+        self.reset()
+        self.register_callbacks()
 
         args = {
             "input": self.video_path,
@@ -123,31 +95,24 @@ class Av1Runner:
             "enable_stat_report": True,
         }
 
-        # Add the output path only when provided
         if output_path:
             args["b"] = output_path
 
-        # run the encoder
         pyencoder.run(**args)
 
+    def join(self):
+        if not self.encoder_thread or not self.encoder_thread.is_alive():
+            return
+        else:
+            self.encoder_thread.join()
 
-        if self.first_round:
-            self.first_round = False
-            print(
-                "First round completed, should be the result of the original SVT-AV1 encoder."
-            )
-
-            # Store the byte usage for the first round
-            for picture_number, bitstream in self.bytes_keeper.items():
-                self.first_round_byte_usage[picture_number] = len(bitstream)
-
-    def register_callback(self):
+    def register_callbacks(self):
         pyencoder.register_callbacks(
             get_deltaq_offset=get_deltaq_offset_trampoline,
             picture_feedback=picture_feedback_trampoline,
         )
 
-    def reset_parameter(self):
+    def reset(self):
         """
         Reset the callback state, clearing the bytes_keeper and all_bitstreams.
         This is typically called at the start of a new encoding session.
@@ -158,11 +123,11 @@ class Av1Runner:
         self.all_bitstreams = io.BytesIO()
 
         # Clear queues
-        while not self.action_request_queue.empty():
-            self.action_request_queue.get_nowait()
+        while not self.observation_queue.empty():
+            self.observation_queue.get_nowait()
 
-        while not self.action_response_queue.empty():
-            self.action_response_queue.get_nowait()
+        while not self.action_queue.empty():
+            self.action_queue.get_nowait()
 
         while not self.feedback_queue.empty():
             self.feedback_queue.get_nowait()
@@ -177,12 +142,7 @@ class Av1Runner:
         Callback for receiving encoded picture data from the C encoder.
         This sends feedback to the RL environment.
         """
-
         self.bytes_keeper[picture_number] = bitstream
-        if self.first_round:
-            # If it's the first round, we don't process the bitstream
-            return
-
         encoded_frame_data = self.get_last_frame(bitstream=bitstream)
 
         # Prepare feedback for RL environment
@@ -194,8 +154,6 @@ class Av1Runner:
 
         # Send feedback to RL environment (non-blocking)
         self.feedback_queue.put_nowait(feedback_data)
-
-        # print(f"Picture feedback sent for frame {picture_number}, size: {size}")
 
     def get_last_frame(self, bitstream):
         byte_file = self.all_bitstreams
@@ -218,51 +176,56 @@ class Av1Runner:
         container.close()
         return ycrcb_array
 
-    def get_deltaq_offset(self, picture_number: int) -> list[int]:
+    def get_deltaq_offset(self, sbs: list[SuperBlockInfo], frame_type: int, picture_number: int) -> list[int]:
         """
         Callback to get QP offsets for superblocks in a frame.
         This method MUST return immediately as the encoder waits synchronously.
         """
-
-        if self.first_round:
-            return [114514] * self.sb_total_count  # Dummy offsets for first round
-
         # Request action from RL environment
-        action_request = {"picture_number": picture_number, "timestamp": time.time()}
+        observation = Observation(
+            picture_number=picture_number,
+            superblocks=sbs,
+            frame_type=frame_type,
+        )
 
         # Send action request to RL environment (blocking call)
-        self.action_request_queue.put_nowait(action_request)
+        self.observation_queue.put_nowait(observation)
 
         # Wait for RL response
-        action_response = self.action_response_queue.get(timeout=1000)
+        action = self.action_queue.get()
 
-        if len(action_response) != self.sb_total_count:
-            raise ValueError(
-                f"Action response length mismatch. Expected {self.sb_total_count}, got {len(action_response)}"
-            )
+        # Dummy offsets to skip
+        if action.skip:
+            return [114514] * self.sb_total_count
 
-        return action_response
+        if len(action.offsets) != self.sb_total_count:
+            raise ValueError(f"Action response length mismatch. Expected {self.sb_total_count}, got {len(action_response)}")
 
-    def wait_for_action_request(self, timeout=None) -> Optional[Dict]:
+        return action.offsets
+
+    def wait_for_next_observation(self) -> Observation:
         """
         Wait for action request from encoder.
         Called by RL environment to get the next frame to process.
         """
-        return self.action_request_queue.get(timeout=timeout)
+        return self.observation_queue.get()
 
-    def send_action_response(self, action_list: List[int]):
+    def send_action_response(self, *, action: List[int] = None, skip = False):
         """
         Send action response to encoder.
         Called by RL environment to provide QP offsets.
         """
-        self.action_response_queue.put(action_list, timeout=0.1)
+        self.action_queue.put(Action(
+            skip=skip,
+            offsets=action
+        ))
 
-    def wait_for_feedback(self, timeout=None) -> Optional[Dict]:
+    def wait_for_feedback(self) -> Optional[Dict]:
         """
         Wait for feedback from encoder.
         Called by RL environment to get encoding results.
         """
-        return self.feedback_queue.get(timeout=timeout)
+        return self.feedback_queue.get()
 
     def get_byte_usage_diff(self, picture_number: int) -> tuple[int, int]:
         """
@@ -344,3 +307,48 @@ def ivf_header(num_frames, width, height, fourcc=b'AV01'):
 
 def ivf_frame_header(frame_bytes, pts):
     return len(frame_bytes).to_bytes(4, 'little') + pts.to_bytes(8, 'little')
+
+def superblocks_from_dims(width: int, height: int, block_size: int = 64) -> int:
+    """
+    Return the number of super-blocks (block_size × block_size tiles)
+    that cover a frame of size (width × height).
+
+    Uses ceiling division so partially-covered edges count as full blocks.
+    """
+    if block_size <= 0:
+        raise ValueError("block_size must be positive")
+
+    blocks_w = (width  + block_size - 1) // block_size
+    blocks_h = (height + block_size - 1) // block_size
+    return blocks_w * blocks_h
+
+def frame_dims_from_capture(cap: cv2.VideoCapture) -> tuple[int, int]:
+    """
+    Grab the first frame from an *open* cv2.VideoCapture and
+    return (width, height).  Restores the original frame pointer.
+    """
+    if not cap.isOpened():
+        raise ValueError("cv2.VideoCapture is not opened")
+
+    pos = cap.get(cv2.CAP_PROP_POS_FRAMES)
+    ok, frame = cap.read()
+    cap.set(cv2.CAP_PROP_POS_FRAMES, pos) # restore
+
+    if not ok:
+        raise ValueError("Could not read a frame from capture")
+
+    height, width = frame.shape[:2]
+    return width, height
+
+def frame_dims_from_file(path: str | Path) -> tuple[int, int]:
+    """
+    Open the video at *path*, read its first frame, and return (width, height).
+    Closes the capture automatically.
+    """
+    cap = cv2.VideoCapture(str(path))
+    try:
+        if not cap.isOpened():
+            raise FileNotFoundError(f"Could not open video file: {path}")
+        return frame_dims_from_capture(cap)
+    finally:
+        cap.release()
