@@ -20,6 +20,7 @@ class WandbCallback(BaseCallback):
         self.episode_psnr_y = []
         self.episode_psnr_cb = []
         self.episode_psnr_cr = []
+        self.episode_bitrates = []
 
     def _on_step(self) -> bool:
         # Log step-level metrics
@@ -46,7 +47,7 @@ class WandbCallback(BaseCallback):
         self.current_episode_reward += self.locals.get('rewards', [0])[-1]
         self.current_episode_length += 1
         
-        # Get PSNR values from environment info
+        # Get PSNR values and bitrate from environment info
         if 'infos' in self.locals:
             for info in self.locals['infos']:
                 if 'y_psnr' in info:
@@ -55,6 +56,8 @@ class WandbCallback(BaseCallback):
                     self.episode_psnr_cb.append(info['cb_psnr'])
                 if 'cr_psnr' in info:
                     self.episode_psnr_cr.append(info['cr_psnr'])
+                if 'bitstream_size' in info:
+                    self.episode_bitrates.append(info['bitstream_size'])
         
         # Check if episode is done
         if self.locals.get('dones', [False])[-1]:
@@ -69,6 +72,8 @@ class WandbCallback(BaseCallback):
                 "episode/mean_y_psnr": np.mean(self.episode_psnr_y) if self.episode_psnr_y else 0,
                 "episode/mean_cb_psnr": np.mean(self.episode_psnr_cb) if self.episode_psnr_cb else 0,
                 "episode/mean_cr_psnr": np.mean(self.episode_psnr_cr) if self.episode_psnr_cr else 0,
+                "episode/mean_bitrate": np.mean(self.episode_bitrates) if self.episode_bitrates else 0,
+                "episode/total_bitrate": np.sum(self.episode_bitrates) if self.episode_bitrates else 0,
             }
             
             wandb.log(episode_metrics)
@@ -79,6 +84,7 @@ class WandbCallback(BaseCallback):
             self.episode_psnr_y = []
             self.episode_psnr_cb = []
             self.episode_psnr_cr = []
+            self.episode_bitrates = []
             
         return True
 
