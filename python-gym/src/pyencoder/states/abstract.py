@@ -35,7 +35,8 @@ class AbstractState(ABC):
         """
         Get the current observation of the state.
         Parameters:
-            frame ndarray: The current frame.
+            frame ndarray: The current frame in yuv420p format, shape (3/2 * H, W).
+                [0:H] is Y component, [H:H + H//2] is Cb component, and [H + H//2:H + H] is Cr component.
             superblocks: A list of superblock info, including locations and motion vectors.
             frame_type: An int representing the type of frame.
             picture_number: The current frame's number in the sequence.

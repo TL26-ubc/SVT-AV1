@@ -28,13 +28,15 @@ class NaiveState(AbstractState):
 
     def get_observation(
         self,
-        frame: np.ndarray,
+        frame: np.ndarray, # The current frame in yuv420p format, shape (3/2 * H, W).
         sbs: list[SuperBlockInfo], 
         frame_type: int,
         picture_number: int,
         **kwargs
     ) -> np.ndarray:
         h, w = frame.shape[:2]
+        assert h % 3 == 0, "Height must be a multiple of 3 for yuv420p format"
+        h, w = h // 3 * 2, w  # Adjust for yuv420p format
         y_comp_list = []
         h_mv_list = []
         v_mv_list = []
@@ -45,14 +47,16 @@ class NaiveState(AbstractState):
             for x in range(0, w, self.sb_size):  # follow encoder order, x changes first
                 y_end = min(y + self.sb_size, h)
                 x_end = min(x + self.sb_size, w)
-                sb = frame[y:y_end, x:x_end]
-                if sb.size == 0:
+                sb_y_component = frame[y:y_end, x:x_end]
+                # sb_cb_component = frame[h + y // 2:h + y_end // 2, x:x_end]
+                # sb_cr_component = frame[h + h // 2 + y // 2:h + h // 2 + y_end // 2, x:x_end]
+                if sb_y_component.size == 0:
                     continue
-
-                sb_y_var = np.var(sb[:, :, 0])  # Y-component variance
-                # sb_x_mv = np.mean(sb[:, :, 1])  # Horizontal mean value
-                # sb_y_mv = np.mean(sb[:, :, 2])  # Vertical mean value
-                # beta = np.mean(np.abs(sb))  # Example metric
+                
+                # Y-component variance
+                sb_y_var = np.var(sb_y_component)
+                # sb_cb_var = np.var(sb_cb_component)
+                # sb_cr_var = np.var(sb_cr_component)
 
                 y_comp_list.append(sb_y_var)
                 h_mv_list.append(sbs[sb_idx]['sb_x_mv'])

@@ -1,17 +1,9 @@
-import csv
 import enum
 from typing import Literal, Optional, Tuple, TypeAlias, cast
-
 import av
 import cv2
 import numpy as np
 from numpy import ndarray
-
-import os
-
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.colors import LinearSegmentedColormap
 from pyencoder.environment.constants import SB_SIZE
 
 class VideoComponent(enum.Enum):
@@ -44,7 +36,7 @@ class VideoReader:
                 self._frame_count = count
                 self.container.seek(0)
 
-    def _get_frame_at_index(self, frame_number):
+    def _get_frame_at_index(self, frame_number) -> Optional[av.VideoFrame]:
         """Get PyAV frame at specific index"""
         if frame_number in self._frames_cache:
             return self._frames_cache[frame_number]
@@ -59,15 +51,14 @@ class VideoReader:
             current_index += 1
         return None
 
-    def read_frame(self, frame_number) -> Optional[np.ndarray]: # (H, W, 3)
+    def read_frame(self, frame_number) -> Optional[np.ndarray]: 
+        # The current frame in yuv420p format, shape (3/2 * H, W).
         av_frame = self._get_frame_at_index(frame_number)
         if av_frame is None:
             return None
         
-        # Convert to RGB then to BGR to match cv2 format
-        rgb_array = av_frame.to_ndarray(format='rgb24')
-        bgr_array = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
-        return bgr_array
+        # yuv420p format conversion
+        return av_frame.to_ndarray(format='yuv420p')
 
     def release(self):
         self.container.close()
@@ -76,7 +67,7 @@ class VideoReader:
     def get_resolution(self) -> Tuple[int, int]:
         return self.width, self.height
 
-    def read_ycrcb_components(self, frame_number: int) -> Optional[np.ndarray]: # (3/2 * H, W)
+    def read_ycrcb_components(self, frame_number: int) -> Optional[np.ndarray]: # (3/2 * H, W) in yuv420p format
         av_frame = self._get_frame_at_index(frame_number)
         if av_frame is None:
             return None
@@ -88,16 +79,6 @@ class VideoReader:
     def get_frame_count(self) -> int:
         self._ensure_frame_count()
         return self._frame_count
-
-    def render_frame_number(self, frame_number: int):
-        frame = self.read_frame(frame_number=frame_number)
-        if frame is not None:
-            self.render_frame(frame)
-
-    def render_frame(self, frame: np.ndarray):
-        cv2.imshow("Frame", frame)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
 
     # sb info
     def get_num_superblock(self):
