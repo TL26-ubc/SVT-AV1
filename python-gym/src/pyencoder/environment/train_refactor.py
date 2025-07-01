@@ -139,6 +139,12 @@ def prase_arg():
         action="store_true", 
         help="Disable observation state normalization"
     )
+    
+    parser.add_argument(
+        "--wandb",
+        action="enable wandb logging, put any value here to enable",
+        default=None,
+    )
 
     args = parser.parse_args()
     return args
@@ -151,21 +157,6 @@ def prase_arg():
 if __name__ == "__main__":
 
     args = prase_arg()
-
-    # Initialize wandb
-    wandb.init(
-        project="av1-video-encoding",
-        config={
-            "algorithm": args.algorithm,
-            "learning_rate": args.learning_rate,
-            "batch_size": args.batch_size,
-            "n_steps": args.n_steps,
-            "lambda_rd": args.lambda_rd,
-            "total_iteration": args.total_iteration,
-            "video_file": args.file,
-        },
-        name=f"{args.algorithm}_lr{args.learning_rate}_rd{args.lambda_rd}"
-    )
 
     # create envirnment
     base_output_path = Path(args.output_dir)
@@ -224,7 +215,23 @@ if __name__ == "__main__":
     total_timesteps = args.total_iteration * gyn_env.num_frames
 
     # Create wandb callback
-    wandb_callback = WandbCallback()
+    
+    # Initialize wandb
+    if args.wandb is None:
+        wandb.init(
+            project="av1-video-encoding",
+            config={
+                "algorithm": args.algorithm,
+                "learning_rate": args.learning_rate,
+                "batch_size": args.batch_size,
+                "n_steps": args.n_steps,
+                "lambda_rd": args.lambda_rd,
+                "total_iteration": args.total_iteration,
+                "video_file": args.file,
+            },
+            name=f"{args.algorithm}_lr{args.learning_rate}_rd{args.lambda_rd}"
+        )
+        wandb_callback = WandbCallback()
 
     # training
     try:

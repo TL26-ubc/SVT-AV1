@@ -64,4 +64,7 @@ python-gym/src/pyencoder/environment/rl_training_output/
 
 # graphing
 graphing/graphs/
-graphing/wandb
+
+# wandb
+wandb/
+**/wandb/

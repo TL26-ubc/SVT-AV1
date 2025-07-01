@@ -20,4 +20,5 @@ fi
 python3 ../python-gym/src/pyencoder/environment/train_refactor.py \
     --file "$path" \
     --output_dir ../Output \
+    --wandb True \
     --total_iteration $iterations 2> >(tee $output_console >&2)
