@@ -65,6 +65,8 @@ class NaiveState(AbstractState):
                 sb_idx += 1
 
         obs = np.array([y_comp_list, h_mv_list, v_mv_list, qindex_list], dtype=np.float32).flatten()
+        obs = np.append(obs, np.float32(picture_number))  # Append picture number as the last element
+        
         # check for inf or nan values and handle them
         # if illegal, replace with self.max_values at the corresponding index
         obs = np.where(np.isfinite(obs), obs, self.max_values)
@@ -76,7 +78,7 @@ class NaiveState(AbstractState):
         
         Return an integer as the length of the 1D numpy array.
         """
-        return 4 * self.num_sb
+        return 4 * self.num_sb + 1
     
     def get_observation_space(self) -> gym.spaces.Space:
         """

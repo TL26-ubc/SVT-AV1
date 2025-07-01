@@ -142,7 +142,7 @@ def prase_arg():
     
     parser.add_argument(
         "--wandb",
-        action="enable wandb logging, put any value here to enable",
+        help="enable wandb logging, put any value here to enable",
         default=None,
     )
 
@@ -157,6 +157,22 @@ def prase_arg():
 if __name__ == "__main__":
 
     args = prase_arg()
+    # Initialize wandb
+    if args.wandb is not None:
+        wandb.init(
+            project="av1-video-encoding",
+            config={
+                "algorithm": args.algorithm,
+                "learning_rate": args.learning_rate,
+                "batch_size": args.batch_size,
+                "n_steps": args.n_steps,
+                "lambda_rd": args.lambda_rd,
+                "total_iteration": args.total_iteration,
+                "video_file": args.file,
+            },
+            name=f"{args.algorithm}_lr{args.learning_rate}_rd{args.lambda_rd}"
+        )
+        wandb_callback = WandbCallback()
 
     # create envirnment
     base_output_path = Path(args.output_dir)
@@ -213,31 +229,12 @@ if __name__ == "__main__":
             raise ValueError(f"Unsupported algorithm '{other}'. Choose either 'ppo' or 'dqn'.")
         
     total_timesteps = args.total_iteration * gyn_env.num_frames
-
-    # Create wandb callback
     
-    # Initialize wandb
-    if args.wandb is None:
-        wandb.init(
-            project="av1-video-encoding",
-            config={
-                "algorithm": args.algorithm,
-                "learning_rate": args.learning_rate,
-                "batch_size": args.batch_size,
-                "n_steps": args.n_steps,
-                "lambda_rd": args.lambda_rd,
-                "total_iteration": args.total_iteration,
-                "video_file": args.file,
-            },
-            name=f"{args.algorithm}_lr{args.learning_rate}_rd{args.lambda_rd}"
-        )
-        wandb_callback = WandbCallback()
-
     # training
     try:
         model.learn(
             total_timesteps=total_timesteps,
-            callback=wandb_callback,
+            callback=wandb_callback if args.wandb else None,
             tb_log_name=f"{args.algorithm}_run",
         )
 
