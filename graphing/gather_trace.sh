@@ -14,10 +14,11 @@ fi
 
 iterations="$3"
 if [ -z "$iterations" ]; then
-    iterations=50
+    iterations=1000
 fi
 
 python3 ../python-gym/src/pyencoder/environment/train_refactor.py \
     --file "$path" \
     --output_dir ../Output \
+    --wandb True \
     --total_iteration $iterations 2> >(tee $output_console >&2)

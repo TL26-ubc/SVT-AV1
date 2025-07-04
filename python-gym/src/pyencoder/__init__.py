@@ -1,11 +1,19 @@
+from dataclasses import dataclass
 from importlib import import_module as _imp
+from typing import TypedDict
 
-from pyencoder.av1_wrapper import register_callbacks, run
+av1_wrapper = _imp(".av1_wrapper", package=__name__)
+_run = av1_wrapper.run
+_register = av1_wrapper.register_callbacks
 
-# av1_wrapper = _imp(".av1_wrapper", package=__name__)
-_run = run
-_register = register_callbacks
-
+class SuperBlockInfo(TypedDict):
+    sb_org_x: int
+    sb_org_y: int
+    sb_width: int
+    sb_height: int
+    sb_qindex: int
+    sb_x_mv: int
+    sb_y_mv: int
 
 def run(**kwargs):
     argv = ["svtav1"]
@@ -23,7 +31,6 @@ def run(**kwargs):
         else:
             argv.extend([flag, str(val)])
 
-    print(argv)
     _run(argv)
 
 

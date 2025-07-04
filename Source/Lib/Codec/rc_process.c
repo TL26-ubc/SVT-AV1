@@ -1235,16 +1235,39 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
     assert(scs->sb_total_count == ppcs->b64_total_count);
 
     uint32_t sb_cnt = ppcs->b64_total_count;
-
 #ifdef SVT_ENABLE_USER_CALLBACKS
+    SuperBlockInfo sb_info_array[sb_cnt];
     int offset_array[sb_cnt];
+    memset(sb_info_array, 0, sizeof(sb_info_array));
     memset(offset_array, 0, sizeof(offset_array));
 
     if (plugin_cbs.user_get_deltaq_offset) {
+        // Construct superblock info
+        for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) { 
+            SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
+            SuperBlockInfo *sb_info = &sb_info_array[sb_addr];
+            
+            const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
+            const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
+
+            sb_info->sb_org_x = sb_ptr->org_x;
+            sb_info->sb_org_y = sb_ptr->org_y;
+            sb_info->sb_width = sb_width;
+            sb_info->sb_height = sb_height;
+            sb_info->sb_qindex = (uint8_t)sb_ptr->qindex;
+
+            MeSbResults *me_res = ppcs->pa_me_data->me_results[sb_addr];
+            MvCandidate mv = me_res->me_mv_array[0]; // 0 idx is for overall estimate
+            sb_info->sb_x_mv = mv.x_mv;
+            sb_info->sb_y_mv = mv.y_mv;
+        }
+
         // Call callback with frame number as main parameter
-        plugin_cbs.user_get_deltaq_offset(offset_array,
+        plugin_cbs.user_get_deltaq_offset(sb_info_array,
+                                          offset_array,
                                           sb_cnt,
-                                          (int32_t)pcs->picture_number // Main parameter: frame number
+                                          (int32_t)pcs->ppcs->frm_hdr.frame_type,
+                                          (int32_t)pcs->picture_number
         );
 
         if (offset_array[0] == 114514) {
