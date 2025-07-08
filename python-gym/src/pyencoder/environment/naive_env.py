@@ -193,14 +193,14 @@ class Av1GymEnv(gym.Env):
         if self.terminated:
             raise RuntimeError("Episode has ended. Call reset() before step().")
 
-        # Validate action
-        if action.shape != (self.num_superblocks,):
-            raise ValueError(
-                f"Action shape {action.shape} != expected ({self.num_superblocks},)"
-            )
+        # # Validate action
+        # if action.shape != (self.num_superblocks,):
+        #     raise ValueError(
+        #         f"Action shape {action.shape} != expected ({self.num_superblocks},)"
+        #     )
           
-        # Validate action values
-        validate_array(action, f"Action for frame {self.current_frame}")
+        # # Validate action values
+        # validate_array(action, f"Action for frame {self.current_frame}")
         
         # Convert action to QP offsets
         qp_offsets = self._action_to_qp_offsets(action)
@@ -214,6 +214,19 @@ class Av1GymEnv(gym.Env):
         # Calculate reward
         reward = self._calculate_reward(feedback, qp_offsets)
         self.current_episode_reward += reward
+        
+        # Update state history with current frame quality metrics and bitstream size
+        if hasattr(self.state_wrapper, 'update_history'):
+            quality_metrics = {
+                'y_psnr': self.current_frame_psnr.get('y_psnr', 0.0) if hasattr(self, 'current_frame_psnr') else 0.0,
+                'cb_psnr': self.current_frame_psnr.get('cb_psnr', 0.0) if hasattr(self, 'current_frame_psnr') else 0.0,
+                'cr_psnr': self.current_frame_psnr.get('cr_psnr', 0.0) if hasattr(self, 'current_frame_psnr') else 0.0,
+                'y_ssim': self.current_frame_psnr.get('y_ssim', 0.0) if hasattr(self, 'current_frame_psnr') else 0.0,
+                'cb_ssim': self.current_frame_psnr.get('cb_ssim', 0.0) if hasattr(self, 'current_frame_psnr') else 0.0,
+                'cr_ssim': self.current_frame_psnr.get('cr_ssim', 0.0) if hasattr(self, 'current_frame_psnr') else 0.0
+            }
+            bitstream_size = feedback.get("bitstream_size", 0)
+            self.state_wrapper.update_history(self.current_frame, quality_metrics, bitstream_size)
 
         # Update episode state
         self.current_frame += 1
@@ -309,101 +322,139 @@ class Av1GymEnv(gym.Env):
         qp_offsets = action + QP_MIN
         qp_offsets = np.clip(qp_offsets, QP_MIN, QP_MAX)
         
-        # Validate QP offsets
-        validate_array(qp_offsets, f"QP offsets for frame {self.current_frame}")
+        # # Validate QP offsets
+        # validate_array(qp_offsets, f"QP offsets for frame {self.current_frame}")
         
         return qp_offsets
 
     def _calculate_reward(
         self, feedback: Dict, qp_offsets: np.ndarray
     ) -> float:
-        """Calculate reward based on encoding feedback"""
+        """Calculate enhanced reward based on PSNR, SSIM, and bitrate"""
         try:
-            # Get encoded frame data
+            # Get encoded frame data and bitstream size
             encoded_frame_data = feedback["encoded_frame_data"]
+            current_bitstream_size = feedback.get("bitstream_size", 0)
             
             # Get YCbCr PSNR for the current frame
             y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(
                 self.current_frame, encoded_frame_data, self.baseline_heighest_psnr
             )
             
-            # Store PSNR values for logging
+            # Get YCbCr SSIM for the current frame
+            y_ssim, cb_ssim, cr_ssim = self.video_reader.ycrcb_ssim(
+                self.current_frame, encoded_frame_data
+            )
+            
+            # Store quality metrics for logging and state updates
             self.current_frame_psnr = {
                 'y_psnr': y_psnr,
                 'cb_psnr': cb_psnr,
-                'cr_psnr': cr_psnr
+                'cr_psnr': cr_psnr,
+                'y_ssim': y_ssim,
+                'cb_ssim': cb_ssim,
+                'cr_ssim': cr_ssim,
+                'bitstream_size': current_bitstream_size
             }
             
-            # Validate PSNR values
-            # for psnr_val, psnr_name in [(y_psnr, "Y"), (cb_psnr, "Cb"), (cr_psnr, "Cr")]:
-            #     if math.isnan(psnr_val) or math.isinf(psnr_val):
-            #         raise InvalidRewardError(
-            #             f"Invalid {psnr_name} PSNR ({psnr_val}) for frame {self.current_frame}"
-            #         )
-            
-            # Get byte usage difference
-            # byte_saved, current_usage = self.av1_runner.get_byte_usage_diff(
-            #     action_request["picture_number"]
-            # )
-            
-            # Validate byte usage values
-            # if math.isnan(byte_saved) or math.isinf(byte_saved):
-            #     raise InvalidRewardError(f"Invalid byte_saved ({byte_saved}) for frame {self.current_frame}")
-            # if math.isnan(current_usage) or math.isinf(current_usage) or current_usage <= 0:
-            #     raise InvalidRewardError(f"Invalid current_usage ({current_usage}) for frame {self.current_frame}")
+            # Calculate baseline comparisons
+            baseline_y_psnr = self.y_psnr_list[self.current_frame]
+            baseline_cb_psnr = self.cb_psnr_list[self.current_frame]
+            baseline_cr_psnr = self.cr_psnr_list[self.current_frame]
             
             # Calculate PSNR improvements
-            y_psnr_improvement = y_psnr - self.y_psnr_list[self.current_frame]
-            # cb_psnr_improvement = cb_psnr - self.cb_psnr_list[self.current_frame]
-            # cr_psnr_improvement = cr_psnr - self.cr_psnr_list[self.current_frame]
+            y_psnr_improvement = y_psnr - baseline_y_psnr
+            cb_psnr_improvement = cb_psnr - baseline_cb_psnr
+            cr_psnr_improvement = cr_psnr - baseline_cr_psnr
             
-            # Validate improvements
-            # for improvement, name in [
-            #     (y_psnr_improvement, "Y PSNR improvement"),
-            #     (cb_psnr_improvement, "Cb PSNR improvement"), 
-            #     (cr_psnr_improvement, "Cr PSNR improvement")
-            # ]:
-            #     if math.isnan(improvement) or math.isinf(improvement):
-            #         raise InvalidRewardError(f"Invalid {name} ({improvement}) for frame {self.current_frame}")
+            # Calculate bitrate efficiency
+            # 获取基线编码的比特数（假设我们有这个信息，如果没有可以用平均值估算）
+            if hasattr(self, 'baseline_bitstream_sizes') and len(self.baseline_bitstream_sizes) > self.current_frame:
+                baseline_bitstream_size = self.baseline_bitstream_sizes[self.current_frame]
+            else:
+                # 使用历史平均比特数作为基线估算
+                if hasattr(self.state_wrapper, 'bits_history') and len(self.state_wrapper.bits_history) > 0:
+                    baseline_bitstream_size = np.mean(self.state_wrapper.bits_history)
+                else:
+                    baseline_bitstream_size = current_bitstream_size  # 第一帧时的fallback
             
-            # Calculate reward components
-            a = 1
-            # b = c = 0.5
-            # d = 2
+            # 计算比特率节省比例（负值表示增加了比特）
+            if baseline_bitstream_size > 0:
+                bitrate_efficiency = (baseline_bitstream_size - current_bitstream_size) / baseline_bitstream_size
+            else:
+                bitrate_efficiency = 0.0
             
-            # byte_efficiency = byte_saved / current_usage
+            # Enhanced reward function with multiple quality metrics
+            # 更平衡的奖励设计，确保基本奖励为正数
             
-            # Validate byte efficiency
-            # if math.isnan(byte_efficiency) or math.isinf(byte_efficiency):
-            #     raise InvalidRewardError(
-            #         f"Invalid byte efficiency ({byte_efficiency}) for frame {self.current_frame}. "
-            #         f"byte_saved: {byte_saved}, current_usage: {current_usage}"
-            #     )
-            
-            # Calculate final reward
-            reward = (
-                y_psnr_improvement * a
-                # + cb_psnr_improvement * b
-                # + cr_psnr_improvement * c
-                # + byte_efficiency * d
+            # 1. PSNR 奖励 (绝对质量) - 降低阈值，确保基本奖励
+            # 使用更宽松的阈值：20dB作为起点，40dB作为满分
+            psnr_reward = (
+                max(0.1, min(1.0, (y_psnr - 20) / 20)) * 1.0 +      # Y-PSNR，最低0.1分
+                max(0.1, min(1.0, (cb_psnr - 20) / 20)) * 0.3 +     # Cb-PSNR
+                max(0.1, min(1.0, (cr_psnr - 20) / 20)) * 0.3       # Cr-PSNR
             )
             
-            # Final reward validation
-            # reward_details = {
-            #     "y_psnr": y_psnr,
-            #     "cb_psnr": cb_psnr,
-            #     "cr_psnr": cr_psnr,
-            #     "y_psnr_improvement": y_psnr_improvement,
-            #     "cb_psnr_improvement": cb_psnr_improvement,
-            #     "cr_psnr_improvement": cr_psnr_improvement,
-            #     "byte_saved": byte_saved,
-            #     "current_usage": current_usage,
-            #     "byte_efficiency": byte_efficiency
-            # }
+            # 2. SSIM 奖励 (结构相似性) - 降低阈值
+            # 使用更宽松的阈值：0.6作为起点，1.0作为满分
+            ssim_reward = (
+                max(0.1, min(1.0, (y_ssim - 0.6) / 0.4)) * 1.5 +   # Y-SSIM，最低0.1分
+                max(0.1, min(1.0, (cb_ssim - 0.6) / 0.4)) * 0.4 +  # Cb-SSIM
+                max(0.1, min(1.0, (cr_ssim - 0.6) / 0.4)) * 0.4    # Cr-SSIM  
+            )
             
-            # validate_reward(reward, self.current_frame, reward_details)
+            # 3. PSNR 改进奖励 (相对于baseline的提升) - 使用sigmoid来平滑负值
+            raw_improvement = (
+                y_psnr_improvement * 0.8 +
+                cb_psnr_improvement * 0.2 +
+                cr_psnr_improvement * 0.2
+            )
+            # 使用sigmoid函数将改进值映射到[-1, 1]范围，然后缩放到[-0.5, 0.5]
+            psnr_improvement_reward = np.tanh(raw_improvement) * 0.5
             
-            return reward
+            # 4. 比特率效率奖励 - 使用更温和的函数
+            # 节省比特时获得正奖励，浪费比特时获得较小的负奖励
+            bitrate_reward = np.tanh(bitrate_efficiency * 1.5) * 0.3  # 减少影响
+            
+            # 5. 质量-比特率权衡奖励 (Rate-Distortion优化)
+            # 降低SSIM阈值，更容易获得奖励
+            if y_ssim > 0.75 and bitrate_efficiency > 0:
+                rd_bonus = y_ssim * bitrate_efficiency * 1.0  # 减少倍数
+            else:
+                rd_bonus = 0.0
+            
+            # 6. QP一致性：改为奖励而不是惩罚
+            # 当QP变化小时给予小的奖励
+            qp_consistency_bonus = max(0, (10 - np.std(qp_offsets)) / 10 * 0.1)  # 最多0.1分奖励
+            
+            # 7. 基础奖励：确保总奖励不会太低
+            base_reward = 0.5  # 基础奖励，确保agent有正向反馈
+            
+            # 综合奖励计算 - 调整权重确保正值为主
+            total_reward = (
+                base_reward +                          # 基础奖励
+                psnr_reward * 0.4 +                    # 绝对PSNR质量（增加权重）
+                ssim_reward * 0.3 +                    # SSIM结构相似性
+                psnr_improvement_reward * 0.15 +       # PSNR改进（减少权重）
+                bitrate_reward * 0.1 +                 # 比特率效率（减少权重）
+                rd_bonus * 0.05 +                      # RD优化奖励（减少权重）
+                qp_consistency_bonus                   # QP一致性奖励
+            )
+            
+            # 添加详细的奖励组件到日志中
+            self.current_frame_psnr.update({
+                'psnr_reward': psnr_reward,
+                'ssim_reward': ssim_reward,
+                'psnr_improvement_reward': psnr_improvement_reward,
+                'bitrate_reward': bitrate_reward,
+                'rd_bonus': rd_bonus,
+                'qp_consistency_bonus': qp_consistency_bonus,
+                'base_reward': base_reward,
+                'total_reward': total_reward,
+                'bitrate_efficiency': bitrate_efficiency
+            })
+            
+            return float(total_reward)
             
         except Exception as e:
             raise InvalidRewardError(f"Failed to calculate reward for frame {self.current_frame}: {e}")

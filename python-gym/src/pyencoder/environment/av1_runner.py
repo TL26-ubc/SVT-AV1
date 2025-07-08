@@ -91,7 +91,7 @@ class Av1Runner:
             "input": self.video_path,
             "pred_struct": 1,
             "rc": 2,
-            "tbr": 100,
+            "tbr": 50,
             "enable_stat_report": True,
         }
 

@@ -9,12 +9,12 @@ fi
 
 output_console="$2"
 if [ -z "$output_console" ]; then
-    output_console="console.log"
+    output_console="console2.log"
 fi
 
 iterations="$3"
 if [ -z "$iterations" ]; then
-    iterations=1000
+    iterations=100000
 fi
 
 python3 ../python-gym/src/pyencoder/environment/train_refactor.py \

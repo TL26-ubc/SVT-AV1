@@ -86,6 +86,12 @@ class VideoReader:
         num_blocks_w = (self.width + SB_SIZE - 1) // SB_SIZE
         return num_blocks_h * num_blocks_w
 
+    def get_width(self) -> int:
+        return self.width
+    
+    def get_height(self) -> int:
+        return self.height
+
     def ycrcb_psnr(
         self,
         frame_number: int,
@@ -119,6 +125,142 @@ class VideoReader:
     def compute_psnr(target: np.ndarray, reference: np.ndarray, baseline_heighest_psnr: float = 100.0):
         psnr = cv2.PSNR(target, reference)
         return psnr if np.isfinite(psnr) else baseline_heighest_psnr
+
+    @staticmethod
+    def compute_texture_complexity(block: np.ndarray) -> Tuple[float, float]:
+        """计算纹理复杂度：使用Sobel梯度"""
+        if block.size == 0:
+            return 0.0, 0.0
+        
+        block_f32 = block.astype(np.float32)
+        grad_x = cv2.Sobel(block_f32, cv2.CV_32F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(block_f32, cv2.CV_32F, 0, 1, ksize=3)
+        gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+        
+        texture_mean = float(np.mean(gradient_magnitude))
+        texture_std = float(np.std(gradient_magnitude))
+        return texture_mean, texture_std
+
+    @staticmethod
+    def compute_edge_density(block: np.ndarray) -> float:
+        """计算边缘密度"""
+        if block.size == 0:
+            return 0.0
+        
+        edges = cv2.Canny(block, 50, 150)
+        edge_density = float(np.sum(edges > 0) / edges.size)
+        return edge_density
+
+    @staticmethod
+    def compute_residual_energy(block: np.ndarray) -> float:
+        """计算残差能量（使用拉普拉斯算子近似高频内容）"""
+        if block.size == 0:
+            return 0.0
+        
+        block_f32 = block.astype(np.float32)
+        laplacian = cv2.Laplacian(block_f32, cv2.CV_32F)
+        residual_energy = float(np.var(laplacian))
+        return residual_energy
+
+    @staticmethod
+    def compute_block_activity(block: np.ndarray) -> float:
+        """计算块活动度（与均值的绝对差之和）"""
+        if block.size == 0:
+            return 0.0
+        
+        mean_val = np.mean(block)
+        activity = float(np.mean(np.abs(block - mean_val)))
+        return activity
+
+    @staticmethod
+    def compute_motion_features(mv_x: int, mv_y: int) -> Tuple[float, float]:
+        """计算运动特征：幅度和角度"""
+        mv_magnitude = float(np.sqrt(mv_x**2 + mv_y**2))
+        mv_angle = float(np.arctan2(mv_y, mv_x)) if mv_magnitude > 0 else 0.0
+        return mv_magnitude, mv_angle
+
+    @staticmethod
+    def compute_ssim(img1: np.ndarray, img2: np.ndarray, K1: float = 0.01, K2: float = 0.03, L: int = 255) -> float:
+        """
+        计算两个图像之间的SSIM (Structural Similarity Index)
+        
+        Args:
+            img1, img2: 输入图像 (灰度图)
+            K1, K2: SSIM算法常数
+            L: 像素值动态范围 (通常为255)
+        
+        Returns:
+            SSIM值 (0-1之间，1表示完全相同)
+        """
+        if img1.shape != img2.shape:
+            raise ValueError("Images must have the same dimensions")
+        
+        # 确保输入为float类型
+        img1 = img1.astype(np.float64)
+        img2 = img2.astype(np.float64)
+        
+        # SSIM算法常数
+        C1 = (K1 * L) ** 2
+        C2 = (K2 * L) ** 2
+        
+        # 计算均值
+        mu1 = cv2.GaussianBlur(img1, (11, 11), 1.5)
+        mu2 = cv2.GaussianBlur(img2, (11, 11), 1.5)
+        
+        mu1_sq = mu1 ** 2
+        mu2_sq = mu2 ** 2
+        mu1_mu2 = mu1 * mu2
+        
+        # 计算方差和协方差
+        sigma1_sq = cv2.GaussianBlur(img1 ** 2, (11, 11), 1.5) - mu1_sq
+        sigma2_sq = cv2.GaussianBlur(img2 ** 2, (11, 11), 1.5) - mu2_sq
+        sigma12 = cv2.GaussianBlur(img1 * img2, (11, 11), 1.5) - mu1_mu2
+        
+        # 计算SSIM
+        numerator = (2 * mu1_mu2 + C1) * (2 * sigma12 + C2)
+        denominator = (mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2)
+        
+        ssim_map = numerator / denominator
+        return float(np.mean(ssim_map))
+
+    def ycrcb_ssim(
+        self,
+        frame_number: int,
+        other_frame: np.ndarray,  # (3/2 * H, W)
+    ) -> Tuple[float, float, float]:
+        """
+        计算YCbCr三个分量的SSIM
+        
+        Args:
+            frame_number: 帧号
+            other_frame: 编码后的帧 (yuv420p格式)
+        
+        Returns:
+            (y_ssim, cb_ssim, cr_ssim): 三个分量的SSIM值
+        """
+        target_components = self.read_ycrcb_components(frame_number)
+        if target_components is None:
+            raise ValueError(f"Unable to read frame {frame_number} from the video.")
+
+        if target_components.shape != other_frame.shape:
+            raise ValueError("Dimension mismatch between video frame and reference frame components.")
+
+        # 提取Y, Cb, Cr分量
+        y_target = target_components[0:self.height, :]
+        y_encoded = other_frame[0:self.height, :]
+        
+        cb_target = target_components[self.height:self.height + self.height // 4, :]
+        cb_encoded = other_frame[self.height:self.height + self.height // 4, :]
+        
+        cr_target = target_components[self.height + self.height // 4:self.height + self.height // 2, :]
+        cr_encoded = other_frame[self.height + self.height // 4:self.height + self.height // 2, :]
+
+        # 计算各分量SSIM
+        y_ssim = VideoReader.compute_ssim(y_target, y_encoded)
+        cb_ssim = VideoReader.compute_ssim(cb_target, cb_encoded)
+        cr_ssim = VideoReader.compute_ssim(cr_target, cr_encoded)
+
+        return y_ssim, cb_ssim, cr_ssim
 
 
 # # simple test
