@@ -23,7 +23,7 @@ class VideoReader:
         self._frame_count = None
         self._frames_cache = {}  # Cache frames for random access
 
-    def _ensure_frame_count(self):
+    def _ensure_frame_count(self) -> int:
         """Ensure frame count is calculated"""
         if self._frame_count is None:
             if self.video_stream.frames > 0:
@@ -35,6 +35,7 @@ class VideoReader:
                     count += 1
                 self._frame_count = count
                 self.container.seek(0)
+        return self._frame_count
 
     def _get_frame_at_index(self, frame_number) -> Optional[av.VideoFrame]:
         """Get PyAV frame at specific index"""
@@ -51,11 +52,11 @@ class VideoReader:
             current_index += 1
         return None
 
-    def read_frame(self, frame_number) -> Optional[np.ndarray]: 
+    def read_frame(self, frame_number) -> np.ndarray: 
         # The current frame in yuv420p format, shape (3/2 * H, W).
         av_frame = self._get_frame_at_index(frame_number)
         if av_frame is None:
-            return None
+            raise RuntimeError('This frame should exist')
         
         # yuv420p format conversion
         return av_frame.to_ndarray(format='yuv420p')
@@ -77,8 +78,7 @@ class VideoReader:
         return ycrcb_frame
 
     def get_frame_count(self) -> int:
-        self._ensure_frame_count()
-        return self._frame_count
+        return self._ensure_frame_count()
 
     # sb info
     def get_num_superblock(self):
@@ -86,12 +86,12 @@ class VideoReader:
         num_blocks_w = (self.width + SB_SIZE - 1) // SB_SIZE
         return num_blocks_h * num_blocks_w
 
-    def ycrcb_psnr(
+    def get_frame_stats(
         self,
         frame_number: int,
         other_frame: np.ndarray, # (3/2 * H, W)
         baseline_heighest_psnr
-    ):
+    ) -> tuple[float, float, float, float, float, float]:
         """
         frame number
         other frame: (y,cb,cr)
@@ -104,40 +104,20 @@ class VideoReader:
         if target_components.shape != other_frame.shape:
             raise ValueError("Dimension mismatch between video frame and reference frame components.")
 
-        y_psnr = VideoReader.compute_psnr(target_components[0:self.height, :], other_frame[0:self.height, :], 
+        y_psnr, y_mse = VideoReader.compute_psnr(target_components[0:self.height, :], other_frame[0:self.height, :], 
                                            baseline_heighest_psnr["y"])
-        cb_psnr = VideoReader.compute_psnr(target_components[self.height:self.height + self.height // 4, :], 
+        cb_psnr, cb_mse = VideoReader.compute_psnr(target_components[self.height:self.height + self.height // 4, :], 
                                            other_frame[self.height:self.height + self.height // 4, :],
                                            baseline_heighest_psnr['cb'])
-        cr_psnr = VideoReader.compute_psnr(target_components[self.height + self.height // 4:self.height + self.height // 2, :],
+        cr_psnr, cr_mse = VideoReader.compute_psnr(target_components[self.height + self.height // 4:self.height + self.height // 2, :],
                                            other_frame[self.height + self.height // 4:self.height + self.height // 2, :],
                                            baseline_heighest_psnr['cr'])
 
-        return y_psnr, cb_psnr, cr_psnr
+        return y_psnr, y_mse, cb_psnr, cb_mse, cr_psnr, cr_mse
 
     @staticmethod
-    def compute_psnr(target: np.ndarray, reference: np.ndarray, baseline_heighest_psnr: float = 100.0):
+    def compute_psnr(target: np.ndarray, reference: np.ndarray, baseline_heighest_psnr: float = 100.0) -> tuple[float, float]:
         psnr = cv2.PSNR(target, reference)
-        return psnr if np.isfinite(psnr) else baseline_heighest_psnr
-
-
-# # simple test
-# if __name__ == "__main__":
-#     reader = VideoReader("/home/tom/tmp/playground/akiyo_qcif.y4m")
-
-#     reader.get_resolution()
-#     reader.get_frame_count()
-#     y, cb, cr = reader.read_ycrcb_components(1)
-
-#     # Flatten arrays and write to CSV
-#     with open("frame1_ycrcb.csv", "w", newline="") as csvfile:
-#         writer = csv.writer(csvfile)
-#         writer.writerow(["Component", "Row", "Col", "Value"])
-#         for comp_name, comp_array in zip(["Y", "Cb", "Cr"], [y, cb, cr]):
-#             for row in range(comp_array.shape[0]):
-#                 for col in range(comp_array.shape[1]):
-#                     writer.writerow([comp_name, row, col, int(comp_array[row, col])])
-
-#     # reader.render_single_component(y, VideoComponent.Y)
-
-#     VideoReader.render_components(y, cb, cr)
+        psnr = psnr if np.isfinite(psnr) else baseline_heighest_psnr
+        mse = np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2).astype(float)
+        return psnr, mse

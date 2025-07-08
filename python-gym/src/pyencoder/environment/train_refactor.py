@@ -173,12 +173,14 @@ if __name__ == "__main__":
             name=f"{args.algorithm}_lr{args.learning_rate}_rd{args.lambda_rd}"
         )
         wandb_callback = WandbCallback()
+    else:
+        wandb_callback = None
 
     # create envirnment
     base_output_path = Path(args.output_dir)
     gyn_env = Av1GymEnv(
         video_path=args.file,
-        output_dir=base_output_path,
+        output_dir=str(base_output_path),
         lambda_rd=args.lambda_rd,
         state=NaiveState,
     )
@@ -234,7 +236,7 @@ if __name__ == "__main__":
     try:
         model.learn(
             total_timesteps=total_timesteps,
-            callback=wandb_callback if args.wandb else None,
+            callback=wandb_callback,
             tb_log_name=f"{args.algorithm}_run",
         )
 

@@ -29,7 +29,7 @@ class NaiveState(AbstractState):
     def get_observation(
         self,
         frame: np.ndarray, # The current frame in yuv420p format, shape (3/2 * H, W).
-        sbs: list[SuperBlockInfo], 
+        superblocks: list[SuperBlockInfo], 
         frame_type: int,
         picture_number: int,
         **kwargs
@@ -59,9 +59,9 @@ class NaiveState(AbstractState):
                 # sb_cr_var = np.var(sb_cr_component)
 
                 y_comp_list.append(sb_y_var)
-                h_mv_list.append(sbs[sb_idx]['sb_x_mv'])
-                v_mv_list.append(sbs[sb_idx]['sb_y_mv'])
-                qindex_list.append(sbs[sb_idx]['sb_qindex'])
+                h_mv_list.append(superblocks[sb_idx]['sb_x_mv'])
+                v_mv_list.append(superblocks[sb_idx]['sb_y_mv'])
+                qindex_list.append(superblocks[sb_idx]['sb_qindex'])
                 sb_idx += 1
 
         obs = np.array([y_comp_list, h_mv_list, v_mv_list, qindex_list], dtype=np.float32).flatten()

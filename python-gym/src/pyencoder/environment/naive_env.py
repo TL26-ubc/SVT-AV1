@@ -1,6 +1,6 @@
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, SupportsFloat, Tuple
 import av
 import cv2
 import gymnasium as gym
@@ -19,8 +19,8 @@ class Av1GymEnv(gym.Env):
 
     def __init__(
         self,
-        video_path: str | Path,
-        output_dir: str | Path,
+        video_path: str,
+        output_dir: str,
         *,
         lambda_rd: float = 0.1,
         queue_timeout=10,
@@ -120,7 +120,7 @@ class Av1GymEnv(gym.Env):
             ycbcr = frame.to_ndarray(format="yuv420p") # (3/2 * H, W)
 
             # Get YCbCr PSNR for the current frame
-            y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(frame_number, ycbcr, self.baseline_heighest_psnr)            
+            y_psnr, y_mse, cb_psnr, cb_mse, cr_psnr, cr_mse = self.video_reader.get_frame_stats(frame_number, ycbcr, self.baseline_heighest_psnr)            
             # Validate PSNR values
             if not np.all(np.isfinite([y_psnr, cb_psnr, cr_psnr])):
                 invalid_names = [name for val, name in zip([y_psnr, cb_psnr, cr_psnr], ["Y", "Cb", "Cr"]) if not np.isfinite(val)]
@@ -163,7 +163,7 @@ class Av1GymEnv(gym.Env):
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
-    ) -> Tuple[dict, dict]:
+    ) -> Tuple[np.ndarray, dict]:
         print("Resetting environment...")
 
         super().reset(seed=seed)
@@ -189,7 +189,8 @@ class Av1GymEnv(gym.Env):
 
         return initial_obs, info
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
+    # https://gymnasium.farama.org/api/env/#gymnasium.Env.step
+    def step(self, action: np.ndarray) -> tuple[np.ndarray, SupportsFloat, bool, bool, dict[str, Any]]:
         if self.terminated:
             raise RuntimeError("Episode has ended. Call reset() before step().")
 
@@ -224,7 +225,7 @@ class Av1GymEnv(gym.Env):
         # Get next observation with validation
         if self.terminated:
             # Episode has ended, return dummy observation
-            next_obs = np.zeros(self.observation_space.shape, dtype=np.float32)
+            next_obs = np.zeros_like(self.observation_space.shape, dtype=np.float32)
             print(f"Episode terminated at frame {self.current_frame-1} (total frames: {self.num_frames})")
         else:
             # Get next observation with validation
@@ -234,7 +235,7 @@ class Av1GymEnv(gym.Env):
                 print(f"Failed to get observation for frame {self.current_frame}: {e}")
                 # Force termination and return dummy observation
                 self.terminated = True
-                next_obs = np.zeros(self.observation_space.shape, dtype=np.float32)
+                next_obs = np.zeros_like(self.observation_space.shape, dtype=np.float32)
         
         # Store frame data
         self.frame_history.append(
@@ -323,7 +324,7 @@ class Av1GymEnv(gym.Env):
             encoded_frame_data = feedback["encoded_frame_data"]
             
             # Get YCbCr PSNR for the current frame
-            y_psnr, cb_psnr, cr_psnr = self.video_reader.ycrcb_psnr(
+            y_psnr, y_mse, cb_psnr, cb_mse, cr_psnr, cr_mse = self.video_reader.get_frame_stats(
                 self.current_frame, encoded_frame_data, self.baseline_heighest_psnr
             )
             
@@ -334,74 +335,14 @@ class Av1GymEnv(gym.Env):
                 'cr_psnr': cr_psnr
             }
             
-            # Validate PSNR values
-            # for psnr_val, psnr_name in [(y_psnr, "Y"), (cb_psnr, "Cb"), (cr_psnr, "Cr")]:
-            #     if math.isnan(psnr_val) or math.isinf(psnr_val):
-            #         raise InvalidRewardError(
-            #             f"Invalid {psnr_name} PSNR ({psnr_val}) for frame {self.current_frame}"
-            #         )
-            
-            # Get byte usage difference
-            # byte_saved, current_usage = self.av1_runner.get_byte_usage_diff(
-            #     action_request["picture_number"]
-            # )
-            
-            # Validate byte usage values
-            # if math.isnan(byte_saved) or math.isinf(byte_saved):
-            #     raise InvalidRewardError(f"Invalid byte_saved ({byte_saved}) for frame {self.current_frame}")
-            # if math.isnan(current_usage) or math.isinf(current_usage) or current_usage <= 0:
-            #     raise InvalidRewardError(f"Invalid current_usage ({current_usage}) for frame {self.current_frame}")
-            
             # Calculate PSNR improvements
             y_psnr_improvement = y_psnr - self.y_psnr_list[self.current_frame]
-            # cb_psnr_improvement = cb_psnr - self.cb_psnr_list[self.current_frame]
-            # cr_psnr_improvement = cr_psnr - self.cr_psnr_list[self.current_frame]
-            
-            # Validate improvements
-            # for improvement, name in [
-            #     (y_psnr_improvement, "Y PSNR improvement"),
-            #     (cb_psnr_improvement, "Cb PSNR improvement"), 
-            #     (cr_psnr_improvement, "Cr PSNR improvement")
-            # ]:
-            #     if math.isnan(improvement) or math.isinf(improvement):
-            #         raise InvalidRewardError(f"Invalid {name} ({improvement}) for frame {self.current_frame}")
-            
-            # Calculate reward components
             a = 1
-            # b = c = 0.5
-            # d = 2
-            
-            # byte_efficiency = byte_saved / current_usage
-            
-            # Validate byte efficiency
-            # if math.isnan(byte_efficiency) or math.isinf(byte_efficiency):
-            #     raise InvalidRewardError(
-            #         f"Invalid byte efficiency ({byte_efficiency}) for frame {self.current_frame}. "
-            #         f"byte_saved: {byte_saved}, current_usage: {current_usage}"
-            #     )
             
             # Calculate final reward
             reward = (
-                y_psnr_improvement * a
-                # + cb_psnr_improvement * b
-                # + cr_psnr_improvement * c
-                # + byte_efficiency * d
+                y_mse * a
             )
-            
-            # Final reward validation
-            # reward_details = {
-            #     "y_psnr": y_psnr,
-            #     "cb_psnr": cb_psnr,
-            #     "cr_psnr": cr_psnr,
-            #     "y_psnr_improvement": y_psnr_improvement,
-            #     "cb_psnr_improvement": cb_psnr_improvement,
-            #     "cr_psnr_improvement": cr_psnr_improvement,
-            #     "byte_saved": byte_saved,
-            #     "current_usage": current_usage,
-            #     "byte_efficiency": byte_efficiency
-            # }
-            
-            # validate_reward(reward, self.current_frame, reward_details)
             
             return reward
             
@@ -468,7 +409,7 @@ def validate_array(arr: np.ndarray, name: str) -> None:
 def validate_reward(
     reward: float,
     frame_number: int,
-    details: dict = None
+    details: dict
 ) -> None:
     """Validate reward value"""
     if reward is None:

@@ -1,5 +1,7 @@
 import io
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, cast
+from av import VideoStream
+from av.container import InputContainer, OutputContainer
 from queue import Queue
 from pathlib import Path
 from pyencoder import SuperBlockInfo
@@ -19,7 +21,7 @@ class Observation:
 @dataclass
 class Action:
     skip: bool
-    offsets: list[int]
+    offsets: list[int] | None
 
 global the_only_object
 the_only_object = None
@@ -60,9 +62,9 @@ class Av1Runner:
         self.observation_queue: Queue[Observation] = Queue(maxsize=1) # Encoder provides observation
         self.action_queue: Queue[Action] = Queue(maxsize=1) # RL provides action
         self.feedback_queue: Queue = Queue(maxsize=10) # Encoder provides feedback to RL
-        self.encoder_thread: threading.Thread = None # Encoding thread
+        self.encoder_thread: threading.Thread # Encoding thread
 
-    def run(self, output_path: str = None, block: bool = False):
+    def run(self, output_path: Optional[str] = None, block: bool = False):
         """
         Start the encoder in a new thread.
         If block is True, wait for the encoder to finish.
@@ -82,7 +84,7 @@ class Av1Runner:
         if block:
             self.encoder_thread.join()
 
-    def _run_encoder(self, output_path: str = None):
+    def _run_encoder(self, output_path: Optional[str] = None):
         print("Starting encoder thread...")
         self.reset()
         self.register_callbacks()
@@ -133,6 +135,7 @@ class Av1Runner:
             self.feedback_queue.get_nowait()
 
     def join_bitstreams(self):
+        joined_bitstream_num = 0
         while joined_bitstream_num in self.bytes_keeper.keys():
             self.all_bitstreams += self.bytes_keeper[joined_bitstream_num]
             joined_bitstream_num += 1
@@ -159,7 +162,7 @@ class Av1Runner:
         byte_file = self.all_bitstreams
         byte_file.write(bitstream)
         byte_file.seek(0)
-        container = av.open(byte_file)
+        container: InputContainer = av.open(byte_file, 'r')
         last_frame = None
         for frame in container.decode(video=0):
             last_frame = frame
@@ -197,8 +200,11 @@ class Av1Runner:
         if action.skip:
             return [114514] * self.sb_total_count
 
+        if action.offsets is None:
+            raise ValueError(f"Action response is null")
+
         if len(action.offsets) != self.sb_total_count:
-            raise ValueError(f"Action response length mismatch. Expected {self.sb_total_count}, got {len(action_response)}")
+            raise ValueError(f"Action response length mismatch. Expected {self.sb_total_count}, got {len(action.offsets)}")
 
         return action.offsets
 
@@ -209,7 +215,7 @@ class Av1Runner:
         """
         return self.observation_queue.get()
 
-    def send_action_response(self, *, action: List[int] = None, skip = False):
+    def send_action_response(self, *, action: list[int] | None = None, skip = False):
         """
         Send action response to encoder.
         Called by RL environment to provide QP offsets.
@@ -219,7 +225,7 @@ class Av1Runner:
             offsets=action
         ))
 
-    def wait_for_feedback(self) -> Optional[Dict]:
+    def wait_for_feedback(self) -> Dict:
         """
         Wait for feedback from encoder.
         Called by RL environment to get encoding results.
@@ -273,9 +279,12 @@ class Av1Runner:
             height = 0
             # Try to get width/height from the first frame using PyAV
             container = av.open(io.BytesIO(frames[0]))
-            video_stream = next(s for s in container.streams if s.type == "video")
-            width = video_stream.width
-            height = video_stream.height
+            stream: VideoStream = cast(
+                VideoStream,
+                next((s for s in container.streams if s.type == "video"), None)
+            )
+            width = stream.width
+            height = stream.height
             container.close()
             bitstream_data = ivf_header(len(frames), width, height)
             for i, frame in enumerate(frames):
