@@ -1,4 +1,4 @@
-         # Header‑only but still adds a target
+# Header‑only but still adds a target
 
 if(${FROM_PIP_INSTALL}) 
     message(STATUS "Building for pip install")
@@ -60,34 +60,34 @@ target_include_directories(svtav1_app PUBLIC
 
 target_link_libraries(svtav1_app PUBLIC Threads::Threads safeclib)
 
-# Build the Python extension  av1_wrapper.{so,dylib,pyd}
+# Build the internal Python extension _av1_wrapper.{so,dylib,pyd}
 set(BRIDGE_SRC
-    src/bridge/pybridge.cpp
-    src/bridge/cb_registration.cpp
-    src/bridge/utils.cpp)
+    src/av1gym/pyencoder/bridge/pybridge.cpp
+    src/av1gym/pyencoder/bridge/cb_registration.cpp
+    src/av1gym/pyencoder/bridge/utils.cpp)
 
 set(PYENCODER_SRC
-    src/pyencoder/_binding.cpp
+    src/av1gym/pyencoder/_binding.cpp
     "${CMAKE_CURRENT_LIST_DIR}/../Source/Lib/Globals/rl_feedback.c")
 
-add_library(av1_wrapper MODULE
+add_library(_av1_wrapper MODULE
     ${BRIDGE_SRC}
     ${PYENCODER_SRC})
 
 # On Windows a Python extension must be named *.pyd without the "lib" prefix.
 if (WIN32)
-    set_target_properties(av1_wrapper PROPERTIES
-        OUTPUT_NAME "av1_wrapper"
+    set_target_properties(_av1_wrapper PROPERTIES
+        OUTPUT_NAME "_av1_wrapper"
         PREFIX      ""
         SUFFIX      ".pyd")
 else()
-    set_target_properties(av1_wrapper PROPERTIES PREFIX "")
+    set_target_properties(_av1_wrapper PROPERTIES PREFIX "")
 endif()
 
 # Include paths
-target_include_directories(av1_wrapper PRIVATE
+target_include_directories(_av1_wrapper PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/.."
-    src/bridge
+    src/av1gym/pyencoder/bridge
     "${CMAKE_CURRENT_LIST_DIR}/../Source"
     "${CMAKE_CURRENT_LIST_DIR}/../Source/App"
     "${CMAKE_CURRENT_LIST_DIR}/../Source/API"
@@ -95,7 +95,7 @@ target_include_directories(av1_wrapper PRIVATE
     ${Python3_INCLUDE_DIRS})
 
 # Link targets
-target_link_libraries(av1_wrapper
+target_link_libraries(_av1_wrapper
     PRIVATE
         pybind11::module
         svtav1_plugin
@@ -108,11 +108,11 @@ target_link_libraries(av1_wrapper
 
 # Installation path for scikit‑build‑core
 if(${FROM_PIP_INSTALL})
-    install(TARGETS av1_wrapper
-        LIBRARY DESTINATION .
-        RUNTIME DESTINATION .)
+    install(TARGETS _av1_wrapper
+        LIBRARY DESTINATION av1gym/pyencoder
+        RUNTIME DESTINATION av1gym/pyencoder)
 else()
-    install(TARGETS av1_wrapper
-        LIBRARY DESTINATION ${Python3_SITEARCH}/pyencoder
-        RUNTIME DESTINATION ${Python3_SITEARCH}/pyencoder)
+    install(TARGETS _av1_wrapper
+        LIBRARY DESTINATION ${Python3_SITEARCH}/av1gym/pyencoder
+        RUNTIME DESTINATION ${Python3_SITEARCH}/av1gym/pyencoder)
 endif()

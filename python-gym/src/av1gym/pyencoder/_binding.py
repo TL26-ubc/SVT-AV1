@@ -1,10 +1,9 @@
-from dataclasses import dataclass
 from importlib import import_module as _imp
 from typing import TypedDict
 
-av1_wrapper = _imp(".av1_wrapper", package=__name__)
-_run = av1_wrapper.run
-_register = av1_wrapper.register_callbacks
+_av1_wrapper = _imp("av1gym.pyencoder._av1_wrapper", package=__name__)
+_run = _av1_wrapper.run
+_register = _av1_wrapper.register_callbacks
 
 class SuperBlockInfo(TypedDict):
     sb_org_x: int
@@ -33,6 +32,5 @@ def run(**kwargs):
 
     _run(argv)
 
-
-def register_callbacks(*, get_deltaq_offset=None, picture_feedback=None):
-    _register(get_deltaq_offset, picture_feedback)
+def register_callbacks(*, get_deltaq_offset=None, picture_feedback=None, postencode_feedback=None):
+    _register(get_deltaq_offset, picture_feedback, postencode_feedback)

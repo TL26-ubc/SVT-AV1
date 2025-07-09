@@ -10,6 +10,7 @@ using namespace pybridge;
 
 get_deltaq_offset_cb_t     get_deltaq_offset_cb     = nullptr;
 recv_picture_feedback_cb_t recv_picture_feedback_cb = nullptr;
+recv_postencode_feedback_cb_t recv_postencode_feedback_cb = nullptr;
 
 extern "C" void get_deltaq_offset_trampoline(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count, int32_t frame_type, int32_t picture_number) {
     Callback &cb = *g_callbacks[static_cast<int>(CallbackEnum::GetDeltaQOffset)];
@@ -70,4 +71,17 @@ extern "C" void recv_picture_feedback_trampoline(uint8_t *bitstream, uint32_t bi
     py::bytes py_bitstream = py::bytes(reinterpret_cast<char *>(bitstream), bitstream_size);
 
     fcn.operator()(py_bitstream, bitstream_size, picture_number);
+}
+
+extern "C" void recv_postencode_feedback_trampoline(uint32_t picture_number) {
+    Callback &cb = *g_callbacks[static_cast<int>(CallbackEnum::RecvPostEncodeStats)];
+    if (cb.py_func.is_none())
+        return;
+
+    py::gil_scoped_acquire acquire;
+
+    py::function fcn = pyutils::validate_callable(cb.py_func, cb.n_args);
+
+
+    // fcn.operator()(..., picture_number); //TODO
 }

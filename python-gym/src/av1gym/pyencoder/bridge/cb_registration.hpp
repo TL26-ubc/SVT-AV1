@@ -6,6 +6,7 @@ namespace pybridge {
 enum class CallbackEnum {
     GetDeltaQOffset,
     RecvPictureFeedback,
+    RecvPostEncodeStats,
     Count
 };
 

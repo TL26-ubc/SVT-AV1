@@ -1,16 +1,14 @@
 import io
-from typing import Any, Dict, List, Optional, TypedDict, cast
-from av import VideoStream
-from av.container import InputContainer, OutputContainer
 from queue import Queue
 from pathlib import Path
-from pyencoder import SuperBlockInfo
+from av1gym.pyencoder import SuperBlockInfo
 import threading
 from dataclasses import dataclass
 
 import av
 import cv2
-import pyencoder
+import numpy as np
+import av1gym.pyencoder as encoder
 
 @dataclass
 class Observation:
@@ -23,13 +21,24 @@ class Action:
     skip: bool
     offsets: list[int] | None
 
+@dataclass
+class Feedback:
+    """
+    encoded_frame_data: np.ndarray, shape (3/2 * H, W)
+    """
+    picture_number: int
+    bitstream_size: int
+    encoded_frame_data: np.ndarray
+
 global the_only_object
 the_only_object = None
 
 def picture_feedback_trampoline(bitstream: bytes, size: int, picture_number: int):
+    assert the_only_object is not None
     the_only_object.picture_feedback(bitstream, size, picture_number)
 
 def get_deltaq_offset_trampoline(sbs: list[SuperBlockInfo], frame_type: int, picture_number: int) -> list[int]:
+    assert the_only_object is not None
     return the_only_object.get_deltaq_offset(sbs, frame_type, picture_number)
 
 class Av1Runner:
@@ -43,7 +52,7 @@ class Av1Runner:
         global the_only_object
         if the_only_object is not None:
             raise RuntimeError(
-                "EncoderCallback instance already exists. Only one instance is allowed."
+                "Av1Runner instance already exists. Only one instance is allowed."
             )
         the_only_object = self
 
@@ -61,15 +70,15 @@ class Av1Runner:
         # Synchronization
         self.observation_queue: Queue[Observation] = Queue(maxsize=1) # Encoder provides observation
         self.action_queue: Queue[Action] = Queue(maxsize=1) # RL provides action
-        self.feedback_queue: Queue = Queue(maxsize=10) # Encoder provides feedback to RL
-        self.encoder_thread: threading.Thread # Encoding thread
+        self.feedback_queue: Queue = Queue() # Encoder provides feedback to RL
+        self.encoder_thread: threading.Thread | None = None # Encoding thread
 
-    def run(self, output_path: Optional[str] = None, block: bool = False):
+    def run(self, output_path: str | None = None, block: bool = False):
         """
         Start the encoder in a new thread.
         If block is True, wait for the encoder to finish.
         """
-        if self.encoder_thread and self.encoder_thread.is_alive():
+        if self.encoder_thread is not None and self.encoder_thread.is_alive():
             print("Waiting for previous encoder thread to terminate...")
             self.encoder_thread.join(timeout=20.0)
 
@@ -84,7 +93,7 @@ class Av1Runner:
         if block:
             self.encoder_thread.join()
 
-    def _run_encoder(self, output_path: Optional[str] = None):
+    def _run_encoder(self, output_path: str | None = None):
         print("Starting encoder thread...")
         self.reset()
         self.register_callbacks()
@@ -100,7 +109,7 @@ class Av1Runner:
         if output_path:
             args["b"] = output_path
 
-        pyencoder.run(**args)
+        encoder.run(**args)
 
     def join(self):
         if not self.encoder_thread or not self.encoder_thread.is_alive():
@@ -109,7 +118,7 @@ class Av1Runner:
             self.encoder_thread.join()
 
     def register_callbacks(self):
-        pyencoder.register_callbacks(
+        encoder.register_callbacks(
             get_deltaq_offset=get_deltaq_offset_trampoline,
             picture_feedback=picture_feedback_trampoline,
         )
@@ -149,11 +158,11 @@ class Av1Runner:
         encoded_frame_data = self.get_last_frame(bitstream=bitstream)
 
         # Prepare feedback for RL environment
-        feedback_data = {
-            "picture_number": picture_number,
-            "bitstream_size": size,
-            "encoded_frame_data": encoded_frame_data,
-        }
+        feedback_data = Feedback(
+            picture_number = picture_number,
+            bitstream_size = size,
+            encoded_frame_data = encoded_frame_data,
+        )
 
         # Send feedback to RL environment (non-blocking)
         self.feedback_queue.put_nowait(feedback_data)
@@ -162,7 +171,7 @@ class Av1Runner:
         byte_file = self.all_bitstreams
         byte_file.write(bitstream)
         byte_file.seek(0)
-        container: InputContainer = av.open(byte_file, 'r')
+        container = av.open(byte_file, 'r')
         last_frame = None
         for frame in container.decode(video=0):
             last_frame = frame
@@ -225,7 +234,7 @@ class Av1Runner:
             offsets=action
         ))
 
-    def wait_for_feedback(self) -> Dict:
+    def wait_for_feedback(self) -> Feedback:
         """
         Wait for feedback from encoder.
         Called by RL environment to get encoding results.
@@ -268,21 +277,15 @@ class Av1Runner:
         if not output_path.endswith(".ivf"):
             raise ValueError("Output path must end with .ivf")
 
-
         # Save previous training bytes
         # To make the bitstream playable, prepend the IVF header and frame headers
         frames = list(self.previous_training_bytes_keeper.values())
         if not frames:
             bitstream_data = b""
         else:
-            width = 0
-            height = 0
             # Try to get width/height from the first frame using PyAV
             container = av.open(io.BytesIO(frames[0]))
-            stream: VideoStream = cast(
-                VideoStream,
-                next((s for s in container.streams if s.type == "video"), None)
-            )
+            stream = next(iter(container.streams.video))
             width = stream.width
             height = stream.height
             container.close()
@@ -290,7 +293,6 @@ class Av1Runner:
             for i, frame in enumerate(frames):
                 bitstream_data += ivf_frame_header(frame, i)
                 bitstream_data += frame
-
 
         if not bitstream_data:
             print("No bitstream data to save.")
@@ -300,7 +302,7 @@ class Av1Runner:
             f.write(bitstream_data)
         print(f"Bitstream saved to {output_path}")
 
-def ivf_header(num_frames, width, height, fourcc=b'AV01'):
+def ivf_header(num_frames: int, width: int, height: int, fourcc: bytes = b'AV01'):
     header = b'DKIF'  # signature
     header += (0).to_bytes(2, 'little')  # version
     header += (32).to_bytes(2, 'little')  # header size
@@ -313,7 +315,7 @@ def ivf_header(num_frames, width, height, fourcc=b'AV01'):
     header += (0).to_bytes(4, 'little')  # unused
     return header
 
-def ivf_frame_header(frame_bytes, pts):
+def ivf_frame_header(frame_bytes: bytes, pts: int):
     return len(frame_bytes).to_bytes(4, 'little') + pts.to_bytes(8, 'little')
 
 def superblocks_from_dims(width: int, height: int, block_size: int = 64) -> int:

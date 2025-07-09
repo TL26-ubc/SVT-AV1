@@ -17,6 +17,9 @@ static int set_cb_ptr(CallbackEnum which, bool unset)
         case CallbackEnum::RecvPictureFeedback:
             recv_picture_feedback_cb = unset ? nullptr : recv_picture_feedback_trampoline;
             return 0;
+        case CallbackEnum::RecvPostEncodeStats:
+            recv_postencode_feedback_cb = unset ? nullptr : recv_postencode_feedback_trampoline;
+            return 0;
         default:
             return -1;
     }

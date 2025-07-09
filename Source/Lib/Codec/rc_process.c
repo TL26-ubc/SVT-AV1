@@ -3096,6 +3096,13 @@ static void av1_rc_postencode_update(PictureParentControlSet *ppcs) {
 
     if (frm_hdr->frame_type == KEY_FRAME)
         rc->frames_since_key = 0;
+
+#ifdef SVT_ENABLE_USER_CALLBACKS
+    fprintf(stderr, "(%d, %d, %d, %d)\n", rc->optimal_buffer_level, rc->starting_buffer_level, rc->buffer_level, rc->maximum_buffer_size);
+    if (plugin_cbs.user_postencode_feedback) {
+        plugin_cbs.user_postencode_feedback(ppcs->picture_number);
+    }
+#endif
 }
 void svt_aom_update_rc_counts(PictureParentControlSet *ppcs) {
     SequenceControlSet *scs     = ppcs->scs;

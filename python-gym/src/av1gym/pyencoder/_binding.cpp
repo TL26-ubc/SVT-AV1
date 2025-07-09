@@ -62,20 +62,23 @@ static py::object run(py::list py_argv)
     return py::none();
 }
 
-// register_callbacks(get_deltaq_offset=None, frame_feedback=None, picture_feedback=None) -> None
+// register_callbacks(get_deltaq_offset=None, picture_feedback=None, postencode_feedback=None) -> None
 static py::object register_callbacks(py::object py_get_deltaq_offset = py::none(),
-                                     py::object py_picture_feedback  = py::none())
+                                     py::object py_picture_feedback = py::none(),
+                                     py::object py_post_encode_feedback = py::none())
 {
     init_callbacks();
 
     // Store the user callables and hook up the C trampolines
     pybridge_set_cb(CallbackEnum::GetDeltaQOffset, py_get_deltaq_offset);
     pybridge_set_cb(CallbackEnum::RecvPictureFeedback, py_picture_feedback);
+    pybridge_set_cb(CallbackEnum::RecvPostEncodeStats, py_post_encode_feedback);
 
     // Tell SVT‑AV1 about the trampolines
     static PluginCallbacks cbs;
     cbs.user_get_deltaq_offset = get_deltaq_offset_cb;
     cbs.user_picture_feedback = recv_picture_feedback_cb;
+    cbs.user_postencode_feedback = recv_postencode_feedback_cb;
 
     if (svt_av1_enc_set_callbacks(&cbs) != EB_ErrorNone) {
         throw std::runtime_error("failed to set callbacks");
@@ -84,7 +87,7 @@ static py::object register_callbacks(py::object py_get_deltaq_offset = py::none(
     return py::none();
 }
 
-PYBIND11_MODULE(av1_wrapper, m)
+PYBIND11_MODULE(_av1_wrapper, m)
 {
     m.doc() = "In‑process bindings for the SVT‑AV1 encoder CLI";
 
@@ -94,6 +97,7 @@ PYBIND11_MODULE(av1_wrapper, m)
     m.def("register_callbacks", &register_callbacks,
           py::arg("get_deltaq_offset") = py::none(),
           py::arg("picture_feedback")  = py::none(),
+          py::arg("postencode_feedback")  = py::none(),
           "Attach callbacks to the SVT‑AV1 encoder.");
 }
 
@@ -104,6 +108,7 @@ int init_callbacks()
     }
     g_callbacks[0]->n_args = 3; // GetDeltaQOffset
     g_callbacks[1]->n_args = 3; // RecvPictureFeedback
+    g_callbacks[2]->n_args = 1; // RecvPostEncodeStats //TODO
     return 0;
 }
 
