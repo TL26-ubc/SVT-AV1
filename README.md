@@ -11,16 +11,22 @@ Before setting up the Python environment, ensure you have the following system-l
 1.  **Basic Development Tools**:
     -   `cmake`
     -   `ninja`
-    -   `git`
+    -   `nasm`
+    -   `gcc` and `g++` (or `clang` and `clang++` on macOS)
+    -   `python3-dev` (or `python3.x-dev` for your specific Python version)
+```
+sudo apt update && sudo apt install -y cmake ninja-build nasm build-essential
+sudo apt install python3.12-dev
+```
 
-2.  **Python** (Recommended 3.9-3.11):
+1.  **Python** (Recommended 3.9-3.11):
     -   Install `python` (e.g., `python@3.11`).
     *Note: Make sure this Python version is used for your virtual environment.*
 
-3.  **FFmpeg** (for video processing):
+2.  **FFmpeg** (for video processing):
     -   Install `ffmpeg`.
 
-4.  **NASM** (Assembler, required by SVT-AV1):
+3.  **NASM** (Assembler, required by SVT-AV1):
     -   Install `nasm`.
 
 ## Environment Setup
