@@ -31,7 +31,8 @@ third_party/cpuinfo
 third_party/safestringlib/dummy.c
 /offline_ci/
 Data/
-Output/
+Output/*
+!Output/.gitkeep
 logs/
 .vscode/*
 repomix.*

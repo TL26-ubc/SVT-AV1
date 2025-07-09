@@ -14,9 +14,11 @@ Before setting up the Python environment, ensure you have the following system-l
     -   `nasm`
     -   `gcc` and `g++` (or `clang` and `clang++` on macOS)
     -   `python3-dev` (or `python3.x-dev` for your specific Python version)
+    -   `libgl1`
 ```
 sudo apt update && sudo apt install -y cmake ninja-build nasm build-essential
 sudo apt install python3.12-dev
+sudo apt install libgl1
 ```
 
 1.  **Python** (Recommended 3.9-3.11):
