@@ -27,7 +27,7 @@ class AbstractState(ABC):
     def get_observation(
         self, 
         frame: np.ndarray,
-        superblocks: list[SuperBlockInfo], 
+        sbs: list[SuperBlockInfo], 
         frame_type: int,
         picture_number: int,
         **kwargs

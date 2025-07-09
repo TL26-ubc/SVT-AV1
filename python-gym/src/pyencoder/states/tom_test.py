@@ -165,11 +165,7 @@ class NaiveState(AbstractState):
         
         if self.normalize:
             assert len(obs) == len(self.max_values)
-            # Avoid division by zero: where max_values is not zero, divide; else, set to 0
-            obs = np.where(self.max_values != 0, obs / self.max_values, 0.0)
-            obs = np.where(np.isfinite(obs), obs, 0.0)
-
-            
+            obs = obs / self.max_values
         
         return obs
 

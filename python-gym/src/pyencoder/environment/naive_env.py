@@ -367,91 +367,33 @@ class Av1GymEnv(gym.Env):
             cb_psnr_improvement = cb_psnr - baseline_cb_psnr
             cr_psnr_improvement = cr_psnr - baseline_cr_psnr
             
-            # Calculate bitrate efficiency
-            # 获取基线编码的比特数（假设我们有这个信息，如果没有可以用平均值估算）
-            if hasattr(self, 'baseline_bitstream_sizes') and len(self.baseline_bitstream_sizes) > self.current_frame:
-                baseline_bitstream_size = self.baseline_bitstream_sizes[self.current_frame]
-            else:
-                # 使用历史平均比特数作为基线估算
-                if hasattr(self.state_wrapper, 'bits_history') and len(self.state_wrapper.bits_history) > 0:
-                    baseline_bitstream_size = np.mean(self.state_wrapper.bits_history)
-                else:
-                    baseline_bitstream_size = current_bitstream_size  # 第一帧时的fallback
-            
-            # 计算比特率节省比例（负值表示增加了比特）
-            if baseline_bitstream_size > 0:
-                bitrate_efficiency = (baseline_bitstream_size - current_bitstream_size) / baseline_bitstream_size
-            else:
-                bitrate_efficiency = 0.0
-            
             # Enhanced reward function with multiple quality metrics
             # 更平衡的奖励设计，确保基本奖励为正数
             
-            # 1. PSNR 奖励 (绝对质量) - 降低阈值，确保基本奖励
-            # 使用更宽松的阈值：20dB作为起点，40dB作为满分
-            psnr_reward = (
-                max(0.1, min(1.0, (y_psnr - 20) / 20)) * 1.0 +      # Y-PSNR，最低0.1分
-                max(0.1, min(1.0, (cb_psnr - 20) / 20)) * 0.3 +     # Cb-PSNR
-                max(0.1, min(1.0, (cr_psnr - 20) / 20)) * 0.3       # Cr-PSNR
-            )
-            
-            # 2. SSIM 奖励 (结构相似性) - 降低阈值
-            # 使用更宽松的阈值：0.6作为起点，1.0作为满分
-            ssim_reward = (
-                max(0.1, min(1.0, (y_ssim - 0.6) / 0.4)) * 1.5 +   # Y-SSIM，最低0.1分
-                max(0.1, min(1.0, (cb_ssim - 0.6) / 0.4)) * 0.4 +  # Cb-SSIM
-                max(0.1, min(1.0, (cr_ssim - 0.6) / 0.4)) * 0.4    # Cr-SSIM  
-            )
-            
             # 3. PSNR 改进奖励 (相对于baseline的提升) - 使用sigmoid来平滑负值
             raw_improvement = (
-                y_psnr_improvement * 0.8 +
+                y_psnr_improvement * 2 +
                 cb_psnr_improvement * 0.2 +
                 cr_psnr_improvement * 0.2
             )
-            # 使用sigmoid函数将改进值映射到[-1, 1]范围，然后缩放到[-0.5, 0.5]
-            psnr_improvement_reward = np.tanh(raw_improvement) * 0.5
-            
-            # 4. 比特率效率奖励 - 使用更温和的函数
-            # 节省比特时获得正奖励，浪费比特时获得较小的负奖励
-            bitrate_reward = np.tanh(bitrate_efficiency * 1.5) * 0.3  # 减少影响
-            
-            # 5. 质量-比特率权衡奖励 (Rate-Distortion优化)
-            # 降低SSIM阈值，更容易获得奖励
-            if y_ssim > 0.75 and bitrate_efficiency > 0:
-                rd_bonus = y_ssim * bitrate_efficiency * 1.0  # 减少倍数
-            else:
-                rd_bonus = 0.0
-            
-            # 6. QP一致性：改为奖励而不是惩罚
-            # 当QP变化小时给予小的奖励
-            qp_consistency_bonus = max(0, (10 - np.std(qp_offsets)) / 10 * 0.1)  # 最多0.1分奖励
+            # 使用sigmoid函数将改进值映射到[-1, 1]范围
+            psnr_improvement_reward = np.tanh(raw_improvement)
             
             # 7. 基础奖励：确保总奖励不会太低
-            base_reward = 0.5  # 基础奖励，确保agent有正向反馈
+            base_reward = 0.0005  # 基础奖励，确保agent有正向反馈
             
             # 综合奖励计算 - 调整权重确保正值为主
             total_reward = (
                 base_reward +                          # 基础奖励
-                psnr_reward * 0.4 +                    # 绝对PSNR质量（增加权重）
-                ssim_reward * 0.3 +                    # SSIM结构相似性
-                psnr_improvement_reward * 0.15 +       # PSNR改进（减少权重）
-                bitrate_reward * 0.1 +                 # 比特率效率（减少权重）
-                rd_bonus * 0.05 +                      # RD优化奖励（减少权重）
-                qp_consistency_bonus                   # QP一致性奖励
+                psnr_improvement_reward * 2      # PSNR改进（减少权重）
             )
             
             # 添加详细的奖励组件到日志中
             self.current_frame_psnr.update({
-                'psnr_reward': psnr_reward,
-                'ssim_reward': ssim_reward,
                 'psnr_improvement_reward': psnr_improvement_reward,
-                'bitrate_reward': bitrate_reward,
-                'rd_bonus': rd_bonus,
-                'qp_consistency_bonus': qp_consistency_bonus,
                 'base_reward': base_reward,
                 'total_reward': total_reward,
-                'bitrate_efficiency': bitrate_efficiency
+                'y_psnr_improvement': y_psnr_improvement,
             })
             
             return float(total_reward)
