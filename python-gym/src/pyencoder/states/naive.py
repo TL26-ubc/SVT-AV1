@@ -160,14 +160,17 @@ class NaiveState(AbstractState):
         
         obs = np.append(obs, global_features)
         
-        # check for inf or nan values and handle them
-        obs = np.where(np.isfinite(obs), obs, self.max_values[:len(obs)])
+        # check for inf or nan values and handle them - set to 0.0 instead of max_values
+        obs = np.where(np.isfinite(obs), obs, self.max_values)
         
         if self.normalize:
             assert len(obs) == len(self.max_values)
-            # Avoid division by zero: where max_values is not zero, divide; else, set to 0
-            obs = np.where(self.max_values != 0, obs / self.max_values, 0.0)
-            obs = np.where(np.isfinite(obs), obs, 0.0)
+            # Ensure both obs and max_values are finite and max_values is not zero
+            # Also ensure max_values is positive to avoid division by negative numbers
+            valid_mask = (np.isfinite(obs) & 
+                         np.isfinite(self.max_values) & 
+                         (self.max_values > 0))
+            obs = np.where(valid_mask, obs / self.max_values, 0.0)
 
             
         

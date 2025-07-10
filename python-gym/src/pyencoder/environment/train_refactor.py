@@ -384,7 +384,6 @@ if __name__ == "__main__":
                 ent_coef=0.01,
                 vf_coef=0.5,
                 max_grad_norm=0.5,
-                target_kl=0.03,
                 policy_kwargs=policy_kwargs,
                 verbose=1,
             )
