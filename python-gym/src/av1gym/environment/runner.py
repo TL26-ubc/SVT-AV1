@@ -22,6 +22,9 @@ class Observation:
     superblocks: list[SuperBlockInfo]
     frame_type: FrameType
     picture_number: int
+    frames_to_key: int
+    frames_since_key: int
+    buffer_level: int
 
 @dataclass
 class Action:
@@ -44,9 +47,16 @@ def picture_feedback_trampoline(bitstream: bytes, size: int, picture_number: int
     assert the_only_object is not None
     the_only_object.picture_feedback(bitstream, size, picture_number)
 
-def get_deltaq_offset_trampoline(sbs: list[SuperBlockInfo], frame_type: int, picture_number: int) -> list[int]:
+def get_deltaq_offset_trampoline(
+        sbs: list[SuperBlockInfo], 
+        frame_type: int, 
+        picture_number: int, 
+        frames_to_key: int,
+        frames_since_key: int,
+        buffer_level: int
+) -> list[int]:
     assert the_only_object is not None
-    return the_only_object.get_deltaq_offset(sbs, frame_type, picture_number)
+    return the_only_object.get_deltaq_offset(sbs, frame_type, picture_number, frames_to_key, frames_since_key, buffer_level)
 
 class Av1Runner:
     """
@@ -194,7 +204,15 @@ class Av1Runner:
         container.close()
         return ycrcb_array
 
-    def get_deltaq_offset(self, sbs: list[SuperBlockInfo], frame_type: int, picture_number: int) -> list[int]:
+    def get_deltaq_offset(
+        self, 
+        sbs: list[SuperBlockInfo], 
+        frame_type: int, 
+        picture_number: int,
+        frames_to_key: int,
+        frames_since_key: int,
+        buffer_level: int
+    ) -> list[int]:
         """
         Callback to get QP offsets for superblocks in a frame.
         This method MUST return immediately as the encoder waits synchronously.
@@ -204,6 +222,9 @@ class Av1Runner:
             picture_number=picture_number,
             superblocks=sbs,
             frame_type=FrameType(frame_type),
+            frames_to_key=frames_to_key,
+            frames_since_key=frames_since_key,
+            buffer_level=buffer_level
         )
 
         # Send action request to RL environment (blocking call)

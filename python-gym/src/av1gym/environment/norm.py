@@ -7,7 +7,7 @@ from .environment import Av1GymEnv, RawObservationDict
 from .runner import FrameType
 
 SB_FEATURES = 4
-FRAME_FEATURES = 1
+FRAME_FEATURES = 4
 
 class ObservationDict(TypedDict):
     superblock: np.ndarray # continuous superblock level features (sb_h, sb_w, SB_FEATURES,)
@@ -63,7 +63,10 @@ class Av1GymObsNormWrapper(gym.ObservationWrapper):
         
         # Build cont. frame level observations
         frame_obs = np.array([
-            observation["frame_number"]
+            observation["frame_number"],
+            observation["frames_to_key"],
+            observation["frames_since_key"],
+            observation["buffer_level"]
         ], dtype=np.float32)
 
         network_obs = ObservationDict(

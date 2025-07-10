@@ -12,7 +12,16 @@ get_deltaq_offset_cb_t     get_deltaq_offset_cb     = nullptr;
 recv_picture_feedback_cb_t recv_picture_feedback_cb = nullptr;
 recv_postencode_feedback_cb_t recv_postencode_feedback_cb = nullptr;
 
-extern "C" void get_deltaq_offset_trampoline(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count, int32_t frame_type, int32_t picture_number) {
+extern "C" void get_deltaq_offset_trampoline(
+    SuperBlockInfo *sb_info_array, 
+    int *offset_array, 
+    uint32_t sb_count, 
+    int32_t frame_type, 
+    int64_t picture_number, 
+    int frames_to_key, 
+    int frames_since_key,
+    int64_t buffer_level
+) {
     Callback &cb = *g_callbacks[static_cast<int>(CallbackEnum::GetDeltaQOffset)];
     if (cb.py_func.is_none())
         return;
@@ -34,7 +43,7 @@ extern "C" void get_deltaq_offset_trampoline(SuperBlockInfo *sb_info_array, int 
         );
     });
 
-    py::object ret = fcn.operator()(sb_info_list, frame_type, picture_number);
+    py::object ret = fcn.operator()(sb_info_list, frame_type, picture_number, frames_to_key, frames_since_key, buffer_level);
 
     if (!py::isinstance<py::list>(ret)) {
         throw py::type_error("Expected return value of type list however was " +

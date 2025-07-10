@@ -1125,11 +1125,12 @@ typedef struct SuperBlockInfo {
 #ifdef SVT_ENABLE_USER_CALLBACKS
 
 typedef struct PluginCallbacks {
-    void (*user_get_deltaq_offset)(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count, int32_t frame_type, int32_t picture_number);
+    void (*user_get_deltaq_offset)(SuperBlockInfo *sb_info_array, int *offset_array, uint32_t sb_count, int32_t frame_type, 
+        int64_t picture_number, int frames_to_key, int frames_since_key, int64_t buffer_level);
 
     void (*user_picture_feedback)(uint8_t *bitstream, uint32_t bitstream_size, uint32_t picture_number);
 
-    void (*user_postencode_feedback)(uint32_t picture_number);//TODO
+    void (*user_postencode_feedback)(uint32_t picture_number); // Currently unused
 } PluginCallbacks;
 
 // runtime setter

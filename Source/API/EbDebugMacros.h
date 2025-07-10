@@ -264,7 +264,7 @@ extern "C" {
 #define CLN_EC                      1 // Update ec code to match libaom
 #define OPT_ENCDEC_MEM              1 // Remove enc dec buffers when encdec is bypassed; make buffers sb-size dependent
 #define TUNE_RTC_M11                1 // Tuning M11 for Extra speed.
-#define OPT_CR_FLOW_CHANGE          1 // Update control flow for cyclic refresh logic (lossless)
+#define OPT_CR_FLOW_CHANGE          0 // Update control flow for cyclic refresh logic (lossless)
 #if OPT_CR_FLOW_CHANGE
 #define OPT_CR_ESTIMATE             1 // Take the cycle-refresh modulation into account when deriving the projected frame size to improve the accuracy of the correction factor
 #define OPT_CR_LIMIT                1 // Update the equation used in the derivation of the adjustment limit

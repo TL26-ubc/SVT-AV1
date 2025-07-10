@@ -1416,6 +1416,7 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
     PictureParentControlSet *ppcs = pcs->ppcs;
     SequenceControlSet      *scs  = pcs->ppcs->scs;
     CyclicRefresh           *cr   = &ppcs->cyclic_refresh;
+    RATE_CONTROL            *rc   = &scs->enc_ctx->rc;
 #if !OPT_CR_FLOW_CHANGE
     SuperBlock *sb;
 #endif
@@ -1428,26 +1429,6 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
         ppcs->frm_hdr.delta_q_params.delta_q_present = 1;
     else
         ppcs->frm_hdr.delta_q_params.delta_q_present = 0;
-#if !FIX_LD_CBR_CRASH
-    // This function assume sb size = 64 and sb total count is equal to b64 total count
-    assert(scs->sb_total_count == ppcs->b64_total_count);
-#endif
-    if (ppcs->frm_hdr.delta_q_params.delta_q_present) {
-#endif
-
-#if CLN_AVG_ME_DISTORTION
-    uint64_t avg_me_dist = pcs->ppcs->norm_me_dist;
-#else
-        uint64_t avg_me_dist = 0;
-        for (b64_idx = 0; b64_idx < ppcs->b64_total_count; ++b64_idx) {
-            avg_me_dist += ppcs->me_8x8_distortion[b64_idx];
-        }
-
-        avg_me_dist /= ppcs->b64_total_count;
-#endif
-    RATE_CONTROL *rc        = &scs->enc_ctx->rc;
-    const int     bit_depth = scs->static_config.encoder_bit_depth;
-
 #ifdef SVT_ENABLE_USER_CALLBACKS
     uint32_t sb_cnt = ppcs->b64_total_count;
     SuperBlockInfo sb_info_array[sb_cnt];
@@ -1480,8 +1461,11 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
         plugin_cbs.user_get_deltaq_offset(sb_info_array,
                                           offset_array,
                                           sb_cnt,
-                                          (int32_t)pcs->ppcs->frm_hdr.frame_type,
-                                          (int32_t)pcs->picture_number
+                                          pcs->ppcs->frm_hdr.frame_type,
+                                          pcs->picture_number,
+                                          rc->frames_to_key,
+                                          rc->frames_since_key,
+                                          rc->buffer_level             
         );
 
         if (offset_array[0] == 114514) {
@@ -1492,6 +1476,24 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
         memset(offset_array, 0, sizeof(offset_array));
     }
 #endif
+#if !FIX_LD_CBR_CRASH
+    // This function assume sb size = 64 and sb total count is equal to b64 total count
+    assert(scs->sb_total_count == ppcs->b64_total_count);
+#endif
+    if (ppcs->frm_hdr.delta_q_params.delta_q_present) {
+#endif
+
+#if CLN_AVG_ME_DISTORTION
+    uint64_t avg_me_dist = pcs->ppcs->norm_me_dist;
+#else
+        uint64_t avg_me_dist = 0;
+        for (b64_idx = 0; b64_idx < ppcs->b64_total_count; ++b64_idx) {
+            avg_me_dist += ppcs->me_8x8_distortion[b64_idx];
+        }
+
+        avg_me_dist /= ppcs->b64_total_count;
+#endif
+    const int     bit_depth = scs->static_config.encoder_bit_depth;
 
 #if OPT_CR_ADJUST
     cr->actual_num_seg1_sbs = 0;
@@ -1539,7 +1541,12 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
         int         diff_dist = (int)(ppcs->me_8x8_distortion[b64_idx] - avg_me_dist);
         SuperBlock *sb;
         sb         = pcs->sb_ptr_array[b64_idx];
+#ifdef SVT_ENABLE_USER_CALLBACKS
+        // Use callback offset if available
+        int offset = offset_array[b64_idx];
+#else
         int offset = 0;
+#endif
 #if OPT_CR_ADJUST
         if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end && diff_dist < 0) {
             offset = cr->qindex_delta[CR_SEGMENT_ID_BOOST2];
@@ -1548,22 +1555,12 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
             offset = cr->qindex_delta[CR_SEGMENT_ID_BOOST1];
         }
 #else
-#ifdef SVT_ENABLE_USER_CALLBACKS
-            // Use callback offset if available
-            int offset = offset_array[b64_idx];
-            if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end && diff_dist <= 0) {
-                offset += delta;
-            } else if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end) {
-                offset += delta / 2;
-            }
-#else
-            int offset = 0;
-            // Original cyclic refresh logic
-            if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end && diff_dist <= 0) {
-                offset = delta;
-            } else if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end) {
-                offset = delta / 2;
-            }
+#ifndef SVT_ENABLE_USER_CALLBACKS
+        if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end && diff_dist <= 0) {
+            offset = delta;
+        } else if (b64_idx >= cr->sb_start && b64_idx < cr->sb_end) {
+            offset = delta / 2;
+        }
 #endif
 #endif
         sb->qindex = CLIP3(ppcs->frm_hdr.delta_q_params.delta_q_res,
@@ -3096,13 +3093,6 @@ static void av1_rc_postencode_update(PictureParentControlSet *ppcs) {
 
     if (frm_hdr->frame_type == KEY_FRAME)
         rc->frames_since_key = 0;
-
-#ifdef SVT_ENABLE_USER_CALLBACKS
-    fprintf(stderr, "(%d, %d, %d, %d)\n", rc->optimal_buffer_level, rc->starting_buffer_level, rc->buffer_level, rc->maximum_buffer_size);
-    if (plugin_cbs.user_postencode_feedback) {
-        plugin_cbs.user_postencode_feedback(ppcs->picture_number);
-    }
-#endif
 }
 void svt_aom_update_rc_counts(PictureParentControlSet *ppcs) {
     SequenceControlSet *scs     = ppcs->scs;

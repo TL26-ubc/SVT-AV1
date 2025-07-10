@@ -21,6 +21,9 @@ class RawObservationDict(TypedDict):
     superblocks: list[SuperBlockInfo]
     frame_number: int
     frame_type: int
+    frames_to_key: int
+    frames_since_key: int
+    buffer_level: int
     original_frame: YUVPlaneDict
 
 # Extending gymnasium's Env class
@@ -217,6 +220,9 @@ class Av1GymEnv(gym.Env):
                 superblocks=observation.superblocks,
                 frame_number=observation.picture_number,
                 frame_type=observation.frame_type.value,
+                frames_to_key=observation.frames_to_key,
+                frames_since_key=observation.frames_since_key,
+                buffer_level=observation.buffer_level,
                 original_frame=YUVPlaneDict(
                     y_plane=yuv_frame.y_plane,
                     u_plane=yuv_frame.u_plane,

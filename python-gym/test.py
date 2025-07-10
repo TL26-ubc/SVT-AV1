@@ -1,13 +1,12 @@
 import av1gym.pyencoder as bridge
 
+ally = 0
+cnt = 0
 def get_deltaq_offset(sbs: list[bridge.SuperBlockInfo], frame_type: int, frame_number: int) -> list[int]:
-    print("In python: ", len(sbs), frame_type, frame_number)
-    for sb in sbs:
-        if sb["sb_x_mv"] > 0:
-            print("sb_x_mv: ", sb["sb_x_mv"])
-        if sb["sb_y_mv"] > 0:
-            print("sb_y_mv: ", sb["sb_y_mv"])
-
+    # print("In python: ", len(sbs), frame_type, frame_number)
+    global ally, cnt
+    ally += sum([sb["sb_x_mv"] for sb in sbs])
+    cnt += len([sb["sb_x_mv"] for sb in sbs])
     return [0]*len(sbs)
 
 def picture_feedback(a, b, c):
@@ -16,11 +15,14 @@ def picture_feedback(a, b, c):
 bridge.register_callbacks(get_deltaq_offset=get_deltaq_offset, picture_feedback=picture_feedback)
 
 args = {
-    "input": "../../playground/bus_cif.y4m",
+    "input": "../../playground/bus_cif_rev.y4m",
+    "output": "../../playground/out.mkv",
     "pred_struct": 1,
     "rc": 2,
-    "tbr": 180,
+    "tbr": 400,
     "enable_stat_report": True
 }
 
 bridge.run(**args)
+
+print(ally/cnt)
