@@ -2,13 +2,13 @@ import io
 from queue import Queue
 from pathlib import Path
 from enum import Enum
-from ..pyencoder import SuperBlockInfo
 import threading
 from dataclasses import dataclass
-
 import av
 import cv2
 import numpy as np
+
+from ..pyencoder import SuperBlockInfo
 import av1gym.pyencoder as encoder
 
 class FrameType(Enum):

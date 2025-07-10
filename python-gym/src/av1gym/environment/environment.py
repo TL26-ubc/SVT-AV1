@@ -1,16 +1,16 @@
 import threading
 from pathlib import Path
 from typing import TypedDict
+import gymnasium as gym
+import numpy as np
+from typing import Any
+import math
 
 from ..pyencoder import SuperBlockInfo
 from .runner import FrameType
-import gymnasium as gym
-import numpy as np
 from .runner import Av1Runner, Feedback
-from .utils.video_reader import VideoReader, YUVFrame
+from .utils.video_reader import VideoReader
 from .constants import QP_MIN, QP_MAX, SB_SIZE
-from typing import Any
-import math
 
 class YUVPlaneDict(TypedDict):
     y_plane: np.ndarray # (w, h)
@@ -56,7 +56,7 @@ class Av1GymEnv(gym.Env):
 
         # Action space, QP offset grid
         self.action_space = gym.spaces.MultiDiscrete(
-            # num \in [QP_MAX, QP_MIN], there are num_superblocks of them
+            # num in [QP_MAX, QP_MIN], there are num_superblocks of them
             nvec=np.full(self.num_sb, QP_MAX - QP_MIN + 1, dtype=np.int32)
         )
 
@@ -75,6 +75,9 @@ class Av1GymEnv(gym.Env):
                 # motion vectors
                 "sb_x_mv": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(), dtype=np.int16),
                 "sb_y_mv": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(), dtype=np.int16),
+
+                # distortion
+                "sb_8x8_distortion": gym.spaces.Box(low=0, high=np.inf, shape=(), dtype=np.int32),
             })
         )
 
@@ -88,6 +91,9 @@ class Av1GymEnv(gym.Env):
             "superblocks": superblock_list_space,
             "frame_number": gym.spaces.Box(low=0, high=np.inf, shape=(), dtype=np.int32),
             "frame_type": gym.spaces.Box(low=0, high=len(FrameType), shape=(), dtype=np.int32),
+            "frames_to_key": gym.spaces.Box(low=0, high=np.inf, shape=(), dtype=np.int32),
+            "frames_since_key": gym.spaces.Box(low=0, high=np.inf, shape=(), dtype=np.int32),
+            "buffer_level": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(), dtype=np.int32),
             "original_frame": frame_space,
         })
 
@@ -165,8 +171,8 @@ class Av1GymEnv(gym.Env):
         # Get next observation with validation
         if self.terminated:
             # Episode has ended, return dummy observation
-            next_obs: Any = dict()
-            print(f"Episode terminated at frame {self.current_frame-1} (total frames: {self.num_frames})")
+            next_obs: Any = self._terminal_observation()
+            print(f"Episode terminated at frame {self.current_frame} (total frames: {self.num_frames})")
         else:
             # Get next observation with validation
             next_obs = self._get_next_observation()
@@ -206,31 +212,52 @@ class Av1GymEnv(gym.Env):
 
     def _get_next_observation(self) -> RawObservationDict:
         """Get current observation based on current frame"""
-        try:
-            observation = self.av1_runner.wait_for_next_observation()
-            yuv_frame = self.video_reader.read_frame(frame_number=observation.picture_number)
+        observation = self.av1_runner.wait_for_next_observation()
+        yuv_frame = self.video_reader.read_frame(frame_number=observation.picture_number)
 
-            # Assert frame numbers match
-            assert (
-                observation.picture_number == self.current_frame
-            ), f"observation frame {observation.picture_number} != current_frame {self.current_frame}"
+        # Assert frame numbers match
+        assert (
+            observation.picture_number == self.current_frame
+        ), f"observation frame {observation.picture_number} != current_frame {self.current_frame}"
 
-            # Send raw observation
-            return RawObservationDict(
-                superblocks=observation.superblocks,
-                frame_number=observation.picture_number,
-                frame_type=observation.frame_type.value,
-                frames_to_key=observation.frames_to_key,
-                frames_since_key=observation.frames_since_key,
-                buffer_level=observation.buffer_level,
-                original_frame=YUVPlaneDict(
-                    y_plane=yuv_frame.y_plane,
-                    u_plane=yuv_frame.u_plane,
-                    v_plane=yuv_frame.v_plane
-                ),
-            )
-        except Exception as e:
-            raise RuntimeError(f"Failed to get current observation for frame {self.current_frame}: {e}")
+        # Send raw observation
+        return RawObservationDict(
+            superblocks=observation.superblocks,
+            frame_number=observation.picture_number,
+            frame_type=observation.frame_type.value,
+            frames_to_key=observation.frames_to_key,
+            frames_since_key=observation.frames_since_key,
+            buffer_level=observation.buffer_level,
+            original_frame=YUVPlaneDict(
+                y_plane=yuv_frame.y_plane,
+                u_plane=yuv_frame.u_plane,
+                v_plane=yuv_frame.v_plane
+            ),
+        )
+    
+    def _terminal_observation(self) -> RawObservationDict:
+        return RawObservationDict(
+            superblocks = [SuperBlockInfo(
+                sb_width = 1,
+                sb_height = 1,
+                sb_org_x = 0,
+                sb_org_y = 0,
+                sb_qindex = 0,
+                sb_x_mv = 0,
+                sb_y_mv = 0,
+                sb_8x8_distortion = 0,
+            )] * self.num_sb,
+            frame_number = self.current_frame,
+            frame_type = 0,
+            frames_to_key = 0,
+            frames_since_key= 0,
+            buffer_level = 0,
+            original_frame = YUVPlaneDict(
+                y_plane=np.zeros((self.frame_h, self.frame_w), np.uint8),
+                u_plane=np.zeros((self.frame_h // 2, self.frame_w // 2), np.uint8),
+                v_plane=np.zeros((self.frame_h // 2, self.frame_w // 2), np.uint8),
+            ),
+        )
 
     def _action_to_qp_offsets(self, action: np.ndarray) -> np.ndarray:
         """Convert discrete action to QP offsets"""
@@ -247,20 +274,17 @@ class Av1GymEnv(gym.Env):
         self, feedback: Feedback, qp_offsets: np.ndarray
     ) -> float:
         """Calculate reward based on encoding feedback"""
-        try:
-            # Get postencoded frame data
-            postencoded_frame = feedback.encoded_frame_data
+        # Get postencoded frame data
+        postencoded_frame = feedback.encoded_frame_data
 
-            # Convert to yuv planes
-            postencoded_frame_planes = self.video_reader.get_yuv_planes(postencoded_frame)
-            original_frame = self.video_reader.read_frame(frame_number=feedback.picture_number)
-            
-            # Calculate mse as reward
-            mse = VideoReader.compute_mse(postencoded_frame_planes.y_plane, original_frame.y_plane)
-            
-            return mse
-        except Exception as e:
-            raise RuntimeError(f"Failed to calculate reward for frame {self.current_frame}: {e}")
+        # Convert to yuv planes
+        postencoded_frame_planes = self.video_reader.get_yuv_planes(postencoded_frame)
+        original_frame = self.video_reader.read_frame(frame_number=feedback.picture_number)
+        
+        # Calculate mse as reward
+        mse = VideoReader.compute_mse(postencoded_frame_planes.y_plane, original_frame.y_plane)
+        
+        return mse
 
     def _check_termination_conditions(self):
         """Check if episode should terminate"""

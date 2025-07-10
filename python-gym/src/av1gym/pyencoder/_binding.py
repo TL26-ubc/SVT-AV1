@@ -1,4 +1,3 @@
-from enum import Enum
 from importlib import import_module as _imp
 from typing import TypedDict
 
@@ -14,6 +13,7 @@ class SuperBlockInfo(TypedDict):
     sb_qindex: int
     sb_x_mv: int
     sb_y_mv: int
+    sb_8x8_distortion: int
 
 def run(**kwargs):
     argv = ["svtav1"]

@@ -1438,9 +1438,9 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
 
     if (plugin_cbs.user_get_deltaq_offset) {
         // Construct superblock info
-        for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) { 
-            SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
-            SuperBlockInfo *sb_info = &sb_info_array[sb_addr];
+        for (uint32_t sb_idx = 0; sb_idx < sb_cnt; ++sb_idx) { 
+            SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_idx];
+            SuperBlockInfo *sb_info = &sb_info_array[sb_idx];
             
             const uint16_t sb_width  = MIN(scs->sb_size, pcs->ppcs->aligned_width - sb_ptr->org_x);
             const uint16_t sb_height = MIN(scs->sb_size, pcs->ppcs->aligned_height - sb_ptr->org_y);
@@ -1450,8 +1450,9 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
             sb_info->sb_width = sb_width;
             sb_info->sb_height = sb_height;
             sb_info->sb_qindex = sb_ptr->qindex;
+            sb_info->sb_8x8_distortion = ppcs->me_8x8_distortion[sb_idx];
 
-            MeSbResults *me_res = ppcs->pa_me_data->me_results[sb_addr];
+            MeSbResults *me_res = ppcs->pa_me_data->me_results[sb_idx];
             Mv mv = me_res->me_mv_array[0]; // 0 idx is for overall estimate
             sb_info->sb_x_mv = mv.x;
             sb_info->sb_y_mv = mv.y;

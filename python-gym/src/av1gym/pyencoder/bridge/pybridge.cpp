@@ -39,7 +39,8 @@ extern "C" void get_deltaq_offset_trampoline(
             py::arg("sb_width") = sb.sb_width,
             py::arg("sb_qindex") = sb.sb_qindex,
             py::arg("sb_x_mv") = sb.sb_x_mv,
-            py::arg("sb_y_mv") = sb.sb_y_mv
+            py::arg("sb_y_mv") = sb.sb_y_mv,
+            py::arg("sb_8x8_distortion") = sb.sb_8x8_distortion
         );
     });
 

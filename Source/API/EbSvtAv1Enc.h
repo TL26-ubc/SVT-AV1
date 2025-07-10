@@ -1120,6 +1120,7 @@ typedef struct SuperBlockInfo {
     uint8_t      sb_qindex;
     signed short sb_x_mv;
     signed short sb_y_mv;
+    uint32_t     sb_8x8_distortion;
 } SuperBlockInfo;
 
 #ifdef SVT_ENABLE_USER_CALLBACKS

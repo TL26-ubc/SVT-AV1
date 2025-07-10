@@ -106,7 +106,7 @@ int init_callbacks()
     for (int i = 0; i < static_cast<int>(CallbackEnum::Count); ++i) {
         g_callbacks[i] = new Callback{py::none(), nullptr, 0};
     }
-    g_callbacks[0]->n_args = 3; // GetDeltaQOffset
+    g_callbacks[0]->n_args = 6; // GetDeltaQOffset
     g_callbacks[1]->n_args = 3; // RecvPictureFeedback
     g_callbacks[2]->n_args = 1; // RecvPostEncodeStats //TODO
     return 0;

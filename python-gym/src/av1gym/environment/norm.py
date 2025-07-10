@@ -2,17 +2,26 @@ import numpy as np
 import gymnasium as gym
 from stable_baselines3.common.running_mean_std import RunningMeanStd
 from typing import Generic, TypeVar, TypedDict
+import torch as th
 from enum import Enum
+
 from .environment import Av1GymEnv, RawObservationDict
 from .runner import FrameType
 
-SB_FEATURES = 4
+SB_FEATURES = 5
 FRAME_FEATURES = 4
 
-class ObservationDict(TypedDict):
-    superblock: np.ndarray # continuous superblock level features (sb_h, sb_w, SB_FEATURES,)
-    frame: np.ndarray # continuous frame level features (FRAME_FEATURES,)
-    frame_type: np.ndarray # onehot array [0, 0, 0, 1]
+# Observation dict will be converted into th.Tensors by gymnasium
+ArrayT = TypeVar(
+    "ArrayT",
+    np.ndarray,
+    th.Tensor,
+)
+
+class ObservationDict(TypedDict, Generic[ArrayT]):
+    superblock: ArrayT # continuous superblock level features (sb_h, sb_w, SB_FEATURES,)
+    frame: ArrayT # continuous frame level features (FRAME_FEATURES,)
+    frame_type: ArrayT # onehot array [0, 0, 0, 1]
 
 class Av1GymObsNormWrapper(gym.ObservationWrapper):
     env: Av1GymEnv
@@ -55,7 +64,8 @@ class Av1GymObsNormWrapper(gym.ObservationWrapper):
                 sb["sb_qindex"],
                 sb["sb_x_mv"],
                 sb["sb_y_mv"],
-                luma_var
+                luma_var,
+                sb["sb_8x8_distortion"]
             )
 
         # Reshape from 2d to 3d tensor
@@ -70,7 +80,7 @@ class Av1GymObsNormWrapper(gym.ObservationWrapper):
         ], dtype=np.float32)
 
         network_obs = ObservationDict(
-            superblock=np.zeros_like([]),
+            superblock=superblock_obs,
             frame=frame_obs,
             frame_type=self.enum_to_onehot(FrameType, observation["frame_type"], dtype=np.float32)
         )

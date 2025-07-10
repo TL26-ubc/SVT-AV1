@@ -1,14 +1,8 @@
 from dataclasses import dataclass
-import enum
 import av
 import cv2
 import numpy as np
 from av1gym.environment.constants import SB_SIZE
-
-class VideoComponent(enum.Enum):
-    Y = "Y"
-    Cb = "Cb"
-    Cr = "Cr"
 
 @dataclass
 class YUVFrame:
@@ -95,8 +89,27 @@ class VideoReader:
         return np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2).astype(float)
     
     def get_yuv_planes(self, frame: np.ndarray) -> YUVFrame:
-        w, h = self.width, self.height
-        y_plane = frame[0 : w*h].reshape((h, w))
-        u_plane = frame[w*h : w*h + (w//2)*(h//2)].reshape((h//2, w//2))
-        v_plane = frame[w*h + (w//2)*(h//2) : ].reshape((h//2, w//2))
+        """
+        Split a flattened *YUV420p* frame into Y, U, V planes.
+
+        Frame layout (planar, 8 bit):
+            Y  :  w × h           bytes
+            U  : (w/2) × (h/2)    bytes
+            V  : (w/2) × (h/2)    bytes
+        """
+        y_size  = self.width * self.height
+        uv_size = (self.width // 2) * (self.height // 2)
+        expected = y_size + 2 * uv_size
+
+        if frame.size != expected:
+            raise ValueError(
+                f"Unexpected frame length. Got {frame.size} bytes, "
+                f"expected {expected} for {self.width}×{self.height} YUV420p."
+            )
+
+        linear_frame = frame.ravel()
+        y_plane = linear_frame[:y_size].reshape((self.height, self.width))
+        u_plane = linear_frame[y_size : y_size + uv_size].reshape((self.height // 2, self.width // 2))
+        v_plane = linear_frame[y_size + uv_size :].reshape((self.height // 2, self.width // 2))
+
         return YUVFrame(y_plane, u_plane, v_plane)
