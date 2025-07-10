@@ -281,8 +281,6 @@ void *svt_aom_entropy_coding_kernel(void *input_ptr) {
                                                    (y_sb_index + tile_sb_start_y) * pic_width_in_sb);
                     SuperBlock *sb_ptr   = pcs->sb_ptr_array[sb_index];
 
-                    // TODO find the size before and after for each superblock
-
                     context_ptr->sb_origin_x = (x_sb_index + tile_sb_start_x) << sb_size_log2;
                     context_ptr->sb_origin_y = (y_sb_index + tile_sb_start_y) << sb_size_log2;
                     if (x_sb_index == 0 && y_sb_index == 0) {

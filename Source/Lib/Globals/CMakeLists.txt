@@ -39,17 +39,12 @@ set(all_files
         enc_settings.h
         metadata_handle.c
         metadata_handle.h
-        enc_callbacks.c
-        enc_callbacks.h
-        rl_feedback.c
-        rl_feedback.h
         )
 
 add_library(GLOBALS OBJECT ${all_files})
 if (BUILD_SHARED_LIBS)
         target_compile_definitions(GLOBALS
                 PUBLIC EB_DLL
-                PRIVATE EB_BUILDING_SHARED_LIBS
-                $<$<BOOL:${SVT_ENABLE_USER_CALLBACKS}>:SVT_ENABLE_USER_CALLBACKS>)
+                PRIVATE EB_BUILDING_SHARED_LIBS)
 endif()
 add_dependencies(GLOBALS EbVersionHeaderGen)

@@ -2,6 +2,12 @@ import pyencoder
 
 def get_deltaq_offset(sbs: list[pyencoder.SuperBlockInfo], frame_type: int, frame_number: int) -> list[int]:
     print("In python: ", len(sbs), frame_type, frame_number)
+    for sb in sbs:
+        if sb["sb_x_mv"] > 0:
+            print("sb_x_mv: ", sb["sb_x_mv"])
+        if sb["sb_y_mv"] > 0:
+            print("sb_y_mv: ", sb["sb_y_mv"])
+
     return [0]*len(sbs)
 
 def picture_feedback(a, b, c):

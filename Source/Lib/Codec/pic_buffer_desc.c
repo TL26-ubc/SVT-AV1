@@ -68,8 +68,7 @@ EbErrorType svt_picture_buffer_desc_ctor_noy8b(EbPictureBufferDesc *pictureBuffe
     pictureBufferDescPtr->org_x        = picture_buffer_desc_init_data_ptr->left_padding;
     pictureBufferDescPtr->org_y        = picture_buffer_desc_init_data_ptr->top_padding;
     pictureBufferDescPtr->origin_bot_y = picture_buffer_desc_init_data_ptr->bot_padding;
-    
-    // tl26 set luma_size and chroma_size to 
+
     pictureBufferDescPtr->luma_size = pictureBufferDescPtr->stride_y *
         (picture_buffer_desc_init_data_ptr->max_height + picture_buffer_desc_init_data_ptr->top_padding +
          picture_buffer_desc_init_data_ptr->bot_padding);

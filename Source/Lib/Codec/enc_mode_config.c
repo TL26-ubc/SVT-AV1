@@ -9793,7 +9793,6 @@ void svt_aom_sig_deriv_enc_dec_common(SequenceControlSet *scs, PictureControlSet
     } else {
         set_depth_removal_level_controls(pcs, ctx, pcs->pic_depth_removal_level);
     }
-
     if (rtc_tune) {
         if (enc_mode <= ENC_M7)
 #if CLN_HIGH_FREQUENCY
@@ -11436,6 +11435,7 @@ static void set_pic_lpd0_lvl(PictureControlSet *pcs, EncMode enc_mode) {
         } else if (enc_mode <= ENC_M8) {
 #else
         } else if (enc_mode <= ENC_M9) {
+#endif
             if (input_resolution <= INPUT_SIZE_360p_RANGE) {
                 // For seq_qp_mode 3, there is no conservative offset to disallow because the qp offset is limited to at least 0
                 const int qp_offset = (seq_qp_mod <= 1) ? 0 : (int)ldp0_lvl_offset[qp_band_idx];

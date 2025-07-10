@@ -13,7 +13,6 @@
 
 #include "definitions.h"
 #include "enc_handle.h"
-#include "enc_callbacks.h"
 #include "rc_process.h"
 #include "sequence_control_set.h"
 #include "pcs.h"
@@ -1472,9 +1471,9 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
             sb_info->sb_qindex = (uint8_t)sb_ptr->qindex;
 
             MeSbResults *me_res = ppcs->pa_me_data->me_results[sb_addr];
-            MvCandidate mv = me_res->me_mv_array[0]; // 0 idx is for overall estimate
-            sb_info->sb_x_mv = mv.x_mv;
-            sb_info->sb_y_mv = mv.y_mv;
+            Mv mv = me_res->me_mv_array[0]; // 0 idx is for overall estimate
+            sb_info->sb_x_mv = mv.x;
+            sb_info->sb_y_mv = mv.y;
         }
 
         // Call callback with frame number as main parameter
@@ -1985,10 +1984,8 @@ void svt_aom_sb_qp_derivation_tpl_la(PictureControlSet *pcs) {
         for (uint32_t sb_addr = 0; sb_addr < sb_cnt; ++sb_addr) {
             SuperBlock *sb_ptr = pcs->sb_ptr_array[sb_addr];
             double      beta   = ppcs_ptr->pa_me_data->tpl_beta[sb_addr];
-
-            int offset = svt_av1_get_deltaq_offset(
+            int         offset = svt_av1_get_deltaq_offset(
                 scs->static_config.encoder_bit_depth, sb_ptr->qindex, beta, pcs->ppcs->slice_type == I_SLICE);
-
             offset = AOMMIN(offset, pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 - 1);
             offset = AOMMAX(offset, -pcs->ppcs->frm_hdr.delta_q_params.delta_q_res * 9 * 4 + 1);
 

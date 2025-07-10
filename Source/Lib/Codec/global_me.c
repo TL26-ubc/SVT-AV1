@@ -198,6 +198,7 @@ void svt_aom_global_motion_estimation(PictureParentControlSet *pcs, EbPictureBuf
         global_motion_estimation_level = 2;
     else
         global_motion_estimation_level = 3;
+
     if (pcs->gm_ctrls.downsample_level == GM_ADAPT_0) {
         pcs->gm_downsample_level = (average_me_sad < GMV_ME_SAD_TH_1) ? GM_DOWN : GM_FULL;
     } else if (pcs->gm_ctrls.downsample_level == GM_ADAPT_1) {

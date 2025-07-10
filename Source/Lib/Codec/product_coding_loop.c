@@ -8800,6 +8800,7 @@ static void full_loop_core(PictureControlSet *pcs, ModeDecisionContext *ctx, Mod
     // Force the use of TX_4X4 for 8x8 block(s)
     if (pcs->mimic_only_tx_4x4 && ctx->blk_geom->sq_size == 8)
         start_tx_depth = end_tx_depth = 1;
+#endif
     // Check if should perform TX type search
     if (ctx->blk_geom->sq_size <= 64 && start_tx_depth == 0 && end_tx_depth == 0 && // TXS off
         !pcs->ppcs->sc_class1 && // Can't be SC b/c SC tries DCT_DCT and IDTX when only_dct_dct is 1

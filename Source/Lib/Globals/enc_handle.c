@@ -1605,8 +1605,7 @@ void init_ii_masks(void);
 /**********************************
 * Initialize Encoder Library
 **********************************/
-EB_API EbErrorType 
-svt_av1_enc_init(EbComponentType *svt_enc_component)
+EB_API EbErrorType svt_av1_enc_init(EbComponentType *svt_enc_component)
 {
     if(svt_enc_component == NULL)
         return EB_ErrorBadParameter;
@@ -7156,5 +7155,4 @@ EB_API EbErrorType svt_av1_enc_get_stream_info(EbComponentType *    svt_enc_comp
     }
     return EB_ErrorBadParameter;
 }
-
 // clang-format on

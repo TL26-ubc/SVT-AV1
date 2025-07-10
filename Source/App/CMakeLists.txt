@@ -11,7 +11,7 @@
 
 # APP Directory CMakeLists.txt
 
-# Include API headers
+# Include Subdirectories
 include_directories(${PROJECT_SOURCE_DIR}/Source/API/)
 
 set(all_files
@@ -35,26 +35,25 @@ set(all_files
     svt_time.c
     svt_time.h
     )
-    
-    # App Source Files
-    add_executable(SvtAv1EncApp ${all_files})
 
-# Link the executable to shared library and Python libraries
+# App Source Files
+add_executable(SvtAv1EncApp
+    ${all_files})
+
+if(TARGET safestringlib)
+    target_sources(SvtAv1EncApp PRIVATE $<TARGET_OBJECTS:safestringlib>)
+endif()
+
+#********** SET COMPILE FLAGS************
+# Link the Encoder App
 target_link_libraries(SvtAv1EncApp
-    SvtAv1Enc
-)
-
+        SvtAv1Enc)
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Android")
     target_link_libraries(SvtAv1EncApp ${PLATFORM_LIBS})
 elseif(UNIX)
     target_link_libraries(SvtAv1EncApp
         pthread
-        m
-    )
-endif()
-
-if(TARGET safestringlib)
-    target_sources(SvtAv1EncApp PRIVATE $<TARGET_OBJECTS:safestringlib>)
+        m)
 endif()
 
 install(TARGETS SvtAv1EncApp RUNTIME DESTINATION ${CMAKE_INSTALL_FULL_BINDIR})

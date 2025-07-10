@@ -3734,6 +3734,7 @@ static EbErrorType produce_temporally_filtered_pic_ld(
         if (scs->static_config.qp <= ALT_REF_QP_THRESH)
             decay_control--;
     }
+
     FP_ASSERT(TF_Q_DECAY_THRESHOLD == 20);
     const uint32_t q_decay_fp8 = 256;
 
@@ -4175,7 +4176,6 @@ static EbErrorType save_src_pic_buffers(PictureParentControlSet *centre_pcs,
         centre_pcs->enhanced_unscaled_pic;
     assert(src_pic_ptr != NULL);
     // allocate memory for the copy of the original enhanced buffer
-    // tl26 frame raw data malloc 
     EB_MALLOC_ARRAY(centre_pcs->save_source_picture_ptr[C_Y],
                     src_pic_ptr->luma_size);
     EB_MALLOC_ARRAY(centre_pcs->save_source_picture_ptr[C_U],

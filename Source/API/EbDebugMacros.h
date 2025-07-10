@@ -321,7 +321,6 @@ extern "C" {
 #define FIX_SFRAME_ORDER_HINT       1 // Fix issue of dpd_order_hint is not relative with key position
 
 //FOR DEBUGGING - Do not remove
-#define FIX_AVX512_ICL_RTCD         1 // Correct avx512icl support detection
 #define OPT_LD_LATENCY2         1 // Latency optimization for low delay - to keep the Macro for backwards testing until 3.0
 #define LOG_ENC_DONE            0 // log encoder job one
 #define DEBUG_TPL               0 // Prints to debug TPL

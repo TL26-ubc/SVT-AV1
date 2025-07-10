@@ -54,7 +54,6 @@
 #if LOG_ENC_DONE
 int tot_frames_done = 0;
 #endif
-
 /***************************************
  * External Functions
  ***************************************/
@@ -491,7 +490,6 @@ EbErrorType enc_app_ctor(EncApp* enc_app) {
 
 void enc_app_dctor(EncApp* enc_app) { free(enc_app->rc_twopasses_stats.buf); }
 
-
 /***************************************
  * Encoder App Main
  ***************************************/
@@ -538,6 +536,5 @@ int32_t main(int32_t argc, char* argv[]) {
 #if LOG_ENC_DONE
     fprintf(stderr, "all_done_encoding  %i frames \n", tot_frames_done);
 #endif
-
     return return_error != EB_ErrorNone;
 }

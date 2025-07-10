@@ -979,6 +979,7 @@ void *svt_aom_packetization_kernel(void *input_ptr) {
             enc_ctx->sc_frame_out++;
             svt_release_mutex(enc_ctx->sc_buffer_mutex);
         }
+
         if (scs->enable_dec_order || (pcs->ppcs->is_ref == true && pcs->ppcs->ref_pic_wrapper))
             // Post the Full Results Object
             svt_post_full_object(picture_manager_results_wrapper_ptr);

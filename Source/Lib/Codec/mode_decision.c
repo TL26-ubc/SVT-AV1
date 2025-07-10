@@ -4642,14 +4642,14 @@ static void inject_new_nearest_new_comb_candidates(PictureControlSet *pcs, ModeD
                                     mask_done = 1;
                                 }
                             }
+                            determine_compound_mode(pcs, ctx, &cand_array[cand_idx], cur_type);
+                            INC_MD_CAND_CNT(cand_idx, pcs->ppcs->max_can_count);
                         }
-                        determine_compound_mode(pcs, ctx, &cand_array[cand_idx], cur_type);
-                        INC_MD_CAND_CNT(cand_idx, pcs->ppcs->max_can_count);
+                        ctx->injected_mvs[ctx->injected_mv_count][0].as_int = to_inj_mv0.as_int;
+                        ctx->injected_mvs[ctx->injected_mv_count][1].as_int = to_inj_mv1.as_int;
+                        ctx->injected_ref_types[ctx->injected_mv_count]     = ref_pair;
+                        ++ctx->injected_mv_count;
                     }
-                    ctx->injected_mvs[ctx->injected_mv_count][0].as_int = to_inj_mv0.as_int;
-                    ctx->injected_mvs[ctx->injected_mv_count][1].as_int = to_inj_mv1.as_int;
-                    ctx->injected_ref_types[ctx->injected_mv_count]     = ref_pair;
-                    ++ctx->injected_mv_count;
                 }
             }
         }

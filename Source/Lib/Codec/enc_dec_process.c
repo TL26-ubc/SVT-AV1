@@ -3909,7 +3909,6 @@ void *svt_aom_mode_decision_kernel(void *input_ptr) {
         ed_ctx->tot_intra_coded_area    = 0;
         ed_ctx->tot_skip_coded_area     = 0;
         ed_ctx->tot_hp_coded_area       = 0;
-
         // Bypass encdec for the first pass
         if (svt_aom_is_pic_skipped(pcs->ppcs)) {
             svt_release_object(pcs->ppcs->me_data_wrapper);

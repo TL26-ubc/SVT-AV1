@@ -1116,9 +1116,6 @@ ConfigEntry config_entry[] = {
     // Sharpness
     {SHARPNESS_TOKEN, "Sharpness", set_cfg_generic_token},
 
-    // Sharpness
-    {SINGLE_INPUT, SHARPNESS_TOKEN, "Sharpness", set_cfg_generic_token},
-
     // Variance boost
     {ENABLE_VARIANCE_BOOST_TOKEN, "EnableVarianceBoost", set_cfg_generic_token},
     {VARIANCE_BOOST_STRENGTH_TOKEN, "VarianceBoostStrength", set_cfg_generic_token},
