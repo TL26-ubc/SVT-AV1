@@ -134,6 +134,32 @@ static const vector<uint32_t> invalid_hierarchical_levels = {
     0, 1, 2, 6,  // ...
 };
 
+#if CLN_REMOVE_LDP
+/* Prediction structure used to construct GOP. There are two main structures
+ * supported, which are: Low Delay and Random Access.
+ *
+ * In Low Delay structure, pictures within a mini GOP refer to the previously
+ * encoded pictures in display order. In other words, pictures with display
+ * order N can only be referenced by pictures with display order greater than
+ * N, and it can only refer pictures with picture order lower than N. The Low
+ * Delay structure can be flat structured (e.g. IPPPPPPP...) or hierarchically
+ * structured. b/b pictures can be used instead of P/p pictures. However, the
+ * reference picture list 0 and the reference picture list 1 will contain the
+ * same reference picture.
+ *
+ * Following values are supported and defined in definitions.h
+ * #define LOW_DELAY       1
+ * #define RANDOM_ACCESS   2
+
+ * In Random Access structure, the b/b pictures can refer to reference pictures
+ * from both directions (past and future).
+ *
+ * Default is 2. */
+static const vector<uint8_t> default_pred_structure = {
+    RANDOM_ACCESS,
+};
+static const vector<uint8_t> valid_pred_structure = {LOW_DELAY, RANDOM_ACCESS};
+#else
 /* Prediction structure used to construct GOP. There are two main structures
  * supported, which are: Low Delay (P or b) and Random Access.
  *
@@ -163,6 +189,7 @@ static const vector<uint8_t> valid_pred_structure = {
     SVT_AV1_PRED_LOW_DELAY_P,
     SVT_AV1_PRED_LOW_DELAY_B,
     SVT_AV1_PRED_RANDOM_ACCESS};
+#endif
 static const vector<uint8_t> invalid_pred_structure = {
     /* _pred_structure override in code
     SVT_AV1_PRED_TOTAL_COUNT, SVT_AV1_PRED_TOTAL_COUNT + 1, EB_PRED_INVALID*/};
@@ -727,8 +754,6 @@ static const vector<EbCpuFlags> valid_use_cpu_flags = {
     EB_CPU_FLAGS_AVX512F,
     EB_CPU_FLAGS_AVX512CD,
     EB_CPU_FLAGS_AVX512DQ,
-    EB_CPU_FLAGS_AVX512ER,
-    EB_CPU_FLAGS_AVX512PF,
     EB_CPU_FLAGS_AVX512BW,
     EB_CPU_FLAGS_AVX512VL,
     EB_CPU_FLAGS_AVX512ICL,

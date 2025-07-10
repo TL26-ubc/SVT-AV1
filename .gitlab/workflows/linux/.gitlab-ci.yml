@@ -83,20 +83,23 @@ Linux (Alpine, musl):
     paths:
       - musl/SvtAv1EncApp
 
-Linux (Clang):
+Linux (Old Compilers):
   extends: .linux-compiler-base
+  image: registry.gitlab.com/aomediacodec/aom-testing/ubuntu-old
   stage: standalone
   parallel:
     matrix:
-      - CC: clang-6.0
-        CXX: clang++-6.0
-      - CC: clang-12
-        CXX: clang++-12
+      - CC: gcc
+        CXX: g++
+      - CC: clang
+        CXX: clang++
 
-Linux (GCC 4):
+Linux (Clang):
   extends: .linux-compiler-base
   stage: standalone
-  image: registry.gitlab.com/aomediacodec/aom-testing/centos7
+  variables:
+    CC: clang
+    CXX: clang++
 
 Linux (GCC):
   extends: .linux-compiler-base
@@ -483,6 +486,8 @@ Linux FFmpeg (n7.1, Static):
     - |
       conflicts=$(
         nm -Ag --defined-only ${PREFIX_DIR}/lib/lib{SvtAv1Enc,aom,dav1d,vpx,vmaf}.a 2>/dev/null |
+        # Ignore weak symbols
+        grep -v ' W ' |
         sort -k3 |
         uniq -D -f2 |
         sed '/:$/d;/^$/d'

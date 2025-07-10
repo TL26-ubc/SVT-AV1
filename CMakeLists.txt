@@ -24,11 +24,6 @@ if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
                     "Please use the Build folder or create your own.")
 endif()
 
-if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
-    message(WARNING "Building in-source is highly not recommended\n"
-                    "Please use the Build folder or create your own.")
-endif()
-
 project(svt-av1 VERSION 3.0.2
     LANGUAGES C CXX)
 

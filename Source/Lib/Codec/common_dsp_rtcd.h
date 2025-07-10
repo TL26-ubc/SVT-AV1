@@ -17,30 +17,6 @@
 
 #include "definitions.h"
 
-
-/*
- * DSP deprecated flags
- */
-#define HAS_MMX EB_CPU_FLAGS_MMX
-#define HAS_SSE EB_CPU_FLAGS_SSE
-#define HAS_SSE2 EB_CPU_FLAGS_SSE2
-#define HAS_SSE3 EB_CPU_FLAGS_SSE3
-#define HAS_SSSE3 EB_CPU_FLAGS_SSSE3
-#define HAS_SSE4_1 EB_CPU_FLAGS_SSE4_1
-#define HAS_SSE4_2 EB_CPU_FLAGS_SSE4_2
-#define HAS_AVX EB_CPU_FLAGS_AVX
-#define HAS_AVX2 EB_CPU_FLAGS_AVX2
-#define HAS_AVX512F EB_CPU_FLAGS_AVX512F
-#define HAS_AVX512CD EB_CPU_FLAGS_AVX512CD
-#define HAS_AVX512DQ EB_CPU_FLAGS_AVX512DQ
-#define HAS_AVX512ER EB_CPU_FLAGS_AVX512ER
-#define HAS_AVX512PF EB_CPU_FLAGS_AVX512PF
-#define HAS_AVX512BW EB_CPU_FLAGS_AVX512BW
-#define HAS_AVX512VL EB_CPU_FLAGS_AVX512VL
-#define HAS_NEON EB_CPU_FLAGS_NEON
-#define HAS_NEON_DOTPROD EB_CPU_FLAGS_NEON_DOTPROD
-#define HAS_SVE EB_CPU_FLAGS_SVE
-
 #ifdef RTCD_C
 #define RTCD_EXTERN                //CHKN RTCD call in effect. declare the function pointers in  encHandle.
 #else
@@ -1219,6 +1195,7 @@ extern "C" {
     void svt_aom_hadamard_32x32_neon(const int16_t *src_diff, ptrdiff_t src_stride, int32_t *coeff);
 
     void svt_aom_subtract_block_neon(int rows, int cols, int16_t *diff, ptrdiff_t diff_stride, const uint8_t *src, ptrdiff_t src_stride, const uint8_t *pred, ptrdiff_t pred_stride);
+    void svt_aom_highbd_subtract_block_neon(int rows, int cols, int16_t *diff_ptr, ptrdiff_t diff_stride, const uint8_t *src_ptr, ptrdiff_t src_stride, const uint8_t *pred_ptr, ptrdiff_t pred_stride, int bd);
     void svt_av1_filter_intra_predictor_neon(uint8_t *dst, ptrdiff_t stride, TxSize tx_size, const uint8_t *above, const uint8_t *left, int mode);
 
     void svt_aom_highbd_smooth_v_predictor_4x4_neon(uint16_t *dst, ptrdiff_t y_stride, const uint16_t *above, const uint16_t *left, int32_t bd);

@@ -53,11 +53,23 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
         SVT_ERROR("Instance %u: Source Height must be at least 4\n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
+#if CLN_REMOVE_LDP
+    if (config->pred_structure > RANDOM_ACCESS || config->pred_structure < LOW_DELAY) {
+        SVT_ERROR("Instance %u: Pred Structure must be [%d (low delay) or %d (random access)]\n",
+                  channel_number + 1,
+                  LOW_DELAY,
+                  RANDOM_ACCESS);
+#else
     if (config->pred_structure > 2 || config->pred_structure < 1) {
         SVT_ERROR("Instance %u: Pred Structure must be [1 or 2]\n", channel_number + 1);
+#endif
         return_error = EB_ErrorBadParameter;
     }
+#if CLN_REMOVE_LDP
+    if (config->pred_structure == LOW_DELAY && config->pass > 0) {
+#else
     if (config->pred_structure == 1 && config->pass > 0) {
+#endif
         SVT_ERROR("Instance %u: Multi-passes is not support with Low Delay mode \n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
@@ -136,7 +148,11 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
             channel_number + 1);
 
     if (config->force_key_frames &&
+#if CLN_REMOVE_LDP
+        (config->rate_control_mode == SVT_AV1_RC_MODE_CBR || config->pred_structure != RANDOM_ACCESS)) {
+#else
         (config->rate_control_mode == SVT_AV1_RC_MODE_CBR || config->pred_structure != SVT_AV1_PRED_RANDOM_ACCESS)) {
+#endif
         SVT_WARN(
             "Instance %u: Force key frames is now supported for lowdelay but the force_key_frames flag"
             " does not need to be set be on. Please follow the app samples shown by the FTR_KF_ON_FLY_SAMPLE"
@@ -152,12 +168,22 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
         SVT_ERROR("Instance %u: Max Bitrate only supported with CRF mode\n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
+#if CLN_REMOVE_LDP
+    if (config->rate_control_mode == SVT_AV1_RC_MODE_CBR && config->pred_structure == RANDOM_ACCESS) {
+        SVT_ERROR("CBR Rate control is currently not supported for RANDOM_ACCESS, use VBR mode\n");
+#else
     if (config->rate_control_mode == SVT_AV1_RC_MODE_CBR && config->pred_structure == SVT_AV1_PRED_RANDOM_ACCESS) {
         SVT_ERROR("CBR Rate control is currently not supported for SVT_AV1_PRED_RANDOM_ACCESS, use VBR mode\n");
+#endif
         return_error = EB_ErrorBadParameter;
     }
+#if CLN_REMOVE_LDP
+    if (config->rate_control_mode == SVT_AV1_RC_MODE_VBR && config->pred_structure == LOW_DELAY) {
+        SVT_ERROR("VBR Rate control is currently not supported for LOW_DELAY, use CBR mode\n");
+#else
     if (config->rate_control_mode == SVT_AV1_RC_MODE_VBR && config->pred_structure == SVT_AV1_PRED_LOW_DELAY_B) {
         SVT_ERROR("VBR Rate control is currently not supported for SVT_AV1_PRED_LOW_DELAY_B, use CBR mode\n");
+#endif
         return_error = EB_ErrorBadParameter;
     }
     if (config->rate_control_mode == SVT_AV1_RC_MODE_CQP_OR_CRF && config->target_bit_rate != DEFAULT_TBR) {
@@ -520,7 +546,11 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
         return_error = EB_ErrorBadParameter;
     }
     if (config->tune == 2) {
+#if CLN_REMOVE_LDP
+        if (config->rate_control_mode != 0 || config->pred_structure != RANDOM_ACCESS) {
+#else
         if (config->rate_control_mode != 0 || config->pred_structure != SVT_AV1_PRED_RANDOM_ACCESS) {
+#endif
             SVT_ERROR("Instance %u: tune SSIM only supports CRF rate control mode currently\n",
                       channel_number + 1,
                       config->tune);
@@ -628,13 +658,19 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
             channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
+#if FIX_STILLIMAGE_HRES
+    // Block the use of M4 or lower for resolutions higher than 4K, unless still-image coding is used (due to memory constraints)
+    if (!scs->static_config.avif &&
+        (uint64_t)(scs->max_input_luma_width * scs->max_input_luma_height) > INPUT_SIZE_4K_TH &&
+        config->enc_mode <= ENC_M4) {
+#else
     // Limit 8K & 16K configurations ( due to  memory constraints)
     if ((uint64_t)(scs->max_input_luma_width * scs->max_input_luma_height) > INPUT_SIZE_4K_TH &&
         config->enc_mode <= ENC_M4) {
+#endif
         SVT_ERROR("Instance %u: 8k+ resolution support is limited to M5 and faster presets.\n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
-
     if (config->pass > 0 && scs->static_config.enable_overlays) {
         SVT_ERROR(
             "Instance %u: The overlay frames feature is currently not supported with multi-pass "
@@ -668,14 +704,20 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
         SVT_ERROR("Error instance %u: switch frame interval must be >= 0\n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
+#if !FTR_SFRAME_RA
+#if CLN_REMOVE_LDP
+    if (config->sframe_dist > 0 && config->pred_structure != LOW_DELAY) {
+#else
     if (config->sframe_dist > 0 && config->pred_structure != SVT_AV1_PRED_LOW_DELAY_P &&
         config->pred_structure != SVT_AV1_PRED_LOW_DELAY_B) {
+#endif
         SVT_ERROR(
             "Error instance %u: switch frame feature only supports low delay prediction "
             "structure\n",
             channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
+#endif // !FTR_SFRAME_RA
     if (config->sframe_dist > 0 && config->hierarchical_levels == 0) {
         SVT_ERROR("Error instance %u: switch frame feature does not support flat IPPP\n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
@@ -771,7 +813,11 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
             channel_number + 1);
     }
 
+#if CLN_REMOVE_LDP
+    if (config->pred_structure == LOW_DELAY) {
+#else
     if (config->pred_structure == 1) {
+#endif
         if (config->tune == 0) {
             SVT_WARN("Instance %u: Tune 0 is not applicable for low-delay, tune will be forced to 1.\n",
                      channel_number + 1);
@@ -788,6 +834,7 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
             return_error = EB_ErrorBadParameter;
         }
     }
+
     if (scs->static_config.scene_change_detection) {
         scs->static_config.scene_change_detection = 0;
         SVT_WARN(
@@ -817,9 +864,13 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
         SVT_ERROR("Instance %u: Startup MG size supported [0, 2, 3, 4]\n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
-
+#if FIX_STARTUP_MG
+    if (config->startup_mg_size > config->hierarchical_levels) {
+        SVT_ERROR("Instance %u: Startup MG size must less than or equal to hierarchical levels\n", channel_number + 1);
+#else
     if (config->startup_mg_size >= config->hierarchical_levels) {
         SVT_ERROR("Instance %u: Startup MG size must less than Hierarchical Levels\n", channel_number + 1);
+#endif
         return_error = EB_ErrorBadParameter;
     }
     if (config->startup_mg_size != 0 && config->rate_control_mode != SVT_AV1_RC_MODE_CQP_OR_CRF) {
@@ -832,12 +883,12 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
     }
 
     if (config->variance_boost_strength < 1 || config->variance_boost_strength > 4) {
-        SVT_ERROR("Instance %u: Variance boost strength must be between 1 and 4\n", channel_number + 1);
+        SVT_ERROR("Instance %u: Variance Boost strength must be between 1 and 4\n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
 
     if (config->variance_octile < 1 || config->variance_octile > 8) {
-        SVT_ERROR("Instance %u: Variance boost octile must be between 1 and 8\n", channel_number + 1);
+        SVT_ERROR("Instance %u: Variance Boost octile must be between 1 and 8\n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
 
@@ -847,7 +898,7 @@ EbErrorType svt_av1_verify_settings(SequenceControlSet *scs) {
     }
 
     if (config->variance_boost_curve > 2) {
-        SVT_ERROR("Instance %u: Variance boost curve must be between 0 and 2\n", channel_number + 1);
+        SVT_ERROR("Instance %u: Variance Boost curve must be between 0 and 2\n", channel_number + 1);
         return_error = EB_ErrorBadParameter;
     }
 
@@ -912,8 +963,16 @@ EbErrorType svt_av1_set_default_params(EbSvtAv1EncConfiguration *config_ptr) {
     config_ptr->intra_period_length          = -2;
     config_ptr->multiply_keyint              = false;
     config_ptr->intra_refresh_type           = 2;
-    config_ptr->hierarchical_levels          = 0;
-    config_ptr->pred_structure               = SVT_AV1_PRED_RANDOM_ACCESS;
+#if FTR_RTC_FLAT
+    config_ptr->hierarchical_levels = HIERARCHICAL_LEVELS_AUTO;
+#else
+    config_ptr->hierarchical_levels = 0;
+#endif
+#if CLN_REMOVE_LDP
+    config_ptr->pred_structure = RANDOM_ACCESS;
+#else
+    config_ptr->pred_structure = SVT_AV1_PRED_RANDOM_ACCESS;
+#endif
     config_ptr->enable_dlf_flag              = true;
     config_ptr->cdef_level                   = DEFAULT;
     config_ptr->enable_restoration_filtering = DEFAULT;
@@ -921,6 +980,9 @@ EbErrorType svt_av1_set_default_params(EbSvtAv1EncConfiguration *config_ptr) {
     config_ptr->enable_dg                    = 1;
     config_ptr->fast_decode                  = 0;
     config_ptr->encoder_color_format         = EB_YUV420;
+#if FTR_RTC_MODE
+    config_ptr->rtc = 0;
+#endif
     // Rate control options
     // Set the default value toward more flexible rate allocation
     config_ptr->vbr_min_section_pct      = 0;
@@ -1027,7 +1089,9 @@ static const char *level_to_str(unsigned in) {
     return ret;
 }
 
+#if !CLN_SEG_COUNTS
 //#define DEBUG_BUFFERS
+#endif
 void svt_av1_print_lib_params(SequenceControlSet *scs) {
     EbSvtAv1EncConfiguration *config = &scs->static_config;
 
@@ -1059,6 +1123,16 @@ void svt_av1_print_lib_params(SequenceControlSet *scs) {
                 : config->encoder_color_format == EB_YUV444 ? "YUV444"
                                                             : "Unknown color format");
 
+#if CLN_REMOVE_LDP
+        SVT_INFO("SVT [config]: preset / tune / pred struct \t\t\t\t\t: %d / %s / %s\n",
+                 config->enc_mode,
+                 config->tune == 0       ? "VQ"
+                     : config->tune == 1 ? "PSNR"
+                                         : "SSIM",
+                 config->pred_structure == LOW_DELAY           ? "low delay"
+                     : config->pred_structure == RANDOM_ACCESS ? "random access"
+                                                               : "Unknown pred structure");
+#else
         SVT_INFO("SVT [config]: preset / tune / pred struct \t\t\t\t\t: %d / %s / %s\n",
                  config->enc_mode,
                  config->tune == 0       ? "VQ"
@@ -1067,6 +1141,7 @@ void svt_av1_print_lib_params(SequenceControlSet *scs) {
                  config->pred_structure == 1       ? "low delay"
                      : config->pred_structure == 2 ? "random access"
                                                    : "Unknown pred structure");
+#endif
         SVT_INFO(
             "SVT [config]: gop size / mini-gop size / key-frame type \t\t\t: "
             "%d / %d / %s\n",
@@ -1108,11 +1183,11 @@ void svt_av1_print_lib_params(SequenceControlSet *scs) {
         }
         if (config->rate_control_mode != SVT_AV1_RC_MODE_CBR) {
             if (!config->enable_variance_boost) {
-                SVT_INFO("SVT [config]: AQ mode / variance boost \t\t\t\t\t: %d / %d\n",
+                SVT_INFO("SVT [config]: AQ mode / Variance Boost \t\t\t\t\t: %d / %d\n",
                          config->enable_adaptive_quantization,
                          config->enable_variance_boost);
             } else {
-                SVT_INFO("SVT [config]: AQ mode / variance boost strength / octile / curve \t\t: %d / %d / %d / %d\n",
+                SVT_INFO("SVT [config]: AQ mode / Variance Boost strength / octile / curve \t\t: %d / %d / %d / %d\n",
                          config->enable_adaptive_quantization,
                          config->variance_boost_strength,
                          config->variance_octile,
@@ -1126,10 +1201,9 @@ void svt_av1_print_lib_params(SequenceControlSet *scs) {
                      config->film_grain_denoise_apply,
                      config->film_grain_denoise_strength);
         }
-        SVT_INFO("SVT [config]: sharpness / luminance-based QP bias \t\t\t: %d / %d\n",
+        SVT_INFO("SVT [config]: sharpness / luminance-based QP bias \t\t\t\t: %d / %d\n",
                  config->sharpness,
                  config->luminance_qp_bias);
-        SVT_INFO("");
 
         switch (config->enable_tf) {
         case 1:
@@ -1140,6 +1214,37 @@ void svt_av1_print_lib_params(SequenceControlSet *scs) {
         default: break;
         }
     }
+#if CLN_SEG_COUNTS
+#if DEBUG_BUFFERS
+    SVT_INFO("SVT [config]: INPUT / OUTPUT \t\t\t\t\t\t\t: %d / %d\n",
+             scs->input_buffer_fifo_init_count,
+             scs->output_stream_buffer_fifo_init_count);
+    SVT_INFO("SVT [config]: CPCS / PAREF / REF / ME\t\t\t\t\t\t: %d / %d / %d / %d\n",
+             scs->picture_control_set_pool_init_count_child,
+             scs->pa_reference_picture_buffer_init_count,
+             scs->reference_picture_buffer_init_count,
+             scs->me_pool_init_count);
+    SVT_INFO("SVT [config]: ME_SEG_W / ME_SEG_H \t\t\t: %d / %d / %d / %d\n",
+             scs->me_segment_col_count_array,
+             scs->me_segment_row_count_array);
+    SVT_INFO("SVT [config]: ENC_DEC_SEG_W / ENC_DEC_SEG_H \t\t\t: %d / %d / %d / %d\n",
+             scs->enc_dec_segment_col_count_array,
+             scs->enc_dec_segment_row_count_array);
+    SVT_INFO(
+        "SVT [config]: PA_P / ME_P / SBO_P / MDC_P / ED_P / EC_P \t\t\t: %d / %d / %d / %d / %d / "
+        "%d\n",
+        scs->picture_analysis_process_init_count,
+        scs->motion_estimation_process_init_count,
+        scs->source_based_operations_process_init_count,
+        scs->mode_decision_configuration_process_init_count,
+        scs->enc_dec_process_init_count,
+        scs->entropy_coding_process_init_count);
+    SVT_INFO("SVT [config]: DLF_P / CDEF_P / REST_P \t\t\t\t\t\t: %d / %d / %d\n",
+             scs->dlf_process_init_count,
+             scs->cdef_process_init_count,
+             scs->rest_process_init_count);
+#endif
+#else
 #ifdef DEBUG_BUFFERS
     SVT_INFO("SVT [config]: INPUT / OUTPUT \t\t\t\t\t\t\t: %d / %d\n",
              scs->input_buffer_fifo_init_count,
@@ -1182,6 +1287,7 @@ void svt_av1_print_lib_params(SequenceControlSet *scs) {
              scs->dlf_process_init_count,
              scs->cdef_process_init_count,
              scs->rest_process_init_count);
+#endif
 #endif
     SVT_INFO("-------------------------------------------\n");
 
@@ -2090,12 +2196,17 @@ EB_API EbErrorType svt_av1_enc_parse_parameter(EbSvtAv1EncConfiguration *config_
         {"enable-dlf", &config_struct->enable_dlf_flag},
         {"enable-overlays", &config_struct->enable_overlays},
         {"enable-force-key-frames", &config_struct->force_key_frames},
+#if CONFIG_ENABLE_QUANT_MATRIX
         {"enable-qm", &config_struct->enable_qm},
+#endif
         {"enable-dg", &config_struct->enable_dg},
         {"gop-constraint-rc", &config_struct->gop_constraint_rc},
         {"enable-variance-boost", &config_struct->enable_variance_boost},
         {"lossless", &config_struct->lossless},
         {"avif", &config_struct->avif},
+#if FTR_RTC_MODE
+        {"rtc", &config_struct->rtc},
+#endif
     };
     const size_t bool_opts_size = sizeof(bool_opts) / sizeof(bool_opts[0]);
 

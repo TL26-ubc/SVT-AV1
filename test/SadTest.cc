@@ -680,6 +680,15 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::ValuesIn(TEST_LOOP_AREAS),
                        ::testing::Values(0, 1),
                        ::testing::Values(svt_sad_loop_kernel_neon)));
+
+#if HAVE_NEON_DOTPROD
+INSTANTIATE_TEST_SUITE_P(
+    NEON_DOTPROD, sad_LoopTest,
+    ::testing::Combine(::testing::ValuesIn(TEST_PATTERNS),
+                       ::testing::ValuesIn(TEST_LOOP_AREAS),
+                       ::testing::Values(0, 1),
+                       ::testing::Values(svt_sad_loop_kernel_neon_dotprod)));
+#endif  // HAVE_NEON_DOTPROD
 #endif  // ARCH_AARCH64
 
 /**
@@ -778,30 +787,30 @@ class Allsad8x8_CalculationTest
             EXPECT_EQ(
                 0,
                 memcmp(best_sad8x8[0], best_sad8x8[1], sizeof(best_sad8x8[0])))
-                << "compare best_sad8x8 error sub_sad false";
+                << "compare best_sad8x8 error sub_sad " << sub_sad;
             EXPECT_EQ(
                 0, memcmp(best_mv8x8[0], best_mv8x8[1], sizeof(best_mv8x8[0])))
-                << "compare best_mv8x8 error sub_sad false";
+                << "compare best_mv8x8 error sub_sad " << sub_sad;
             EXPECT_EQ(0,
                       memcmp(best_sad16x16[0],
                              best_sad16x16[1],
                              sizeof(best_sad16x16[0])))
-                << "compare best_sad16x16 error sub_sad false";
+                << "compare best_sad16x16 error sub_sad " << sub_sad;
             EXPECT_EQ(
                 0,
                 memcmp(
                     best_mv16x16[0], best_mv16x16[1], sizeof(best_mv16x16[0])))
-                << "compare best_mv16x16 error sub_sad false";
+                << "compare best_mv16x16 error sub_sad " << sub_sad;
             EXPECT_EQ(
                 0,
                 memcmp(
                     eight_sad8x8[0], eight_sad8x8[1], sizeof(eight_sad8x8[0])))
-                << "compare eight_sad8x8 error sub_sad false";
+                << "compare eight_sad8x8 error sub_sad " << sub_sad;
             EXPECT_EQ(0,
                       memcmp(eight_sad16x16[0],
                              eight_sad16x16[1],
                              sizeof(eight_sad16x16[0])))
-                << "compare eight_sad16x16 error sub_sad false";
+                << "compare eight_sad16x16 error sub_sad " << sub_sad;
         }
     }
 
@@ -845,6 +854,24 @@ INSTANTIATE_TEST_SUITE_P(
         ::testing::ValuesIn(TEST_PATTERNS),
         ::testing::ValuesIn(TEST_SAD_PATTERNS),
         ::testing::Values(svt_ext_all_sad_calculation_8x8_16x16_neon)));
+
+#if HAVE_NEON_DOTPROD
+INSTANTIATE_TEST_SUITE_P(
+    NEON_DOTPROD, Allsad8x8_CalculationTest,
+    ::testing::Combine(
+        ::testing::ValuesIn(TEST_PATTERNS),
+        ::testing::ValuesIn(TEST_SAD_PATTERNS),
+        ::testing::Values(svt_ext_all_sad_calculation_8x8_16x16_neon_dotprod)));
+#endif  // HAVE_NEON_DOTPROD
+
+#if HAVE_SVE
+INSTANTIATE_TEST_SUITE_P(
+    SVE, Allsad8x8_CalculationTest,
+    ::testing::Combine(
+        ::testing::ValuesIn(TEST_PATTERNS),
+        ::testing::ValuesIn(TEST_SAD_PATTERNS),
+        ::testing::Values(svt_ext_all_sad_calculation_8x8_16x16_sve)));
+#endif  // HAVE_SVE
 #endif  // ARCH_AARCH64
 
 typedef void (*svt_ext_eight_sad_calculation_32x32_64x64_fn)(
@@ -1049,18 +1076,18 @@ class Extsad8x8_CalculationTest
             EXPECT_EQ(
                 0,
                 memcmp(best_sad8x8[0], best_sad8x8[1], sizeof(best_sad8x8[0])))
-                << "compare best_sad8x8 error sub_sad false";
+                << "compare best_sad8x8 error sub_sad " << sub_sad;
             EXPECT_EQ(
                 0, memcmp(best_mv8x8[0], best_mv8x8[1], sizeof(best_mv8x8[0])))
-                << "compare best_mv8x8 error sub_sad false";
+                << "compare best_mv8x8 error sub_sad " << sub_sad;
             EXPECT_EQ(best_sad16x16[0], best_sad16x16[1])
-                << "compare best_sad16x16 error sub_sad false";
+                << "compare best_sad16x16 error sub_sad " << sub_sad;
             EXPECT_EQ(best_mv16x16[0], best_mv16x16[1])
-                << "compare best_mv16x16 error sub_sad false";
+                << "compare best_mv16x16 error sub_sad " << sub_sad;
             EXPECT_EQ(0, memcmp(sad_8x8[0], sad_8x8[1], sizeof(sad_8x8[0])))
-                << "compare sad_8x8 error sub_sad false";
+                << "compare sad_8x8 error sub_sad " << sub_sad;
             EXPECT_EQ(sad16x16[0], sad16x16[1])
-                << "compare sad16x16 error sub_sad false";
+                << "compare sad16x16 error sub_sad " << sub_sad;
         }
     }
 
@@ -1098,7 +1125,16 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(
         ::testing::ValuesIn(TEST_PATTERNS),
         ::testing::ValuesIn(TEST_SAD_PATTERNS),
-        ::testing::Values(svt_ext_sad_calculation_8x8_16x16_neon_intrin)));
+        ::testing::Values(svt_ext_sad_calculation_8x8_16x16_neon)));
+
+#if HAVE_NEON_DOTPROD
+INSTANTIATE_TEST_SUITE_P(
+    NEON_DOTPROD, Extsad8x8_CalculationTest,
+    ::testing::Combine(
+        ::testing::ValuesIn(TEST_PATTERNS),
+        ::testing::ValuesIn(TEST_SAD_PATTERNS),
+        ::testing::Values(svt_ext_sad_calculation_8x8_16x16_neon_dotprod)));
+#endif  // NEON_DOTPROD
 #endif  // ARCH_AARCH64
 
 /**
@@ -1208,6 +1244,15 @@ INSTANTIATE_TEST_SUITE_P(
         ::testing::ValuesIn(TEST_SAD_PATTERNS),
         ::testing::Values(svt_ext_sad_calculation_32x32_64x64_sse4_intrin)));
 #endif  // ARCH_X86_64
+
+#ifdef ARCH_AARCH64
+INSTANTIATE_TEST_SUITE_P(
+    NEON, Extsad32x32_CalculationTest,
+    ::testing::Combine(
+        ::testing::ValuesIn(TEST_PATTERNS),
+        ::testing::ValuesIn(TEST_SAD_PATTERNS),
+        ::testing::Values(svt_ext_sad_calculation_32x32_64x64_neon)));
+#endif  // ARCH_AARCH64
 
 typedef void (*InitBufferFunc)(uint32_t *pointer, uint32_t count128,
                                uint32_t count32, uint32_t value);
@@ -1492,7 +1537,6 @@ class SADTestSubSample16bit
 
     SadSubsample16BitFunc test_func_;
 };
-GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(SADTestSubSample16bit);
 
 BlkSize TEST_BLOCK_SAD_SIZES[] = {
     BlkSize(16, 10),   BlkSize(16, 5),   BlkSize(32, 10), BlkSize(32, 20),
@@ -1527,6 +1571,13 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Values(svt_aom_sad_16bit_kernel_avx2)));
 #endif
 
+#ifdef ARCH_AARCH64
+INSTANTIATE_TEST_SUITE_P(
+    NEON, SADTestSubSample16bit,
+    ::testing::Combine(::testing::ValuesIn(TEST_PATTERNS),
+                       ::testing::Values(svt_aom_sad_16b_kernel_neon)));
+#endif  // ARCH_AARCH64
+
 typedef void (*PmeSadLoopKernel)(
     const struct svt_mv_cost_param *mv_cost_params, uint8_t *src,
     uint32_t src_stride, uint8_t *ref, uint32_t ref_stride,
@@ -1556,7 +1607,11 @@ class PmeSadLoopTest
         mvy = rnd.random();
         search_position_start_x = rnd.random();
         search_position_start_y = rnd.random();
+#if CLN_UNIFY_MV_TYPE
+        ref_mv = {{(int16_t)(76), (int16_t)(23) }};
+#else
         ref_mv = {(int16_t)(23), (int16_t)(76)};
+#endif
         mv_jcost[0] = 11;
         mv_jcost[1] = 54;
         mv_jcost[2] = 5437;
@@ -1575,7 +1630,11 @@ class PmeSadLoopTest
     int16_t search_position_start_x;
     int16_t search_position_start_y;
     MV_COST_PARAMS mv_cost_params;
+#if CLN_UNIFY_MV_TYPE
+    Mv ref_mv;
+#else
     MV ref_mv;
+#endif
     int32_t mv_jcost[MV_JOINTS];
     int mv_cost[MV_VALS];
 
@@ -1585,8 +1644,14 @@ class PmeSadLoopTest
         PmeSadLoopKernel func_c_ = svt_pme_sad_loop_kernel_c;
 
         mv_cost_params.ref_mv = &ref_mv;
+#if CLN_UNIFY_MV_TYPE
+        mv_cost_params.full_ref_mv = {
+            {(int16_t)GET_MV_RAWPEL(76),
+             (int16_t)GET_MV_RAWPEL(23) }};
+#else
         mv_cost_params.full_ref_mv = {(int16_t)GET_MV_RAWPEL(23),
                                       (int16_t)GET_MV_RAWPEL(76)};
+#endif
         mv_cost_params.mv_cost_type = MV_COST_ENTROPY;
         mv_cost_params.mvjcost = mv_jcost;
         mv_cost_params.mvcost[0] = &mv_cost[MV_MAX];
@@ -1666,8 +1731,14 @@ class PmeSadLoopTest
         prepare_data();
 
         mv_cost_params.ref_mv = &ref_mv;
+#if CLN_UNIFY_MV_TYPE
+        mv_cost_params.full_ref_mv = {
+            {(int16_t)GET_MV_RAWPEL(76),
+             (int16_t)GET_MV_RAWPEL(23) }};
+#else
         mv_cost_params.full_ref_mv = {(int16_t)GET_MV_RAWPEL(23),
                                       (int16_t)GET_MV_RAWPEL(76)};
+#endif
         mv_cost_params.mv_cost_type = MV_COST_ENTROPY;
         mv_cost_params.mvjcost = mv_jcost;
         mv_cost_params.mvcost[0] = &mv_cost[MV_MAX];

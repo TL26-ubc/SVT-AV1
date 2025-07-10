@@ -42,9 +42,11 @@ typedef struct RestContext {
     int32_t *rst_tmpbuf;
 } RestContext;
 
-void        svt_aom_pack_highbd_pic(const EbPictureBufferDesc *pic_ptr, uint16_t *buffer_16bit[3], uint32_t ss_x,
-                                    uint32_t ss_y, bool include_padding);
-void        svt_aom_copy_buffer_info(EbPictureBufferDesc *src_ptr, EbPictureBufferDesc *dst_ptr);
+#if !CLN_FUNCS_HEADER
+void svt_aom_pack_highbd_pic(const EbPictureBufferDesc *pic_ptr, uint16_t *buffer_16bit[3], uint32_t ss_x,
+                             uint32_t ss_y, bool include_padding);
+void svt_aom_copy_buffer_info(EbPictureBufferDesc *src_ptr, EbPictureBufferDesc *dst_ptr);
+#endif
 void        svt_aom_recon_output(PictureControlSet *pcs, SequenceControlSet *scs);
 void        svt_av1_loop_restoration_filter_frame(int32_t *rst_tmpbuf, Yv12BufferConfig *frame, Av1Common *cm,
                                                   int32_t optimized_lr);
@@ -54,12 +56,14 @@ void        pad_ref_and_set_flags(PictureControlSet *pcs, SequenceControlSet *sc
 void        restoration_seg_search(int32_t *rst_tmpbuf, Yv12BufferConfig *org_fts, const Yv12BufferConfig *src,
                                    Yv12BufferConfig *trial_frame_rst, PictureControlSet *pcs, uint32_t segment_index);
 void        rest_finish_search(PictureControlSet *pcs);
-void        svt_av1_upscale_normative_rows(const Av1Common *cm, const uint8_t *src, int src_stride, uint8_t *dst,
-                                           int dst_stride, int rows, int sub_x, int bd, bool is_16bit_pipeline);
+#if !CLN_FUNCS_HEADER
+void svt_av1_upscale_normative_rows(const Av1Common *cm, const uint8_t *src, int src_stride, uint8_t *dst,
+                                    int dst_stride, int rows, int sub_x, int bd, bool is_16bit_pipeline);
 #if DEBUG_UPSCALING
 void save_YUV_to_file(char *filename, EbByte buffer_y, EbByte buffer_u, EbByte buffer_v, uint16_t width,
                       uint16_t height, uint16_t stride_y, uint16_t stride_u, uint16_t stride_v, uint16_t org_y,
                       uint16_t org_x, uint32_t ss_x, uint32_t ss_y);
+#endif
 #endif
 
 static void rest_context_dctor(EbPtr p) {
@@ -83,7 +87,10 @@ EbErrorType svt_aom_rest_context_ctor(EbThreadContext *thread_ctx, const EbEncHa
     const EbSvtAv1EncConfiguration *config        = &scs->static_config;
     EbColorFormat                   color_format  = config->encoder_color_format;
     EbPictureBufferDescInitData    *init_data_ptr = (EbPictureBufferDescInitData *)object_init_data_ptr;
-    RestContext                    *context_ptr;
+#if TUNE_RTC_M8
+    const bool rtc_tune = scs->static_config.rtc;
+#endif
+    RestContext *context_ptr;
     EB_CALLOC_ARRAY(context_ptr, 1);
     thread_ctx->priv  = context_ptr;
     thread_ctx->dctor = rest_context_dctor;
@@ -97,10 +104,24 @@ EbErrorType svt_aom_rest_context_ctor(EbThreadContext *thread_ctx, const EbEncHa
         enc_handle_ptr->picture_demux_results_resource_ptr, demux_index);
 
     bool is_16bit = scs->is_16bit_pipeline;
+#if OPT_ALLINTRA_STILLIMAGE_2
+    if (svt_aom_get_enable_restoration(init_data_ptr->enc_mode,
+                                       config->enable_restoration_filtering,
+                                       scs->input_resolution,
+                                       config->fast_decode,
+                                       config->avif,
+#if TUNE_RTC_M8
+                                       scs->allintra,
+                                       rtc_tune)) {
+#else
+                                       scs->allintra)) {
+#endif
+#else
     if (svt_aom_get_enable_restoration(init_data_ptr->enc_mode,
                                        config->enable_restoration_filtering,
                                        scs->input_resolution,
                                        config->fast_decode)) {
+#endif
         EbPictureBufferDescInitData init_data;
 
         init_data.buffer_enable_mask = PICTURE_BUFFER_DESC_FULL_MASK;
@@ -126,12 +147,17 @@ EbErrorType svt_aom_rest_context_ctor(EbThreadContext *thread_ctx, const EbEncHa
                 context_ptr->org_rec_frame->bit_depth = EB_EIGHT_BIT;
         }
         context_ptr->rst_tmpbuf = NULL;
+#if OPT_ALLINTRA_STILLIMAGE_2
+        if (svt_aom_get_enable_sg(init_data_ptr->enc_mode, scs->input_resolution, config->fast_decode, config->avif))
+#else
         if (svt_aom_get_enable_sg(init_data_ptr->enc_mode, scs->input_resolution, config->fast_decode))
+#endif
             EB_MALLOC_ALIGNED(context_ptr->rst_tmpbuf, RESTORATION_TMPBUF_SIZE);
     }
 
     return EB_ErrorNone;
 }
+#if !CLN_FUNCS_HEADER
 extern void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **recon_ptr, bool is_highbd) {
     if (!is_highbd) {
         if (pcs->ppcs->is_ref == true)
@@ -151,6 +177,7 @@ extern void svt_aom_get_recon_pic(PictureControlSet *pcs, EbPictureBufferDesc **
         (*recon_ptr)->height = pcs->ppcs->render_height;
     }
 }
+#endif
 
 // If using boundaries during the filter search, copy the recon pic to a new buffer (to
 // avoid race conidition from many threads modifying the same recon pic).
@@ -232,6 +259,7 @@ static EbPictureBufferDesc *get_own_recon(SequenceControlSet *scs, PictureContro
     return context_ptr->org_rec_frame;
 }
 
+#if !CLN_FUNCS_HEADER
 void svt_convert_pic_8bit_to_16bit(EbPictureBufferDesc *src_8bit, EbPictureBufferDesc *dst_16bit, uint16_t ss_x,
                                    uint16_t ss_y) {
     //copy input from 8bit to 16bit
@@ -456,6 +484,7 @@ void svt_av1_superres_upscale_frame(struct Av1Common *cm, PictureControlSet *pcs
     EB_FREE_ALIGNED_ARRAY(ps_recon_pic_temp->buffer_cb);
     EB_FREE_ALIGNED_ARRAY(ps_recon_pic_temp->buffer_cr);
 }
+#endif
 
 static void copy_statistics_to_ref_obj_ect(PictureControlSet *pcs, SequenceControlSet *scs) {
     EbReferenceObject *obj = (EbReferenceObject *)pcs->ppcs->ref_pic_wrapper->object_ptr;
@@ -493,6 +522,10 @@ static void copy_statistics_to_ref_obj_ect(PictureControlSet *pcs, SequenceContr
         obj->sb_64x64_mvp[sb_index]       = pcs->sb_64x64_mvp[sb_index];
         obj->sb_me_64x64_dist[sb_index]   = pcs->ppcs->me_64x64_distortion[sb_index];
         obj->sb_me_8x8_cost_var[sb_index] = pcs->ppcs->me_8x8_cost_variance[sb_index];
+#if OPT_DEPTHS_CTRL
+        obj->sb_min_sq_size[sb_index] = pcs->sb_min_sq_size[sb_index];
+        obj->sb_max_sq_size[sb_index] = pcs->sb_max_sq_size[sb_index];
+#endif
     }
     obj->tmp_layer_idx   = (uint8_t)pcs->temporal_layer_index;
     obj->is_scene_change = pcs->ppcs->scene_change_flag;

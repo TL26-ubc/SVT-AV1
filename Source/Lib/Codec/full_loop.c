@@ -1331,12 +1331,14 @@ static void svt_av1_optimize_b(PictureControlSet *pcs, ModeDecisionContext *ctx,
     }
 }
 
+#if !CLN_FUNCS_HEADER
 static INLINE void set_dc_sign(int32_t *cul_level, int32_t dc_val) {
     if (dc_val < 0)
         *cul_level |= 1 << COEFF_CONTEXT_BITS;
     else if (dc_val > 0)
         *cul_level += 2 << COEFF_CONTEXT_BITS;
 }
+#endif
 static INLINE TxSize aom_av1_get_adjusted_tx_size(TxSize tx_size) {
     switch (tx_size) {
     case TX_64X64:
@@ -1469,16 +1471,23 @@ uint8_t svt_aom_quantize_inv_quantize(PictureControlSet *pcs, ModeDecisionContex
     SequenceControlSet *scs     = pcs->scs;
     EncodeContext      *enc_ctx = scs->enc_ctx;
     int32_t plane = component_type == COMPONENT_LUMA ? AOM_PLANE_Y : COMPONENT_CHROMA_CB ? AOM_PLANE_U : AOM_PLANE_V;
-    int32_t qmatrix_level    = (IS_2D_TRANSFORM(tx_type) && pcs->ppcs->frm_hdr.quantization_params.using_qmatrix)
-           ? pcs->ppcs->frm_hdr.quantization_params.qm[plane]
-           : NUM_QM_LEVELS - 1;
-    TxSize  adjusted_tx_size = aom_av1_get_adjusted_tx_size(txsize);
+
+    int32_t qmatrix_level = (IS_2D_TRANSFORM(tx_type) && pcs->ppcs->frm_hdr.quantization_params.using_qmatrix)
+        ? pcs->ppcs->frm_hdr.quantization_params.qm[plane]
+        : NUM_QM_LEVELS - 1;
+
+    TxSize          adjusted_tx_size = aom_av1_get_adjusted_tx_size(txsize);
     MacroblockPlane candidate_plane;
     const QmVal    *q_matrix  = pcs->ppcs->gqmatrix[qmatrix_level][plane][adjusted_tx_size];
     const QmVal    *iq_matrix = pcs->ppcs->giqmatrix[qmatrix_level][plane][adjusted_tx_size];
-    int32_t         q_index   = pcs->ppcs->frm_hdr.delta_q_params.delta_q_present
-                  ? qindex
-                  : pcs->ppcs->frm_hdr.quantization_params.base_q_idx;
+#if OPT_DELTA_QP
+    int32_t q_index = pcs->ppcs->frm_hdr.delta_q_params.delta_q_present &&
+            (!pcs->ppcs->tpl_ctrls.enable || pcs->ppcs->r0_delta_qp_quant)
+#else
+    int32_t q_index = pcs->ppcs->frm_hdr.delta_q_params.delta_q_present
+#endif
+        ? qindex
+        : pcs->ppcs->frm_hdr.quantization_params.base_q_idx;
     if (segmentation_qp_offset != 0) {
         q_index = CLIP3(0, 255, q_index + segmentation_qp_offset);
     }
@@ -1564,8 +1573,13 @@ uint8_t svt_aom_quantize_inv_quantize(PictureControlSet *pcs, ModeDecisionContex
     bool perform_rdoq;
 
     // If rdoq_level is specified in the command line instruction, set perform_rdoq accordingly.
+#if CLN_RENAME_MDS_SKIP
+    perform_rdoq = !svt_av1_is_lossless_segment(pcs, ctx->blk_ptr->segment_id) &&
+        ((ctx->mds_do_rdoq || is_encode_pass) && ctx->rdoq_level);
+#else
     perform_rdoq = !svt_av1_is_lossless_segment(pcs, ctx->blk_ptr->segment_id) &&
         ((ctx->mds_skip_rdoq == false || is_encode_pass) && ctx->rdoq_level);
+#endif
     const int dequant_shift = ctx->hbd_md ? pcs->ppcs->enhanced_pic->bit_depth - 5 : 3;
     const int qstep         = candidate_plane.dequant_qtx[1] /*[AC]*/ >> dequant_shift;
     if (!is_encode_pass) {
@@ -1794,7 +1808,11 @@ void svt_aom_full_loop_chroma_light_pd1(PictureControlSet *pcs, ModeDecisionCont
                                                                cand_bf->cand->transform_type_uv,
                                                                0,
                                                                0,
+#if CLN_MBMI_IN_CAND
+                                                               cand_bf->cand->block_mi.mode,
+#else
                                                                cand_bf->cand->pred_mode,
+#endif
                                                                full_lambda,
                                                                false);
 
@@ -1875,7 +1893,11 @@ void svt_aom_full_loop_chroma_light_pd1(PictureControlSet *pcs, ModeDecisionCont
                                                                cand_bf->cand->transform_type_uv,
                                                                0,
                                                                0,
+#if CLN_MBMI_IN_CAND
+                                                               cand_bf->cand->block_mi.mode,
+#else
                                                                cand_bf->cand->pred_mode,
+#endif
                                                                full_lambda,
                                                                false);
 
@@ -1938,10 +1960,18 @@ void svt_aom_full_loop_uv(PictureControlSet *pcs, ModeDecisionContext *ctx, Mode
 
     ctx->three_quad_energy = 0;
 
+#if CLN_MBMI_IN_CAND
+    const uint8_t tx_depth = cand_bf->cand->block_mi.tx_depth;
+    const bool    is_inter = (is_inter_mode(cand_bf->cand->block_mi.mode) || cand_bf->cand->block_mi.use_intrabc) ? true
+                                                                                                                  : false;
+    const int     tu_count = tx_depth ? 1
+                                      : ctx->blk_geom->txb_count[cand_bf->cand->block_mi.tx_depth]; //NM: 128x128 exeption
+#else
     const uint8_t tx_depth = cand_bf->cand->tx_depth;
     const bool    is_inter = (is_inter_mode(cand_bf->cand->pred_mode) || cand_bf->cand->use_intrabc) ? true : false;
     const int     tu_count = tx_depth ? 1 : ctx->blk_geom->txb_count[cand_bf->cand->tx_depth]; //NM: 128x128 exeption
-    uint32_t      txb_1d_offset = 0;
+#endif
+    uint32_t txb_1d_offset = 0;
 
     int txb_itr = 0;
     do {
@@ -2031,11 +2061,19 @@ void svt_aom_full_loop_uv(PictureControlSet *pcs, ModeDecisionContext *ctx, Mode
                 cand_bf->cand->transform_type_uv,
                 ctx->cb_txb_skip_context,
                 ctx->cb_dc_sign_context,
+#if CLN_MBMI_IN_CAND
+                cand_bf->cand->block_mi.mode,
+#else
                 cand_bf->cand->pred_mode,
+#endif
                 full_lambda,
                 false);
 
+#if CLN_RENAME_MDS_SKIP
+            if (is_full_loop && ctx->mds_do_spatial_sse) {
+#else
             if (is_full_loop && ctx->mds_spatial_sse) {
+#endif
                 uint32_t cb_has_coeff = cand_bf->eob.u[txb_itr] > 0;
 
                 if (cb_has_coeff)
@@ -2214,10 +2252,18 @@ void svt_aom_full_loop_uv(PictureControlSet *pcs, ModeDecisionContext *ctx, Mode
                 cand_bf->cand->transform_type_uv,
                 ctx->cr_txb_skip_context,
                 ctx->cr_dc_sign_context,
+#if CLN_MBMI_IN_CAND
+                cand_bf->cand->block_mi.mode,
+#else
                 cand_bf->cand->pred_mode,
+#endif
                 full_lambda,
                 false);
+#if CLN_RENAME_MDS_SKIP
+            if (is_full_loop && ctx->mds_do_spatial_sse) {
+#else
             if (is_full_loop && ctx->mds_spatial_sse) {
+#endif
                 uint32_t cr_has_coeff = cand_bf->eob.v[txb_itr] > 0;
 
                 if (cr_has_coeff)

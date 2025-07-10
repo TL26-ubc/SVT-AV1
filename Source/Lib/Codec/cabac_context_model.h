@@ -380,6 +380,45 @@ typedef struct {
 
 #endif
 
+#if CLN_EC
+static INLINE uint8_t get_prob(unsigned int num, unsigned int den) {
+    assert(den != 0);
+    const int p = (int)(((uint64_t)num * 256 + (den >> 1)) / den);
+    // (p > 255) ? 255 : (p < 1) ? 1 : p;
+    const int clipped_prob = p | ((255 - p) >> 23) | (p == 0);
+    return (uint8_t)clipped_prob;
+}
+
+static INLINE void update_cdf(AomCdfProb *cdf, int8_t val, int nsymbs) {
+    assert(nsymbs < 17);
+    const int count = cdf[nsymbs];
+
+    // rate is computed in the spec as:
+    //  3 + ( cdf[N] > 15 ) + ( cdf[N] > 31 ) + Min(FloorLog2(N), 2)
+    // In this case cdf[N] is |count|.
+    // Min(FloorLog2(N), 2) is 1 for nsymbs == {2, 3} and 2 for all
+    // nsymbs > 3. So the equation becomes:
+    //  4 + (count > 15) + (count > 31) + (nsymbs > 3).
+    // Note that the largest value for count is 32 (it is not incremented beyond
+    // 32). So using that information:
+    //  count >> 4 is 0 for count from 0 to 15.
+    //  count >> 4 is 1 for count from 16 to 31.
+    //  count >> 4 is 2 for count == 31.
+    // Now, the equation becomes:
+    //  4 + (count >> 4) + (nsymbs > 3).
+    const int rate = 4 + (count >> 4) + (nsymbs > 3);
+
+    int i = 0;
+    do {
+        if (i < val) {
+            cdf[i] += (CDF_PROB_TOP - cdf[i]) >> rate;
+        } else {
+            cdf[i] -= cdf[i] >> rate;
+        }
+    } while (++i < nsymbs - 1);
+    cdf[nsymbs] += (count < 32);
+}
+#else
 static inline uint8_t get_prob(uint32_t num, uint32_t den) {
     assert(den);
     const uint32_t p = (uint32_t)(((uint64_t)num * 256 + (den >> 1)) / den) + 1;
@@ -407,6 +446,7 @@ static INLINE void update_cdf(AomCdfProb *cdf, int32_t val, int32_t nsymbs) {
     }
     cdf[nsymbs] += (cdf[nsymbs] < 32);
 }
+#endif
 /**********************************************************************************************************************/
 // entropy.h
 #define TOKEN_CDF_Q_CTXS 4
@@ -681,8 +721,9 @@ typedef struct FrameContexts {
     int32_t    initialized;
 } FRAME_CONTEXT;
 
+#if !OPT_LD_MEM_2
 extern const AomCdfProb svt_aom_default_kf_y_mode_cdf[KF_MODE_CONTEXTS][KF_MODE_CONTEXTS][CDF_SIZE(INTRA_MODES)];
-
+#endif
 static const int32_t av1_ext_tx_ind[EXT_TX_SET_TYPES][TX_TYPES] = {
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
