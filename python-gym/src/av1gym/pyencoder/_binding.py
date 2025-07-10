@@ -1,3 +1,4 @@
+from enum import Enum
 from importlib import import_module as _imp
 from typing import TypedDict
 

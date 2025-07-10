@@ -1,32 +1,80 @@
 import numpy as np
 import gymnasium as gym
 from stable_baselines3.common.running_mean_std import RunningMeanStd
-from typing import cast
-from .environment import Av1GymEnv, ObservationDict
+from typing import Generic, TypeVar, TypedDict
+from enum import Enum
+from .environment import Av1GymEnv, RawObservationDict
+from .runner import FrameType
 
-class ObsNormWrapper(gym.ObservationWrapper):
-    """
-    Normalise a Dict observation with keys:
-        • "superblock": (H, W, SB_FEATURES)  — per-SB data
-        • "frame":      (FRAME_FEATURES,)    — global data
-    RunningMeanStd keeps mean, stddev per feature channel; the moments fed into it are
-    the mean/var across all super-blocks in the frame.
-    """
+SB_FEATURES = 4
+FRAME_FEATURES = 1
+
+class ObservationDict(TypedDict):
+    superblock: np.ndarray # continuous superblock level features (sb_h, sb_w, SB_FEATURES,)
+    frame: np.ndarray # continuous frame level features (FRAME_FEATURES,)
+    frame_type: np.ndarray # onehot array [0, 0, 0, 1]
+
+class Av1GymObsNormWrapper(gym.ObservationWrapper):
+    env: Av1GymEnv
+
     def __init__(self, env: Av1GymEnv, clip: float = 10.0, epsilon: float = 1e-8, update: bool = True):
         super().__init__(env)
         self.clip = clip
         self.eps = epsilon
         self.update = update
+        
+        self.frame_w = env.frame_w
+        self.frame_h = env.frame_h
+        self.sb_w = env.sb_w
+        self.sb_h = env.sb_h
 
-        obs_space: ObservationDict = cast(ObservationDict, env.observation_space)
-        sb_channels = obs_space["superblock"].shape[-1]
-        frame_dim = obs_space["frame"].shape[0]
+        self.observation_space = gym.spaces.Dict({
+            "superblock": gym.spaces.Box(-np.inf, np.inf, (self.sb_h, self.sb_w, SB_FEATURES,), np.float32),
+            "frame": gym.spaces.Box(-np.inf, np.inf, (FRAME_FEATURES,), np.float32),
+            "frame_type": gym.spaces.MultiBinary(len(FrameType)),
+        })
 
         # vectors (length = num feature channels)
-        self.rms_sb = RunningMeanStd(shape=(sb_channels,))
-        self.rms_frame = RunningMeanStd(shape=(frame_dim,))
+        self.rms_sb = RunningMeanStd(shape=(SB_FEATURES,))
+        self.rms_frame = RunningMeanStd(shape=(FRAME_FEATURES,))
 
-    def observation(self, observation: ObservationDict) -> dict:
+    def observation(self, observation: RawObservationDict) -> ObservationDict:
+        y_plane = observation["original_frame"]["y_plane"]
+
+        # Build observations for each sb
+        n_sb = len(observation["superblocks"])
+        superblock_obs = np.empty((n_sb, SB_FEATURES), dtype=np.float32)
+
+        for i, sb in enumerate(observation["superblocks"]):
+            x0, y0 = sb["sb_org_x"], sb["sb_org_y"]
+            w, h = sb["sb_width"], sb["sb_height"]
+
+            luma_var = y_plane[y0 : y0 + h, x0 : x0 + w].var()
+
+            superblock_obs[i] = (
+                sb["sb_qindex"],
+                sb["sb_x_mv"],
+                sb["sb_y_mv"],
+                luma_var
+            )
+
+        # Reshape from 2d to 3d tensor
+        superblock_obs = superblock_obs.reshape((self.sb_h, self.sb_w, SB_FEATURES))
+        
+        # Build cont. frame level observations
+        frame_obs = np.array([
+            observation["frame_number"]
+        ], dtype=np.float32)
+
+        network_obs = ObservationDict(
+            superblock=np.zeros_like([]),
+            frame=frame_obs,
+            frame_type=self.enum_to_onehot(FrameType, observation["frame_type"], dtype=np.float32)
+        )
+
+        return self._normalize(network_obs)
+    
+    def _normalize(self, observation: ObservationDict) -> ObservationDict:
         sb = observation["superblock"].astype(np.float32) # (H, W, C)
         fr = observation["frame"].astype(np.float32) # (F,)
 
@@ -48,7 +96,18 @@ class ObsNormWrapper(gym.ObservationWrapper):
         sb_norm = np.clip(sb_norm, -self.clip, self.clip)
         fr_norm = np.clip(fr_norm, -self.clip, self.clip)
 
-        return {"superblock": sb_norm, "frame": fr_norm}
+        return ObservationDict(
+            superblock=sb_norm, 
+            frame=fr_norm,
+            # Dont normalize onehot values
+            frame_type=observation["frame_type"]
+        )
+    
+    @staticmethod
+    def enum_to_onehot(enum: type[Enum], value: int, *, dtype=np.float32) -> np.ndarray:
+        onehot = np.zeros(len(enum), dtype=dtype)
+        onehot[value] = 1.0
+        return onehot
 
     def save(self, file_path: str):
         np.savez(

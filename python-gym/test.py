@@ -19,7 +19,7 @@ args = {
     "input": "../../playground/bus_cif.y4m",
     "pred_struct": 1,
     "rc": 2,
-    "tbr": 100,
+    "tbr": 180,
     "enable_stat_report": True
 }
 

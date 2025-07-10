@@ -1,22 +1,27 @@
 import threading
 from pathlib import Path
 from typing import TypedDict
+
+from ..pyencoder import SuperBlockInfo
+from .runner import FrameType
 import gymnasium as gym
 import numpy as np
 from .runner import Av1Runner, Feedback
-from .utils.video_reader import VideoReader
-from .constants import QP_MIN, QP_MAX
+from .utils.video_reader import VideoReader, YUVFrame
+from .constants import QP_MIN, QP_MAX, SB_SIZE
 from typing import Any
 import math
 
-SB_FEATURES = 4
-FRAME_FEATURES = 1
+class YUVPlaneDict(TypedDict):
+    y_plane: np.ndarray # (w, h)
+    u_plane: np.ndarray # (w // 2, h // 2)
+    v_plane: np.ndarray # (w // 2, h // 2)
 
-class ObservationDict(TypedDict):
-    # Shape: (sb_h, sb_w, SB_FEATURES)
-    superblock: np.ndarray
-    # Shape: (FRAME_FEATURES,)
-    frame: np.ndarray
+class RawObservationDict(TypedDict):
+    superblocks: list[SuperBlockInfo]
+    frame_number: int
+    frame_type: int
+    original_frame: YUVPlaneDict
 
 # Extending gymnasium's Env class
 # https://gymnasium.farama.org/api/env/#gymnasium.Env
@@ -44,6 +49,7 @@ class Av1GymEnv(gym.Env):
         self.sb_w, self.sb_h = self.video_reader.get_superblock_dims()
         self.num_sb = self.sb_w * self.sb_h
         self.num_frames = self.video_reader.get_frame_count()
+        self.frame_w, self.frame_h = self.video_reader.get_resolution()
 
         # Action space, QP offset grid
         self.action_space = gym.spaces.MultiDiscrete(
@@ -51,10 +57,35 @@ class Av1GymEnv(gym.Env):
             nvec=np.full(self.num_sb, QP_MAX - QP_MIN + 1, dtype=np.int32)
         )
 
-        # Observation space, global and per sb observations
+        # raw Observation space, global and per sb observations
+        superblock_list_space = gym.spaces.Sequence(
+            space=gym.spaces.Dict({
+                # superblock location
+                "sb_org_x": gym.spaces.Box(low=0, high=self.frame_w, shape=(), dtype=np.int32),
+                "sb_org_y": gym.spaces.Box(low=0, high=self.frame_h, shape=(), dtype=np.int32),
+                "sb_width": gym.spaces.Box(low=0, high=SB_SIZE, shape=(), dtype=np.int32),
+                "sb_height": gym.spaces.Box(low=0, high=SB_SIZE, shape=(), dtype=np.int32),
+
+                # quantiser index
+                "sb_qindex": gym.spaces.Box(low=0, high=63, shape=(), dtype=np.uint8),
+
+                # motion vectors
+                "sb_x_mv": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(), dtype=np.int16),
+                "sb_y_mv": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(), dtype=np.int16),
+            })
+        )
+
+        frame_space = gym.spaces.Dict({
+            "y_plane": gym.spaces.Box(low=0, high=255, shape=(self.frame_h, self.frame_w), dtype=np.uint8), 
+            "u_plane": gym.spaces.Box(low=0, high=255, shape=(self.frame_h // 2, self.frame_w // 2), dtype=np.uint8), 
+            "v_plane": gym.spaces.Box(low=0, high=255, shape=(self.frame_h // 2, self.frame_w // 2), dtype=np.uint8)
+        })
+
         self.observation_space = gym.spaces.Dict({
-            "superblock": gym.spaces.Box(-np.inf, np.inf, (self.sb_h, self.sb_w, SB_FEATURES,), np.float32),
-            "frame": gym.spaces.Box(-np.inf, np.inf, (FRAME_FEATURES,), np.float32),
+            "superblocks": superblock_list_space,
+            "frame_number": gym.spaces.Box(low=0, high=np.inf, shape=(), dtype=np.int32),
+            "frame_type": gym.spaces.Box(low=0, high=len(FrameType), shape=(), dtype=np.int32),
+            "original_frame": frame_space,
         })
 
         # Episode management
@@ -67,7 +98,7 @@ class Av1GymEnv(gym.Env):
         *, 
         seed: int | None = None, 
         options: dict | None = None
-    ) -> tuple[ObservationDict, dict]:
+    ) -> tuple[RawObservationDict, dict]:
         print("Resetting environment...")
 
         super().reset(seed=seed)
@@ -96,7 +127,7 @@ class Av1GymEnv(gym.Env):
     def step(
         self,
         action: np.ndarray
-    ) -> tuple[ObservationDict, float, bool, bool, dict]:
+    ) -> tuple[RawObservationDict, float, bool, bool, dict]:
         if self.terminated:
             raise RuntimeError("Episode has ended. Call reset() before step().")
 
@@ -137,11 +168,18 @@ class Av1GymEnv(gym.Env):
             # Get next observation with validation
             next_obs = self._get_next_observation()
         
+        # Compute info
+        postencoded_frame = feedback.encoded_frame_data
+        postencoded_frame_planes = self.video_reader.get_yuv_planes(postencoded_frame)
+        original_frame = self.video_reader.read_frame(frame_number=feedback.picture_number)
+        y_psnr = self.video_reader.compute_psnr(postencoded_frame_planes.y_plane, original_frame.y_plane)
+
         info = {
             "frame_number": self.current_frame,
             "reward": reward,
             "bitstream_size": feedback.bitstream_size,
             "episode_frames": self.current_frame,
+            "y_psnr": y_psnr
         }
 
         return next_obs, reward, self.terminated, False, info
@@ -163,46 +201,28 @@ class Av1GymEnv(gym.Env):
         """Save the bitstream to a file"""
         self.av1_runner.save_bitstream_to_file(output_path, interrupt=interrupt)
 
-    def _get_next_observation(self) -> ObservationDict:
+    def _get_next_observation(self) -> RawObservationDict:
         """Get current observation based on current frame"""
         try:
             observation = self.av1_runner.wait_for_next_observation()
-            y_plane, _, _ = self.video_reader.read_frame(frame_number=observation.picture_number)
+            yuv_frame = self.video_reader.read_frame(frame_number=observation.picture_number)
 
             # Assert frame numbers match
             assert (
                 observation.picture_number == self.current_frame
             ), f"observation frame {observation.picture_number} != current_frame {self.current_frame}"
 
-            # Build observations for each sb
-            n_sb = len(observation.superblocks)
-            superblock_obs = np.empty((n_sb, SB_FEATURES), dtype=np.float32)
-
-            for i, sb in enumerate(observation.superblocks):
-                x0, y0 = sb["sb_org_x"], sb["sb_org_y"]
-                w, h = sb["sb_width"], sb["sb_height"]
-
-                luma_var = y_plane[y0 : y0 + h, x0 : x0 + w].var()
-
-                superblock_obs[i] = (
-                    sb["sb_qindex"],
-                    sb["sb_x_mv"],
-                    sb["sb_y_mv"],
-                    luma_var
-                )
-
-            # Reshape from 2d to 3d tensor
-            superblock_obs = superblock_obs.reshape((self.sb_h, self.sb_w, SB_FEATURES))
-            
-            frame_obs = np.array([
-                observation.frame_type
-            ], dtype=np.float32)
-
-            return ObservationDict(
-                superblock=superblock_obs,
-                frame=frame_obs,
+            # Send raw observation
+            return RawObservationDict(
+                superblocks=observation.superblocks,
+                frame_number=observation.picture_number,
+                frame_type=observation.frame_type.value,
+                original_frame=YUVPlaneDict(
+                    y_plane=yuv_frame.y_plane,
+                    u_plane=yuv_frame.u_plane,
+                    v_plane=yuv_frame.v_plane
+                ),
             )
-            
         except Exception as e:
             raise RuntimeError(f"Failed to get current observation for frame {self.current_frame}: {e}")
 
@@ -226,11 +246,11 @@ class Av1GymEnv(gym.Env):
             postencoded_frame = feedback.encoded_frame_data
 
             # Convert to yuv planes
-            postencoded_y_plane, _, _ = self.video_reader.get_yuv_planes(postencoded_frame)
-            original_y_plane, _, _ = self.video_reader.read_frame(frame_number=feedback.picture_number)
+            postencoded_frame_planes = self.video_reader.get_yuv_planes(postencoded_frame)
+            original_frame = self.video_reader.read_frame(frame_number=feedback.picture_number)
             
             # Calculate mse as reward
-            mse = VideoReader.compute_mse(postencoded_y_plane, original_y_plane)
+            mse = VideoReader.compute_mse(postencoded_frame_planes.y_plane, original_frame.y_plane)
             
             return mse
         except Exception as e:

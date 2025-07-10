@@ -1,7 +1,8 @@
 import io
 from queue import Queue
 from pathlib import Path
-from av1gym.pyencoder import SuperBlockInfo
+from enum import Enum
+from ..pyencoder import SuperBlockInfo
 import threading
 from dataclasses import dataclass
 
@@ -10,10 +11,16 @@ import cv2
 import numpy as np
 import av1gym.pyencoder as encoder
 
+class FrameType(Enum):
+    KEY_FRAME        = 0
+    INTER_FRAME      = 1
+    INTRA_ONLY_FRAME = 2
+    S_FRAME          = 3
+
 @dataclass
 class Observation:
     superblocks: list[SuperBlockInfo]
-    frame_type: int
+    frame_type: FrameType
     picture_number: int
 
 @dataclass
@@ -196,7 +203,7 @@ class Av1Runner:
         observation = Observation(
             picture_number=picture_number,
             superblocks=sbs,
-            frame_type=frame_type,
+            frame_type=FrameType(frame_type),
         )
 
         # Send action request to RL environment (blocking call)

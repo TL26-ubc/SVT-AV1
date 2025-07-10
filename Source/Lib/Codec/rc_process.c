@@ -1468,7 +1468,7 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
             sb_info->sb_org_y = sb_ptr->org_y;
             sb_info->sb_width = sb_width;
             sb_info->sb_height = sb_height;
-            sb_info->sb_qindex = (uint8_t)sb_ptr->qindex;
+            sb_info->sb_qindex = sb_ptr->qindex;
 
             MeSbResults *me_res = ppcs->pa_me_data->me_results[sb_addr];
             Mv mv = me_res->me_mv_array[0]; // 0 idx is for overall estimate
@@ -1489,7 +1489,7 @@ static void cyclic_sb_qp_derivation(PictureControlSet *pcs) {
             memset(offset_array, 0, sizeof(offset_array));
         }
     } else {
-        assert(!"User callback for deltaq offset is not defined, but cyclic refresh is enabled.");
+        memset(offset_array, 0, sizeof(offset_array));
     }
 #endif
 

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import enum
 import av
 import cv2
@@ -8,6 +9,12 @@ class VideoComponent(enum.Enum):
     Y = "Y"
     Cb = "Cb"
     Cr = "Cr"
+
+@dataclass
+class YUVFrame:
+    y_plane: np.ndarray # (w, h)
+    u_plane: np.ndarray # (w // 2, h // 2)
+    v_plane: np.ndarray # (w // 2, h // 2)
 
 class VideoReader:
     def __init__(self, path: str):
@@ -66,7 +73,7 @@ class VideoReader:
     def get_resolution(self) -> tuple[int, int]:
         return self.width, self.height
 
-    def read_frame(self, frame_number: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]: # (w, h), (w // 2, h // 2), (w // 2, h // 2)
+    def read_frame(self, frame_number: int) -> YUVFrame:
         ycrcb_frame = self.read_frame_raw(frame_number)
         return self.get_yuv_planes(ycrcb_frame)
 
@@ -87,9 +94,9 @@ class VideoReader:
     def compute_mse(target: np.ndarray, reference: np.ndarray) -> float:
         return np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2).astype(float)
     
-    def get_yuv_planes(self, frame: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def get_yuv_planes(self, frame: np.ndarray) -> YUVFrame:
         w, h = self.width, self.height
         y_plane = frame[0 : w*h].reshape((h, w))
         u_plane = frame[w*h : w*h + (w//2)*(h//2)].reshape((h//2, w//2))
         v_plane = frame[w*h + (w//2)*(h//2) : ].reshape((h//2, w//2))
-        return y_plane, u_plane, v_plane
+        return YUVFrame(y_plane, u_plane, v_plane)
