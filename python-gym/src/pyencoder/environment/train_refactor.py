@@ -52,6 +52,8 @@ def create_lr_schedule(scheduler_type: str, initial_lr: float, **kwargs):
 class WandbCallback(BaseCallback):
     def __init__(self, lr_log_freq=50, verbose=0):
         super(WandbCallback, self).__init__(verbose)
+        self.reward_buffer = []
+        self.reward_components = []
         self.episode_rewards = []
         self.episode_lengths = []
         self.current_episode_reward = 0
@@ -63,6 +65,11 @@ class WandbCallback(BaseCallback):
         self.step_count = 0
         self.last_logged_lr = None
         self.lr_log_freq = lr_log_freq
+        
+        # Enhanced diagnostic tracking
+        self.reward_distribution_history = []
+        self.convergence_window = 100  # Track convergence over this many steps
+        self.last_reward_check = 0
 
     def _on_step(self) -> bool:
         self.step_count += 1
@@ -118,14 +125,29 @@ class WandbCallback(BaseCallback):
         step_metrics["train/step_count"] = self.step_count
         step_metrics["train/progress_remaining"] = self.model._current_progress_remaining
         
-        # Log step metrics if any
-        if step_metrics:
-            wandb.log(step_metrics, step=self.step_count)
+        # Add policy diagnostics for convergence monitoring
+        if hasattr(self.model, 'policy'):
+            try:
+                # Get current reward for range checking
+                current_reward = self.locals.get('rewards', [0])[-1]
+                if abs(current_reward) > 10:
+                    step_metrics["diagnostics/reward_outlier"] = 1.0
+                else:
+                    step_metrics["diagnostics/reward_outlier"] = 0.0
+                    
+                # Check for reward signal issues
+                if abs(current_reward) < 1e-6:
+                    step_metrics["diagnostics/reward_near_zero"] = 1.0
+                else:
+                    step_metrics["diagnostics/reward_near_zero"] = 0.0
+                    
+            except Exception:
+                pass  # Skip if can't compute diagnostics
         
         self.current_episode_reward += self.locals.get('rewards', [0])[-1]
         self.current_episode_length += 1
         
-        # Get PSNR values and bitrate from environment info
+        # Get PSNR values and bitrate from environment info with enhanced logging
         if 'infos' in self.locals:
             for info in self.locals['infos']:
                 if 'y_psnr' in info:
@@ -136,13 +158,35 @@ class WandbCallback(BaseCallback):
                     self.episode_psnr_cr.append(info['cr_psnr'])
                 if 'bitstream_size' in info:
                     self.episode_bitrates.append(info['bitstream_size'])
+                    
+                # Log reward distribution diagnostics
+                if 'reward_variance' in info:
+                    step_metrics["diagnostics/reward_variance"] = info['reward_variance']
+                if 'reward_mean' in info:
+                    step_metrics["diagnostics/reward_mean"] = info['reward_mean']
+                if 'reward_std' in info:
+                    step_metrics["diagnostics/reward_std"] = info['reward_std']
+                    
+                # Log reward components for debugging
+                if 'total_reward' in info:
+                    step_metrics["reward/total"] = info['total_reward']
+                if 'y_psnr' in info:
+                    step_metrics["quality/y_psnr"] = info['y_psnr']
+                if 'y_ssim' in info:
+                    step_metrics["quality/y_ssim"] = info['y_ssim']
+                if 'bitstream_size' in info:
+                    step_metrics["quality/bitstream_size"] = info['bitstream_size']
+        
+        # Log step metrics if any (moved after collecting all metrics)
+        if step_metrics:
+            wandb.log(step_metrics, step=self.step_count)
         
         # Check if episode is done
         if self.locals.get('dones', [False])[-1]:
             self.episode_rewards.append(self.current_episode_reward)
             self.episode_lengths.append(self.current_episode_length)
             
-            # Log episode metrics
+            # Log episode metrics with enhanced diagnostics
             episode_metrics = {
                 "episode/reward": self.current_episode_reward,
                 "episode/length": self.current_episode_length,
@@ -153,6 +197,22 @@ class WandbCallback(BaseCallback):
                 "episode/mean_bitrate": np.mean(self.episode_bitrates) if self.episode_bitrates else 0,
                 "episode/total_bitrate": np.sum(self.episode_bitrates) if self.episode_bitrates else 0,
             }
+            
+            # Add quality distribution metrics
+            if self.episode_psnr_y:
+                episode_metrics["episode/psnr_y_std"] = np.std(self.episode_psnr_y)
+                episode_metrics["episode/psnr_y_min"] = np.min(self.episode_psnr_y)
+                episode_metrics["episode/psnr_y_max"] = np.max(self.episode_psnr_y)
+            
+            if self.episode_bitrates:
+                episode_metrics["episode/bitrate_std"] = np.std(self.episode_bitrates)
+                episode_metrics["episode/bitrate_efficiency"] = np.mean(self.episode_psnr_y) / max(1, np.mean(self.episode_bitrates)) if self.episode_psnr_y else 0
+            
+            # Add convergence diagnostics
+            if len(self.episode_rewards) >= 10:
+                recent_rewards = self.episode_rewards[-10:]
+                episode_metrics["diagnostics/reward_trend"] = np.mean(recent_rewards[-5:]) - np.mean(recent_rewards[:5]) if len(recent_rewards) >= 5 else 0
+                episode_metrics["diagnostics/reward_stability"] = 1.0 / (1.0 + np.std(recent_rewards)) if len(recent_rewards) > 1 else 0
             
             wandb.log(episode_metrics)
             
@@ -384,7 +444,7 @@ if __name__ == "__main__":
                 ent_coef=0.01,
                 vf_coef=0.5,
                 max_grad_norm=0.5,
-                target_kl=0.03,
+                # target_kl=0.03,
                 policy_kwargs=policy_kwargs,
                 verbose=1,
             )
@@ -404,7 +464,14 @@ if __name__ == "__main__":
                 exploration_fraction=0.1,
                 exploration_initial_eps=1.0,
                 exploration_final_eps=0.02,
-                policy_kwargs=policy_kwargs,
+                policy_kwargs = {
+                    "optimizer_class": optimizer_class,
+                    "optimizer_kwargs": optimizer_kwargs,
+                    # Larger and deeper network architecture
+                    "net_arch": [
+                        {"pi": [256, 256, 128, 128, 64], "vf": [256, 256, 128, 128, 64]}
+                    ],
+                },
                 verbose=1,
             )
         case other:

@@ -5,6 +5,7 @@ from pathlib import Path
 from pyencoder import SuperBlockInfo
 import threading
 from dataclasses import dataclass
+import time
 
 import av
 import cv2
@@ -55,6 +56,9 @@ class Av1Runner:
 
         self.first_round = True  # Flag for the first round of encoding
         self.first_round_byte_usage = {}  # Store byte usage for the first round
+        
+        # Frame state caching for temporal attribution
+        self.frame_state_cache = {}  # Cache frame states for analysis
 
         # Synchronization
         self.observation_queue: Queue[Observation] = Queue(maxsize=1) # Encoder provides observation
@@ -91,7 +95,7 @@ class Av1Runner:
             "input": self.video_path,
             "pred_struct": 1,
             "rc": 2,
-            "tbr": 50,
+            "tbr": 600,
             "enable_stat_report": True,
         }
 
@@ -121,6 +125,9 @@ class Av1Runner:
         self.bytes_keeper.clear()
         self.all_bitstreams.close()
         self.all_bitstreams = io.BytesIO()
+
+        # Clear frame state cache
+        self.frame_state_cache.clear()
 
         # Clear queues
         while not self.observation_queue.empty():
@@ -180,6 +187,12 @@ class Av1Runner:
         Callback to get QP offsets for superblocks in a frame.
         This method MUST return immediately as the encoder waits synchronously.
         """
+
+        self.frame_state_cache[picture_number] = {
+            'superblocks': sbs,
+            'frame_type': frame_type,
+            'timestamp': time.time()
+        }
         # Request action from RL environment
         observation = Observation(
             picture_number=picture_number,
@@ -197,8 +210,8 @@ class Av1Runner:
         if action.skip:
             return [114514] * self.sb_total_count
 
-        if len(action.offsets) != self.sb_total_count:
-            raise ValueError(f"Action response length mismatch. Expected {self.sb_total_count}, got {len(action_response)}")
+        # if len(action.offsets) != self.sb_total_count:
+        #     raise ValueError(f"Action response length mismatch. Expected {self.sb_total_count}, got {len(action_response)}")
 
         return action.offsets
 
@@ -262,10 +275,13 @@ class Av1Runner:
         if not output_path.endswith(".ivf"):
             raise ValueError("Output path must end with .ivf")
 
-
-        # Save previous training bytes
-        # To make the bitstream playable, prepend the IVF header and frame headers
-        frames = list(self.previous_training_bytes_keeper.values())
+        # Choose which bytes to save based on interrupt flag
+        if interrupt:
+            # Save previous training bytes if interrupted
+            frames = list(self.previous_training_bytes_keeper.values())
+        else:
+            # Save current bytes for normal completion
+            frames = list(self.bytes_keeper.values())
         if not frames:
             bitstream_data = b""
         else:
