@@ -322,7 +322,7 @@ if __name__ == "__main__":
         lambda_rd=args.lambda_rd,
         state=NaiveState,
     )
-    
+
     env = Monitor(gyn_env, str(base_output_path / "monitor"))
     if args.n_steps == -1:
         # Automatically determine n_steps based on video length
@@ -348,18 +348,18 @@ if __name__ == "__main__":
             "alpha": 0.99,  # Default RMSprop alpha
             "eps": 1e-8
         }
-    
+
     # Policy kwargs for custom optimizer
     if args.optimizer == "rmsprop":
         optimizer_class = torch.optim.RMSprop
     else:
         optimizer_class = getattr(torch.optim, args.optimizer.title())
-    
+
     policy_kwargs = {
         "optimizer_class": optimizer_class,
         "optimizer_kwargs": optimizer_kwargs,
     }
-    
+
     # Create SB3-native learning rate schedule
     learning_rate_schedule = create_lr_schedule(
         args.scheduler, 
@@ -409,14 +409,14 @@ if __name__ == "__main__":
             )
         case other:
             raise ValueError(f"Unsupported algorithm '{other}'. Choose either 'ppo' or 'dqn'.")
-        
+
     total_timesteps = args.total_iteration * gyn_env.num_frames
-    
+
     # Set up callbacks
     callbacks = []
     if args.wandb:
         callbacks.append(wandb_callback)
-    
+
     # training
     try:
         model.learn(

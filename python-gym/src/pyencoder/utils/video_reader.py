@@ -59,6 +59,16 @@ class VideoReader:
         
         # yuv420p format conversion
         return av_frame.to_ndarray(format='yuv420p')
+    
+    def read_frame_as_rgb(self, frame_number) -> Optional[np.ndarray]:
+        """Read a specific frame and convert it to RGB format"""
+        av_frame = self._get_frame_at_index(frame_number)
+        if av_frame is None:
+            return None
+        
+        # Convert to RGB format
+        rgb_frame = av_frame.to_ndarray(format='rgb24')
+        return cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
 
     def release(self):
         self.container.close()
