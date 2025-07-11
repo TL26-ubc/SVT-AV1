@@ -1,4 +1,4 @@
-import cv2
+import av
 import numpy as np
 from pathlib import Path
 
@@ -21,17 +21,15 @@ def save_debug_frame(y: np.ndarray,
     h, w = y.shape
     assert u.shape == v.shape == (h // 2, w // 2), "U/V plane size mismatch"
 
-    # Re-assemble the planar buffer exactly as it came off disk/encoder
-    yuv420 = np.concatenate(
-        [y.flatten(), u.flatten(), v.flatten()]
-    ).astype(np.uint8)
+    # Allocate an empty YUV420p frame and copy each plane
+    yuv_frame = av.VideoFrame(width=w, height=h, format="yuv420p")
+    yuv_frame.planes[0].update(y.tobytes()) # Y
+    yuv_frame.planes[1].update(u.tobytes()) # U
+    yuv_frame.planes[2].update(v.tobytes()) # V
 
-    # OpenCV expects shape (h * 3/2, w) for I420
-    yuv420 = yuv420.reshape((int(h * 1.5), w))
-
-    # Convert to BGR (or RGB if you prefer)
-    bgr = cv2.cvtColor(yuv420, cv2.COLOR_YUV2BGR_I420)
+    # Convert to rgb
+    rgb_frame = yuv_frame.reformat(format="rgb24")
 
     # Save
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(out_path), bgr)
+    rgb_frame.to_image().save(Path(out_path))

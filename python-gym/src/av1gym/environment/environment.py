@@ -41,13 +41,15 @@ class Av1GymEnv(gym.Env):
         super().__init__()
         self.video_path = Path(video_path)
         self.output_dir = Path(output_dir)
-        self.av1_runner = Av1Runner(video_path)
 
         self.lambda_rd = lambda_rd
         self._episode_done = threading.Event()
 
         # Initialize the VideoReader
         self.video_reader = VideoReader(path=video_path)
+
+        # Initialize av1 runner
+        self.av1_runner = Av1Runner(self.video_reader)
 
         self.sb_w, self.sb_h = self.video_reader.get_superblock_dims()
         self.num_sb = self.sb_w * self.sb_h
@@ -206,9 +208,9 @@ class Av1GymEnv(gym.Env):
     def render(self):
         pass
     
-    def save_bitstream_to_file(self, output_path: str, interrupt: bool = False):
+    def save_bitstream_to_file(self, output_path: str):
         """Save the bitstream to a file"""
-        self.av1_runner.save_bitstream_to_file(output_path, interrupt=interrupt)
+        self.av1_runner.save_bitstream_to_file(output_path)
 
     def _get_next_observation(self) -> RawObservationDict:
         """Get current observation based on current frame"""

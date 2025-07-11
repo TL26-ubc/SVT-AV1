@@ -88,6 +88,10 @@ class VideoReader:
     def compute_mse(target: np.ndarray, reference: np.ndarray) -> float:
         return np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2).astype(float)
     
+    @staticmethod
+    def compute_rmse(target: np.ndarray, reference: np.ndarray) -> float:
+        return np.sqrt(VideoReader.compute_mse(target, reference))
+    
     def get_yuv_planes(self, frame: np.ndarray) -> YUVFrame:
         """
         Split a flattened *YUV420p* frame into Y, U, V planes.
@@ -99,9 +103,9 @@ class VideoReader:
         """
         y_size  = self.width * self.height
         uv_size = (self.width // 2) * (self.height // 2)
+        
         expected = y_size + 2 * uv_size
-
-        if frame.size != expected:
+        if frame.size != y_size + 2 * uv_size:
             raise ValueError(
                 f"Unexpected frame length. Got {frame.size} bytes, "
                 f"expected {expected} for {self.width}×{self.height} YUV420p."

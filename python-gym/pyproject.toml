@@ -1,5 +1,5 @@
 [project]
-name = "av1-gym"
+name = "av1gym"
 dynamic = ["version"]
 authors = [{ name = "TL26" }]
 readme = "README.md"
@@ -7,15 +7,15 @@ requires-python = ">=3.9"
 dependencies = [
   "gymnasium>=0.29", 
   "numpy>=2.1.3", 
-  "opencv-python>= 4.10", 
-  "pybind11>=2.13.6", 
-  "av>=14.4.0"
+  "opencv-python>= 4.10",
+  "av>=15.0.0"
 ]
 
 [build-system]
 requires = [
   "scikit-build-core>=0.11",
   "setuptools_scm>=7",
+  "pybind11>=2.13.6",
   "pybind11_stubgen>=2"
 ]
 build-backend = "scikit_build_core.build"
@@ -27,9 +27,8 @@ install.strip = false
 [tool.scikit-build.cmake]
 define = { SVT_ENABLE_USER_CALLBACKS = "ON" }
 args = [
-    # "-DCMAKE_BUILD_TYPE=Debug",
-    "-DCMAKE_C_FLAGS=-g",
-    "-DCMAKE_CXX_FLAGS=-g",
-    "-DCMAKE_INSTALL_DO_STRIP=OFF",
-    "-DFROM_PIP_INSTALL=1",
+  "-DCMAKE_C_FLAGS=-g",
+  "-DCMAKE_CXX_FLAGS=-g",
+  "-DCMAKE_INSTALL_DO_STRIP=OFF",
+  "-DFROM_PIP_INSTALL=1",
 ]
