@@ -6,6 +6,34 @@ from gymnasium import spaces
 from .extractor import SBGlobalExtractor
 from .norm import ObservationDict
 
+
+def create_mlp(input_dim: int, layer_sizes: list[int], activation: type[nn.Module] = nn.ReLU) -> nn.Sequential:
+    """
+    Create an MLP with specified layer sizes.
+    
+    Args:
+        input_dim: Input dimension
+        layer_sizes: List of hidden layer sizes (including output layer)
+        activation: Activation function class (applied to all layers except the last)
+    
+    Returns:
+        nn.Sequential MLP
+    """
+    if not layer_sizes:
+        return nn.Sequential(nn.Identity())
+    
+    layers = []
+    prev_dim = input_dim
+    
+    for i, layer_size in enumerate(layer_sizes):
+        layers.append(nn.Linear(prev_dim, layer_size))
+        # Add activation to all layers except the last one
+        if i < len(layer_sizes) - 1:
+            layers.append(activation())
+        prev_dim = layer_size
+    
+    return nn.Sequential(*layers)
+
 class SBGlobalActorCriticPolicy(ActorCriticPolicy):
     """
     Actor-Critic policy whose *policy* head is the FiLM-conditioned
@@ -20,8 +48,14 @@ class SBGlobalActorCriticPolicy(ActorCriticPolicy):
         lr_schedule: Callable[[float], float],
         sb_channels: int = 64,
         glob_hidden: int = 64,
+        glob_layers: list[int] | None = None,
+        value_layers: list[int] | None = None,
         **kwargs,
     ):
+        if glob_layers is None:
+            glob_layers = [glob_hidden, glob_hidden]
+        if value_layers is None:
+            value_layers = [128, 1]
         super().__init__(
             observation_space,
             action_space,
@@ -32,6 +66,7 @@ class SBGlobalActorCriticPolicy(ActorCriticPolicy):
             features_extractor_kwargs=dict(
                 sb_channels=sb_channels,
                 glob_hidden=glob_hidden,
+                glob_layers=glob_layers,
             ),
             share_features_extractor=True,
             **kwargs,
@@ -39,17 +74,14 @@ class SBGlobalActorCriticPolicy(ActorCriticPolicy):
 
         # Build FiLM + 1x1 conv policy head
         C_sb   = sb_channels
-        C_glob = glob_hidden
+        C_glob = glob_layers[-1]  # Output dimension of global MLP
         K      = int(action_space.nvec[0]) # deltaqp bins per sb
 
         self.film = nn.Linear(C_glob, 2 * C_sb)
         self.head = nn.Conv2d(C_sb, K, kernel_size=1)
 
         # For value network, reuse the pooled vector
-        self.value_net = nn.Sequential(
-            nn.Linear(C_sb + C_glob, 128), nn.ReLU(),
-            nn.Linear(128, 1),
-        )
+        self.value_net = create_mlp(C_sb + C_glob, value_layers)
 
         self.action_net = nn.Identity()
 

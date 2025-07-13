@@ -35,11 +35,28 @@ class Av1OnTheFlyDecoder:
         """
         Output the current video to a file
         """
-        if not self._packets:
+        if not self._frames:
             raise RuntimeError("No frames have been decoded yet.")
 
         out_path = Path(output_path)
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with av.open(out_path, "w") as container:
-            container.mux(self._packets)
+        with av.open(str(out_path), "w") as container:
+            # Create output stream with same properties as decoder
+            stream = container.add_stream('av1')
+            
+            # Set stream parameters from the first frame
+            if self._frames:
+                first_frame = self._frames[0]
+                stream.width = first_frame.width
+                stream.height = first_frame.height
+                stream.pix_fmt = first_frame.format.name
+                
+            # Encode and mux all frames
+            for frame in self._frames:
+                for packet in stream.encode(frame):
+                    container.mux(packet)
+                    
+            # Flush any remaining packets
+            for packet in stream.encode():
+                container.mux(packet)

@@ -285,8 +285,12 @@ class Av1GymEnv(gym.Env):
         
         # Calculate mse as reward
         mse = VideoReader.compute_mse(postencoded_frame_planes.y_plane, original_frame.y_plane)
-        
         return mse
+        
+        # with mse, get psnr
+        # psnr = VideoReader.compute_psnr(postencoded_frame_planes.y_plane, original_frame.y_plane)
+        
+        # return psnr
 
     def _check_termination_conditions(self):
         """Check if episode should terminate"""
