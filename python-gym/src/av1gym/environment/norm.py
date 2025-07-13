@@ -18,7 +18,7 @@ ArrayT = TypeVar(
     th.Tensor,
 )
 
-class ObservationDict(TypedDict, Generic[ArrayT]):
+class ObservationDict(TypedDict):
     superblock: ArrayT # continuous superblock level features (sb_h, sb_w, SB_FEATURES,)
     frame: ArrayT # continuous frame level features (FRAME_FEATURES,)
     frame_type: ArrayT # onehot array [0, 0, 0, 1]
