@@ -1131,7 +1131,7 @@ typedef struct PluginCallbacks {
 
     void (*user_picture_feedback)(uint8_t *bitstream, uint32_t bitstream_size, uint32_t picture_number);
 
-    void (*user_postencode_feedback)(uint32_t picture_number); // Currently unused
+    void (*user_postencode_feedback)(int64_t buffer_level, uint32_t picture_number);
 } PluginCallbacks;
 
 // runtime setter

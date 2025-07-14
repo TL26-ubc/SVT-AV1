@@ -83,7 +83,7 @@ extern "C" void recv_picture_feedback_trampoline(uint8_t *bitstream, uint32_t bi
     fcn.operator()(py_bitstream, bitstream_size, picture_number);
 }
 
-extern "C" void recv_postencode_feedback_trampoline(uint32_t picture_number) {
+extern "C" void recv_postencode_feedback_trampoline(int64_t buffer_level, uint32_t picture_number) {
     Callback &cb = *g_callbacks[static_cast<int>(CallbackEnum::RecvPostEncodeStats)];
     if (cb.py_func.is_none())
         return;
@@ -92,6 +92,5 @@ extern "C" void recv_postencode_feedback_trampoline(uint32_t picture_number) {
 
     py::function fcn = pyutils::validate_callable(cb.py_func, cb.n_args);
 
-
-    // fcn.operator()(..., picture_number); //TODO
+    fcn.operator()(buffer_level, picture_number);
 }

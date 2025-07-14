@@ -12,7 +12,7 @@ typedef void (*get_deltaq_offset_cb_t)(SuperBlockInfo *, int *, uint32_t, int32_
 
 typedef void (*recv_picture_feedback_cb_t)(uint8_t *, uint32_t, uint32_t);
 
-typedef void (*recv_postencode_feedback_cb_t)(uint32_t);
+typedef void (*recv_postencode_feedback_cb_t)(int64_t, uint32_t);
 
 extern get_deltaq_offset_cb_t get_deltaq_offset_cb;
 extern recv_picture_feedback_cb_t recv_picture_feedback_cb;
@@ -22,7 +22,7 @@ void get_deltaq_offset_trampoline(SuperBlockInfo *, int *, uint32_t, int32_t, in
 
 void recv_picture_feedback_trampoline(uint8_t *, uint32_t, uint32_t);
 
-void recv_postencode_feedback_trampoline(uint32_t);//TODO
+void recv_postencode_feedback_trampoline(int64_t, uint32_t);
 
 #ifdef __cplusplus
 } /* extern "C" */

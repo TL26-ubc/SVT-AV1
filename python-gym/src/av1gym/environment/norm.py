@@ -1,27 +1,20 @@
 import numpy as np
 import gymnasium as gym
 from stable_baselines3.common.running_mean_std import RunningMeanStd
-from typing import Generic, TypeVar, TypedDict
-import torch as th
+from typing import TypedDict
 from enum import Enum
 
 from .environment import Av1GymEnv, RawObservationDict
 from .runner import FrameType
+from .utils.video_utils import VideoUtils
 
-SB_FEATURES = 5
+SB_FEATURES = 14
 FRAME_FEATURES = 4
 
-# Observation dict will be converted into th.Tensors by gymnasium
-ArrayT = TypeVar(
-    "ArrayT",
-    np.ndarray,
-    th.Tensor,
-)
-
-class ObservationDict(TypedDict, Generic[ArrayT]):
-    superblock: ArrayT # continuous superblock level features (sb_h, sb_w, SB_FEATURES,)
-    frame: ArrayT # continuous frame level features (FRAME_FEATURES,)
-    frame_type: ArrayT # onehot array [0, 0, 0, 1]
+class ObservationDict(TypedDict):
+    superblock: np.ndarray # continuous superblock level features (sb_h, sb_w, SB_FEATURES,)
+    frame: np.ndarray # continuous frame level features (FRAME_FEATURES,)
+    frame_type: np.ndarray # onehot array [0, 0, 0, 1]
 
 class Av1GymObsNormWrapper(gym.ObservationWrapper):
     env: Av1GymEnv
@@ -38,7 +31,7 @@ class Av1GymObsNormWrapper(gym.ObservationWrapper):
         self.sb_h = env.sb_h
 
         self.observation_space = gym.spaces.Dict({
-            "superblock": gym.spaces.Box(-np.inf, np.inf, (self.sb_h, self.sb_w, SB_FEATURES,), np.float32),
+            "superblock": gym.spaces.Box(-np.inf, np.inf, (SB_FEATURES, self.sb_h, self.sb_w), np.float32),
             "frame": gym.spaces.Box(-np.inf, np.inf, (FRAME_FEATURES,), np.float32),
             "frame_type": gym.spaces.MultiBinary(len(FrameType)),
         })
@@ -49,6 +42,8 @@ class Av1GymObsNormWrapper(gym.ObservationWrapper):
 
     def observation(self, observation: RawObservationDict) -> ObservationDict:
         y_plane = observation["original_frame"]["y_plane"]
+        u_plane = observation["original_frame"]["u_plane"]
+        v_plane = observation["original_frame"]["v_plane"]
 
         # Build observations for each sb
         n_sb = len(observation["superblocks"])
@@ -58,18 +53,36 @@ class Av1GymObsNormWrapper(gym.ObservationWrapper):
             x0, y0 = sb["sb_org_x"], sb["sb_org_y"]
             w, h = sb["sb_width"], sb["sb_height"]
 
-            luma_var = y_plane[y0 : y0 + h, x0 : x0 + w].var()
+            sb_y_plane = y_plane[y0 : y0 + h, x0 : x0 + w]
+            sb_u_plane = u_plane[y0//2 : (y0+h)//2, x0//2 : (x0+w)//2]
+            sb_v_plane = v_plane[y0//2 : (y0+h)//2, x0//2 : (x0+w)//2]
+
+            texture_mean, texture_std = VideoUtils.compute_texture_complexity(sb_y_plane)
+            edge_density = VideoUtils.compute_edge_density(sb_y_plane)
+            residual_energy = VideoUtils.compute_residual_energy(sb_y_plane)
+            block_activity = VideoUtils.compute_block_activity(sb_y_plane)
+            mv_magnitude, mv_angle = VideoUtils.compute_motion_features(sb["sb_x_mv"], sb["sb_y_mv"])
 
             superblock_obs[i] = (
                 sb["sb_qindex"],
                 sb["sb_x_mv"],
                 sb["sb_y_mv"],
-                luma_var,
-                sb["sb_8x8_distortion"]
+                mv_angle,
+                mv_magnitude,
+                sb["sb_8x8_distortion"],
+                sb_y_plane.var(),
+                sb_u_plane.var(),
+                sb_v_plane.var(),
+                texture_mean,
+                texture_std,
+                edge_density,
+                residual_energy,
+                block_activity,
             )
 
-        # Reshape from 2d to 3d tensor
-        superblock_obs = superblock_obs.reshape((self.sb_h, self.sb_w, SB_FEATURES))
+        # Reshape from 2d to 3d tensor, and in order stable baselines expects
+        superblock_obs = superblock_obs.reshape(self.sb_h, self.sb_w, SB_FEATURES)
+        superblock_obs = superblock_obs.transpose((2, 0, 1))
         
         # Build cont. frame level observations
         frame_obs = np.array([
@@ -91,23 +104,27 @@ class Av1GymObsNormWrapper(gym.ObservationWrapper):
         sb = observation["superblock"].astype(np.float32) # (H, W, C)
         fr = observation["frame"].astype(np.float32) # (F,)
 
+        C, H, W = sb.shape 
+        
         # update running statistics
         if self.update:
             # flatten sb grid and compute moments sb stat for the frame
-            sb_flat = sb.reshape(-1, sb.shape[-1]) # (N_sb, C)
-            sb_mean = sb_flat.mean(axis=0) # (C,)
-            sb_var = sb_flat.var(axis=0) # (C,)
-            n_sb = sb_flat.shape[0]
+            sb_flat = sb.reshape(C, -1) # (C, H*W)
+            sb_mean = sb_flat.mean(axis=1) # (C,)
+            sb_var = sb_flat.var(axis=1) # (C,)
+            n_sb = H * W    
 
             self.rms_sb.update_from_moments(sb_mean, sb_var, n_sb)
             self.rms_frame.update(fr[None, :])
 
         # norm + clip
-        sb_norm = (sb - self.rms_sb.mean) / np.sqrt(self.rms_sb.var + self.eps)
-        fr_norm = (fr - self.rms_frame.mean) / np.sqrt(self.rms_frame.var + self.eps)
+        sb_norm  = (sb - self.rms_sb.mean[:, None, None]) / np.sqrt(self.rms_sb.var + self.eps)[:, None, None]
+        sb_norm = np.nan_to_num(sb_norm, nan=0.0)    
+        sb_norm  = np.clip(sb_norm, -self.clip, self.clip)
 
-        sb_norm = np.clip(sb_norm, -self.clip, self.clip)
-        fr_norm = np.clip(fr_norm, -self.clip, self.clip)
+        fr_norm  = (fr - self.rms_frame.mean) / np.sqrt(self.rms_frame.var + self.eps)
+        fr_norm = np.nan_to_num(fr_norm, nan=0.0)    
+        fr_norm  = np.clip(fr_norm, -self.clip, self.clip) 
 
         return ObservationDict(
             superblock=sb_norm, 

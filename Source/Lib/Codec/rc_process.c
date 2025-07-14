@@ -2947,6 +2947,11 @@ static void update_buffer_level(PictureParentControlSet *ppcs, int encoded_frame
     // Clip the buffer level to the maximum specified buffer size.
     rc->bits_off_target = AOMMIN(rc->bits_off_target, rc->maximum_buffer_size);
     rc->buffer_level    = rc->bits_off_target;
+#ifdef SVT_ENABLE_USER_CALLBACKS
+    if (plugin_cbs.user_postencode_feedback) {
+        plugin_cbs.user_postencode_feedback(rc->buffer_level, ppcs->picture_number);
+    }
+#endif
 }
 /*********************************************************************************************
 * Reset rate_control_param into default values

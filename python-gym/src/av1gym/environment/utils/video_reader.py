@@ -1,14 +1,8 @@
-from dataclasses import dataclass
 import av
-import cv2
 import numpy as np
 from av1gym.environment.constants import SB_SIZE
 
-@dataclass
-class YUVFrame:
-    y_plane: np.ndarray # (w, h)
-    u_plane: np.ndarray # (w // 2, h // 2)
-    v_plane: np.ndarray # (w // 2, h // 2)
+from .video_utils import VideoUtils, YUVFrame
 
 class VideoReader:
     def __init__(self, path: str):
@@ -69,7 +63,7 @@ class VideoReader:
 
     def read_frame(self, frame_number: int) -> YUVFrame:
         ycrcb_frame = self.read_frame_raw(frame_number)
-        return self.get_yuv_planes(ycrcb_frame)
+        return VideoUtils.get_yuv_planes(ycrcb_frame, self.width, self.height)
 
     def get_frame_count(self) -> int:
         return self._ensure_frame_count()
@@ -79,41 +73,4 @@ class VideoReader:
         num_blocks_h = (self.height + SB_SIZE - 1) // SB_SIZE
         num_blocks_w = (self.width + SB_SIZE - 1) // SB_SIZE
         return num_blocks_w, num_blocks_h
-
-    @staticmethod
-    def compute_psnr(target: np.ndarray, reference: np.ndarray) -> float:
-        return cv2.PSNR(target, reference)
-
-    @staticmethod
-    def compute_mse(target: np.ndarray, reference: np.ndarray) -> float:
-        return np.mean((target.astype(np.float32) - reference.astype(np.float32)) ** 2).astype(float)
     
-    @staticmethod
-    def compute_rmse(target: np.ndarray, reference: np.ndarray) -> float:
-        return np.sqrt(VideoReader.compute_mse(target, reference))
-    
-    def get_yuv_planes(self, frame: np.ndarray) -> YUVFrame:
-        """
-        Split a flattened *YUV420p* frame into Y, U, V planes.
-
-        Frame layout (planar, 8 bit):
-            Y  :  w × h           bytes
-            U  : (w/2) × (h/2)    bytes
-            V  : (w/2) × (h/2)    bytes
-        """
-        y_size  = self.width * self.height
-        uv_size = (self.width // 2) * (self.height // 2)
-        
-        expected = y_size + 2 * uv_size
-        if frame.size != y_size + 2 * uv_size:
-            raise ValueError(
-                f"Unexpected frame length. Got {frame.size} bytes, "
-                f"expected {expected} for {self.width}×{self.height} YUV420p."
-            )
-
-        linear_frame = frame.ravel()
-        y_plane = linear_frame[:y_size].reshape((self.height, self.width))
-        u_plane = linear_frame[y_size : y_size + uv_size].reshape((self.height // 2, self.width // 2))
-        v_plane = linear_frame[y_size + uv_size :].reshape((self.height // 2, self.width // 2))
-
-        return YUVFrame(y_plane, u_plane, v_plane)

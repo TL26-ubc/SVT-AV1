@@ -108,7 +108,7 @@ int init_callbacks()
     }
     g_callbacks[0]->n_args = 6; // GetDeltaQOffset
     g_callbacks[1]->n_args = 3; // RecvPictureFeedback
-    g_callbacks[2]->n_args = 1; // RecvPostEncodeStats //TODO
+    g_callbacks[2]->n_args = 2; // RecvPostEncodeStats
     return 0;
 }
 

@@ -39,10 +39,29 @@ class Feedback:
     """
     picture_number: int
     bitstream_size: int
+    buffer_level: int
     encoded_frame_data: np.ndarray
+
+@dataclass
+class PictureFeedback:
+    picture_number: int
+    bitstream_size: int
+    encoded_frame_data: av.VideoFrame
+
+@dataclass
+class PostencodeFeedback:
+    picture_number: int
+    buffer_level: int
 
 global the_only_object
 the_only_object = None
+
+def postencode_feedback_trampoline(
+    buffer_level: int, 
+    picture_number: int
+):
+    assert the_only_object is not None
+    the_only_object.postencode_feedback(buffer_level, picture_number)
 
 def picture_feedback_trampoline(
     packet: bytes, 
@@ -87,7 +106,8 @@ class Av1Runner:
         # Synchronization
         self.observation_queue: Queue[Observation] = Queue(maxsize=1) # Encoder provides observation
         self.action_queue: Queue[Action] = Queue(maxsize=1) # RL provides action
-        self.feedback_queue: Queue[Feedback] = Queue() # Encoder provides feedback to RL
+        self.picture_feedback_queue: Queue[PictureFeedback] = Queue() # Encoder provides feedback to RL
+        self.postencode_feedback_queue: Queue[PostencodeFeedback] = Queue() # Encoder provides feedback to RL
         self.encoder_thread: threading.Thread | None = None # Encoding thread
 
     def run(self, output_path: str | None = None, block: bool = False):
@@ -109,14 +129,14 @@ class Av1Runner:
         if block:
             self.encoder_thread.join()
 
-    def _run_encoder(self, output_path: str | None = None):
+    def _run_encoder(self, output_path: str | None = None, tbr: int = 100):
         print("Starting encoder thread...")
     
         args = {
             "input": self.video.path,
             "pred_struct": 1,
             "rc": 2,
-            "tbr": 100,
+            "tbr": tbr,
             "enable_stat_report": True,
         }
 
@@ -133,6 +153,7 @@ class Av1Runner:
         encoder.register_callbacks(
             get_deltaq_offset=get_deltaq_offset_trampoline,
             picture_feedback=picture_feedback_trampoline,
+            postencode_feedback=postencode_feedback_trampoline,
         )
 
     def reset(self):
@@ -152,8 +173,26 @@ class Av1Runner:
         while not self.action_queue.empty():
             self.action_queue.get_nowait()
 
-        while not self.feedback_queue.empty():
-            self.feedback_queue.get_nowait()
+        while not self.picture_feedback_queue.empty():
+            self.picture_feedback_queue.get_nowait()
+
+        while not self.postencode_feedback_queue.empty():
+            self.postencode_feedback_queue.get_nowait()
+
+    def postencode_feedback(self, buffer_level: int, picture_number: int):
+        """
+        Callback for receiving post encoded picture data from the C encoder.
+        This sends feedback to the RL environment.
+        """
+
+        # Prepare feedback for RL environment
+        feedback_data = PostencodeFeedback(
+            picture_number = picture_number,
+            buffer_level = buffer_level,
+        )
+
+        # Send feedback to RL environment (non-blocking)
+        self.postencode_feedback_queue.put_nowait(feedback_data)
 
     def picture_feedback(self, packet: bytes, size: int, picture_number: int):
         """
@@ -162,17 +201,16 @@ class Av1Runner:
         """
         self.bitstream.append(packet)
         last_frame = self.decoder.append(packet)
-        yuv_framearray = last_frame.to_ndarray(format="yuv420p")
 
         # Prepare feedback for RL environment
-        feedback_data = Feedback(
+        feedback_data = PictureFeedback(
             picture_number = picture_number,
             bitstream_size = size,
-            encoded_frame_data = yuv_framearray,
+            encoded_frame_data = last_frame,
         )
 
         # Send feedback to RL environment (non-blocking)
-        self.feedback_queue.put_nowait(feedback_data)
+        self.picture_feedback_queue.put_nowait(feedback_data)
 
     def get_deltaq_offset(
         self, 
@@ -237,7 +275,17 @@ class Av1Runner:
         Wait for feedback from encoder.
         Called by RL environment to get encoding results.
         """
-        return self.feedback_queue.get()
+        pic_feedback = self.picture_feedback_queue.get()
+        post_feedback = self.postencode_feedback_queue.get()
+
+        assert pic_feedback.picture_number == post_feedback.picture_number
+
+        return Feedback(
+            picture_number = pic_feedback.picture_number,
+            bitstream_size = pic_feedback.bitstream_size,
+            buffer_level = post_feedback.buffer_level,
+            encoded_frame_data = pic_feedback.encoded_frame_data.to_ndarray(format="yuv420p"),
+        )
     
     def save_bitstream_to_file(self, output_path: str):
         self.decoder.save_video(output_path)

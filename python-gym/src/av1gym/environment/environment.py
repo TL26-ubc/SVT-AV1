@@ -8,9 +8,10 @@ import math
 
 from ..pyencoder import SuperBlockInfo
 from .runner import FrameType
-from .runner import Av1Runner, Feedback
+from .runner import Av1Runner, Feedback, Observation
 from .utils.video_reader import VideoReader
 from .constants import QP_MIN, QP_MAX, SB_SIZE
+from .utils.video_utils import VideoUtils
 
 class YUVPlaneDict(TypedDict):
     y_plane: np.ndarray # (w, h)
@@ -102,7 +103,24 @@ class Av1GymEnv(gym.Env):
         # Episode management
         self.current_frame = 0
         self.terminated = False
-        
+
+        # Get initial run data
+        self.default_obs: list[Observation] = []
+        self.default_feedbacks: list[Feedback] = []
+        self.av1_runner.run()
+
+        for _ in range(self.num_frames):
+            obs = self.av1_runner.wait_for_next_observation()
+            self.av1_runner.send_action_response(skip=True)
+            feedback = self.av1_runner.wait_for_feedback()
+            
+            self.default_obs.append(obs)
+            self.default_feedbacks.append(feedback)
+
+        self.av1_runner.join()
+        assert len(self.default_obs) is self.num_frames
+        assert len(self.default_feedbacks) is self.num_frames
+
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
     def reset(
         self, 
@@ -181,9 +199,9 @@ class Av1GymEnv(gym.Env):
         
         # Compute info
         postencoded_frame = feedback.encoded_frame_data
-        postencoded_frame_planes = self.video_reader.get_yuv_planes(postencoded_frame)
+        postencoded_frame_planes = VideoUtils.get_yuv_planes(postencoded_frame, self.frame_w, self.frame_h)
         original_frame = self.video_reader.read_frame(frame_number=feedback.picture_number)
-        y_psnr = self.video_reader.compute_psnr(postencoded_frame_planes.y_plane, original_frame.y_plane)
+        y_psnr = VideoUtils.compute_psnr(postencoded_frame_planes.y_plane, original_frame.y_plane)
 
         info = {
             "frame_number": self.current_frame,
@@ -280,13 +298,29 @@ class Av1GymEnv(gym.Env):
         postencoded_frame = feedback.encoded_frame_data
 
         # Convert to yuv planes
-        postencoded_frame_planes = self.video_reader.get_yuv_planes(postencoded_frame)
+        postencoded_frame_planes = VideoUtils.get_yuv_planes(postencoded_frame, self.frame_w, self.frame_h)
         original_frame = self.video_reader.read_frame(frame_number=feedback.picture_number)
         
         # Calculate mse as reward
-        mse = VideoReader.compute_mse(postencoded_frame_planes.y_plane, original_frame.y_plane)
-        
-        return mse
+        mse = VideoUtils.compute_mse(postencoded_frame_planes.y_plane, original_frame.y_plane)
+
+        baseline_bits = self.default_feedbacks[self.current_frame].bitstream_size
+        baseline_buffer_level = self.default_feedbacks[self.current_frame].buffer_level 
+        baseline_buffer_level = 1e-6 if baseline_buffer_level == 0 else baseline_buffer_level
+
+        acceptable_frame_excess = 0.20 # 20%
+        acceptable_total_excess = 0.05 # 5%
+
+        frame_excess = (feedback.bitstream_size - baseline_bits) / baseline_bits
+        total_excess = (baseline_buffer_level - feedback.buffer_level) / baseline_buffer_level
+
+        frame_excess = max(0.0, frame_excess - acceptable_frame_excess)
+        total_excess = max(0.0, total_excess - acceptable_total_excess)
+
+        quality_reward = -mse / 1e4
+        bitrate_penalty = self.lambda_rd * (min(frame_excess, 0.5)**2 + min(total_excess, 0.5)**2)
+        print(quality_reward, bitrate_penalty, frame_excess, total_excess)
+        return quality_reward - bitrate_penalty
 
     def _check_termination_conditions(self):
         """Check if episode should terminate"""
