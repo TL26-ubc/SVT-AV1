@@ -18,6 +18,11 @@ fi
 output_dir="$4"
 if [ -z "$output_dir" ]; then
     output_dir="output_models"
+    # check if the directory exists, if not create it
+    if [ ! -d "$output_dir" ]; then
+        mkdir -p "$output_dir"
+        echo "Created output directory: $output_dir"
+    fi
 fi
 
 python av1env-training/src/train_refactor.py \
