@@ -27,8 +27,6 @@ install.strip = false
 [tool.scikit-build.cmake]
 define = { SVT_ENABLE_USER_CALLBACKS = "ON" }
 args = [
-  "-DCMAKE_C_FLAGS=-g",
-  "-DCMAKE_CXX_FLAGS=-g",
   "-DCMAKE_INSTALL_DO_STRIP=OFF",
   "-DFROM_PIP_INSTALL=1",
 ]

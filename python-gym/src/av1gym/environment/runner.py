@@ -110,7 +110,7 @@ class Av1Runner:
         self.postencode_feedback_queue: Queue[PostencodeFeedback] = Queue() # Encoder provides feedback to RL
         self.encoder_thread: threading.Thread | None = None # Encoding thread
 
-    def run(self, output_path: str | None = None, block: bool = False):
+    def run(self, output_path: str | None = None, tbr: int = 100, block: bool = False):
         """
         Start the encoder in a new thread.
         If block is True, wait for the encoder to finish.
@@ -120,7 +120,7 @@ class Av1Runner:
 
         self.encoder_thread = threading.Thread(
             target=self._run_encoder,
-            args=(output_path,),
+            args=(output_path, tbr),
             daemon=True,
             name="EncoderThread"
         )

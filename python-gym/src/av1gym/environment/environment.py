@@ -107,7 +107,7 @@ class Av1GymEnv(gym.Env):
         # Get initial run data
         self.default_obs: list[Observation] = []
         self.default_feedbacks: list[Feedback] = []
-        self.av1_runner.run()
+        self.av1_runner.run(tbr=600)
 
         for _ in range(self.num_frames):
             obs = self.av1_runner.wait_for_next_observation()
