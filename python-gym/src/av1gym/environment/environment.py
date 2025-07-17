@@ -38,12 +38,14 @@ class Av1GymEnv(gym.Env):
         output_dir: str,
         *,
         lambda_rd: float = 0.1,
+        tbr: int = 600,
     ):
         super().__init__()
         self.video_path = Path(video_path)
         self.output_dir = Path(output_dir)
 
         self.lambda_rd = lambda_rd
+        self.tbr = tbr
         self._episode_done = threading.Event()
 
         # Initialize the VideoReader
@@ -113,7 +115,7 @@ class Av1GymEnv(gym.Env):
             obs = self.av1_runner.wait_for_next_observation()
             self.av1_runner.send_action_response(skip=True)
             feedback = self.av1_runner.wait_for_feedback()
-            
+
             self.default_obs.append(obs)
             self.default_feedbacks.append(feedback)
 
@@ -138,7 +140,7 @@ class Av1GymEnv(gym.Env):
         self.terminated = False
 
         # Start encoder in separate thread
-        self.av1_runner.run()
+        self.av1_runner.run(tbr=self.tbr)
 
         # Get initial observation
         initial_obs = self._get_next_observation()
@@ -305,7 +307,7 @@ class Av1GymEnv(gym.Env):
         mse = VideoUtils.compute_mse(postencoded_frame_planes.y_plane, original_frame.y_plane)
 
         baseline_bits = self.default_feedbacks[self.current_frame].bitstream_size
-        baseline_buffer_level = self.default_feedbacks[self.current_frame].buffer_level 
+        baseline_buffer_level = self.default_feedbacks[self.current_frame].buffer_level
         baseline_buffer_level = 1e-6 if baseline_buffer_level == 0 else baseline_buffer_level
 
         acceptable_frame_excess = 0.20 # 20%
@@ -319,8 +321,7 @@ class Av1GymEnv(gym.Env):
 
         quality_reward = -mse / 1e4
         bitrate_penalty = self.lambda_rd * (min(frame_excess, 0.5)**2 + min(total_excess, 0.5)**2)
-        print(quality_reward, bitrate_penalty, frame_excess, total_excess)
-        return quality_reward - bitrate_penalty
+        return (quality_reward - bitrate_penalty)
 
     def _check_termination_conditions(self):
         """Check if episode should terminate"""
