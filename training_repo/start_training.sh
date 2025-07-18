@@ -30,4 +30,5 @@ python av1env-training/src/train_refactor.py \
     --output_dir "$output_dir" \
     --total_iteration "$iterations" \
     --wandb True \
+    --batch_size 32 \
     2> >(tee $output_console >&2)
