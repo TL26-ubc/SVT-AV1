@@ -37,12 +37,14 @@ class Av1GymEnv(gym.Env):
         output_dir: str,
         *,
         lambda_rd: float = 0.1,
+        tbr: int = 600
     ):
         super().__init__()
         self.video_path = Path(video_path)
         self.output_dir = Path(output_dir)
 
         self.lambda_rd = lambda_rd
+        self.tbr = tbr
         self._episode_done = threading.Event()
 
         # Initialize the VideoReader
@@ -120,7 +122,7 @@ class Av1GymEnv(gym.Env):
         self.terminated = False
 
         # Start encoder in separate thread
-        self.av1_runner.run()
+        self.av1_runner.run(tbr=self.tbr)
 
         # Get initial observation
         initial_obs = self._get_next_observation()

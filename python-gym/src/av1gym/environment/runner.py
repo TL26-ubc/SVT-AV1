@@ -90,7 +90,7 @@ class Av1Runner:
         self.feedback_queue: Queue[Feedback] = Queue() # Encoder provides feedback to RL
         self.encoder_thread: threading.Thread | None = None # Encoding thread
 
-    def run(self, output_path: str | None = None, block: bool = False):
+    def run(self, output_path: str | None = None, block: bool = False, tbr=600):
         """
         Start the encoder in a new thread.
         If block is True, wait for the encoder to finish.
@@ -100,7 +100,7 @@ class Av1Runner:
 
         self.encoder_thread = threading.Thread(
             target=self._run_encoder,
-            args=(output_path,),
+            args=(output_path, tbr),
             daemon=True,
             name="EncoderThread"
         )
@@ -109,14 +109,14 @@ class Av1Runner:
         if block:
             self.encoder_thread.join()
 
-    def _run_encoder(self, output_path: str | None = None):
+    def _run_encoder(self, output_path: str | None = None, tbr=600):
         print("Starting encoder thread...")
     
         args = {
             "input": self.video.path,
             "pred_struct": 1,
             "rc": 2,
-            "tbr": 600,
+            "tbr": tbr,
             "enable_stat_report": True,
         }
 
