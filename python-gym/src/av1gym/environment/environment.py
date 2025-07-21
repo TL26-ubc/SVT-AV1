@@ -120,8 +120,8 @@ class Av1GymEnv(gym.Env):
             self.default_feedbacks.append(feedback)
 
         self.av1_runner.join()
-        assert len(self.default_obs) is self.num_frames
-        assert len(self.default_feedbacks) is self.num_frames
+        assert len(self.default_obs) == self.num_frames
+        assert len(self.default_feedbacks) == self.num_frames
 
     # https://gymnasium.farama.org/api/env/#gymnasium.Env.reset
     def reset(
